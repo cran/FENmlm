@@ -1,0 +1,13 @@
+83312f87e868e6e98d19e4b21fe728c6 *DESCRIPTION
+84e483be14893a8eced50c77a47c7220 *NAMESPACE
+07e417c743b5b4947603b6dde0da1c59 *R/ML_Families.R
+66ffa725d6c01aed39419d0e95100ada *R/MiscFuns.R
+25ab911b193fd926eed1496a2937fc68 *R/feNmlm.R
+a33d8c20e6275d89b0802bf629eb3376 *man/FENmlm-package.Rd
+26204b17d9f483ec46de18608aede006 *man/feNmlm.Rd
+72be7275fb747b6c0a9666b473499377 *man/femlm.Rd
+711761a54cb3e7930a23b27feb11176e *man/getFE.Rd
+98b25fca4fc0e820f29a1440880715e4 *man/print.feNmlm.Rd
+bf62b25076639d80bd2dbeb2b0962bf7 *man/res2table.Rd
+7d1830e4fb536818b2c61e60fcd469e8 *man/res2tex.Rd
+64d872a58b4d6ecc0958cf223182909b *man/summary.nlglm.Rd

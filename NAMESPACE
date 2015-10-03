@@ -1,0 +1,12 @@
+
+export(feNmlm,femlm,res2tex,res2table,getFE)
+
+S3method(print,feNmlm)
+S3method(summary,feNmlm)
+
+importFrom(numDeriv,hessian,jacobian,genD)
+#importFrom(Matrix,Matrix,Diagonal,rowSums)
+importFrom(stats, cor, dnorm, lm, model.matrix, nlminb, optim, pnorm, qnorm)
+import(Matrix)
+importFrom(MASS,ginv)
+
