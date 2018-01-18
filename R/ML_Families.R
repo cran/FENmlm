@@ -7,7 +7,7 @@
 #	- dummy: prend en compte la variable factorielle et renvoie l'optimisation vav de ces variables (seulement pour le Poisson pour l'instant). Je pourrais aussi changer les dummies par des sparse matrices mais je ne sais pas si cela ira plus vite.
 
 # TODO
-# write functions to get the STDerror of the  intercept and the dummies
+# write functions to get the STDerror of the intercept and the dummies
 #Write the scores.
 
 
@@ -16,7 +16,7 @@
 #	- probit
 #	- tobit
 #	- negative binomial
-#  - gaussian
+# - gaussian
 
 #***************************#
 #### ===== POISSON ===== ####
@@ -24,56 +24,71 @@
 
 ml_poisson = function(){
 	#Cette fonction renvoie une famille de fonctions
-	ll = function(y,mu,env,...){
-		sum(y*mu - exp(mu) - lfactorial(y))
+	ll = function(y, exp_mu, env, ...){
+		# browser()
+		# computing the lfactorial is costly
+		if(".lfactorial" %in% names(env)){
+			lfact = get(".lfactorial", env)
+		} else {
+			lfact = sum(lfactorial(y))
+			assign(".lfactorial", lfact, env)
+		}
+
+		# sum(y*mu - exp(mu)) - lfact
+
+		sum(y*log(exp_mu) - exp_mu) - lfact
 	}
 
-	#Derivee
-	ll_dl = function(y,mu,...){
-		c(y - exp(mu))
+	# Derivee
+	ll_dl = function(y, exp_mu, ...){
+		# c(y - exp(mu))
+		c(y - exp_mu)
 	}
 
-	#Derivee seconde
-	ll_d2 = function(y,mu,...){
-		-c(exp(mu))
+	# Derivee seconde
+	ll_d2 = function(y, exp_mu, ...){
+		# -c(exp(mu))
+		-c(exp_mu)
 	}
 
-	ll_TEST_score = function(y,mu,env,...){
+	ll_TEST_score = function(y, mu, env, ...){
 		#used to compute the scores numerically
 		#Not to be used by end-users
 		c(y*mu - exp(mu) - lfactorial(y))
 	}
 
-	expected.predictor = function(mu,env,...){
-		exp(mu)
+	expected.predictor = function(exp_mu, env, ...){
+		# exp(mu)
+		exp_mu
 	}
 
-	closedFormDummies = function(dum,S,y,mu,env,...){
-		#We send only the dummies (not the vector of dummies)
-		sum_y_i = as.vector(S%*%y)
-		mu_dum = as.vector(S%*%c(exp(mu)))
-		log(sum_y_i) - log(mu_dum)
+	closedFormDummies = function(dum, y, mu, env, sum_y, tableCluster, ...){
+		# We send only the dummies (not the vector of dummies)
+		# sum_y = as.vector(S%*%y)
+		# mu_dum = as.vector(S%*%c(exp(mu)))
+		mu_dum = cpp_tapply_vsum(length(tableCluster), c(exp(mu)), dum)
+		log(sum_y) - log(mu_dum)
 	}
 
-	ll0 = function(cste,y){
+	ll0 = function(cste, y){
 		n = length(y)
 		#la fonction minimise, on renvoie "-"
 		- (cste * sum(y) - n * exp(cste) - sum(lfactorial(y)))
 	}
 
-	grad0 = function(cste,y){
+	grad0 = function(cste, y){
 		#la fonction minimise, on renvoie "-"
 		- sum(y-exp(cste))
 	}
 
-	model0 = function(y,mu){
+	model0 = function(y, mu){
 		# TO be REDEFINED !!
 		x = log(sum(y)) - log(sum(exp(mu)))
 		ll = sum(y*x - exp(x) - lfactorial(y))
-		list(loglik=ll,constant=x)
+		list(loglik=ll, constant=x)
 	}
 
-	return(list(ll=ll,expected.predictor=expected.predictor,ll0=ll0,grad0=grad0,ll_TEST_score=ll_TEST_score,ll_dl=ll_dl,ll_d2=ll_d2,model0=model0,closedFormDummies=closedFormDummies))
+	return(list(ll=ll, expected.predictor=expected.predictor, ll0=ll0, grad0=grad0, ll_TEST_score=ll_TEST_score, ll_dl=ll_dl, ll_d2=ll_d2, model0=model0, closedFormDummies=closedFormDummies))
 }
 
 #************************#
@@ -83,51 +98,60 @@ ml_poisson = function(){
 
 ml_logit = function(){
 
-	ll = function(y,mu,env,...){
-		sum(y*mu - log(1+exp(mu)))
+	ll = function(y, exp_mu, env, ...){
+		# sum(y*mu - log(1+exp(mu)))
+		sum(y*log(exp_mu) - log(1+exp_mu))
 	}
 
-	#Derivee
-	ll_dl = function(y,mu,...){
-		c(y - exp(mu)/(1+exp(mu)))
+	# Derivee
+	ll_dl = function(y, exp_mu, ...){
+		# c(y - exp(mu)/(1+exp(mu)))
+		c(y - exp_mu/(1+exp_mu))
 	}
 
-	#Derivee seconde
-	ll_d2 = function(y,mu,...){
-		- c(exp(mu)/(1+exp(mu))^2)
+	# Derivee seconde
+	ll_d2 = function(y, exp_mu, ...){
+		# - c(exp(mu)/(1+exp(mu))^2)
+		- c(exp_mu/(1+exp_mu)^2)
 	}
 
-	ll_TEST_score = function(y,mu,env,...){
-		#used to compute the scores numerically
-		#Not to be used by end-users
+	ll_TEST_score = function(y, mu, env, ...){
+		# used to compute the scores numerically
+		# Not to be used by end-users
 		c(y*mu - log(1+exp(mu)))
 	}
 
-	expected.predictor = function(mu,env,...){
-		exp(mu)/(1+exp(mu))
+	expected.predictor = function(exp_mu, env, ...){
+		# exp(mu)/(1+exp(mu))
+		exp_mu/(1+exp_mu)
 	}
 
-	initDummy = function(S,y,mu,env,...){
-		#guess for the dummy:
+	initDummy = function(S, y, mu, env, ...){
+		# guess for the dummy:
 		ni1 = as.vector(S%*%y)
 		ni = rowSums(S)
 		log(ni1) - log(ni-ni1) - as.vector(S%*%mu)/ni
 	}
 
-	guessDummy = function(sum_y,n_group,mu,...){
-		#guess for the dummy:
+	guessDummy = function(sum_y, n_group, mu, ...){
+		# guess for the dummy:
 		log(sum_y) - log(n_group-sum_y) - mu
 	}
 
-	dum_fx = function(x,sum_y,S,mu,dum,...){
-		sum_y - as.vector(S%*%c(exp(mu+x[dum]) / (1+exp(mu+x[dum]))))
+	guessExpDummy = function(sum_y, n_group, exp_mu, ...){
+		#guess for the dummy:
+		sum_y / (n_group-sum_y) / exp_mu
 	}
 
-	dum_dfx = function(x,S,mu,dum){
+	dum_fx = function(x, sum_y, S, mu, dum, ...){
+		sum_y - as.vector(S%*%c(exp(mu+x[dum]) / (1 + exp(mu+x[dum]))))
+	}
+
+	dum_dfx = function(x, S, mu, dum){
 		-as.vector(S%*%c(exp(mu+x[dum]) / (1+exp(mu+x[dum]))^2))
 	}
 
-	ratio_fx_dfx = function(x,dum,S,y,mu,env,...){
+	ratio_fx_dfx = function(x, dum, S, y, mu, env, ...){
 		ni1 = as.vector(S%*%y)
 
 		m = as.vector(S%*%c(exp(mu+x[dum]) / (1+exp(mu+x[dum]))))
@@ -136,14 +160,14 @@ ml_logit = function(){
 		Value / Derivee
 	}
 
-	ll0 = function(cste,y){
+	ll0 = function(cste, y){
 		n = length(y)
-		#la fonction minimise, on renvoie "-"
+		# la fonction minimise, on renvoie "-"
 		- (cste*sum(y) - n*log(1+exp(cste)))
 	}
 
-	grad0 = function(cste,y){
-		#la fonction minimise, on renvoie "-"
+	grad0 = function(cste, y){
+		# la fonction minimise, on renvoie "-"
 		- sum(y-exp(cste)/(1+exp(cste)))
 	}
 
@@ -151,10 +175,10 @@ ml_logit = function(){
 		n = length(y)
 		x = log(sum(y)) - log(length(y) - sum(y))
 		ll = x*sum(y) - n*log(1+exp(x))
-		list(loglik=ll,constant=x)
+		list(loglik=ll, constant=x)
 	}
 
-	return(list(ll=ll,expected.predictor=expected.predictor,ll0=ll0,grad0=grad0,ll_TEST_score=ll_TEST_score,model0=model0,ll_dl=ll_dl,ll_d2=ll_d2,ratio_fx_dfx=ratio_fx_dfx,initDummy=initDummy,guessDummy=guessDummy,dum_fx=dum_fx,dum_dfx=dum_dfx))
+	return(list(ll=ll, expected.predictor=expected.predictor, ll0=ll0, grad0=grad0, ll_TEST_score=ll_TEST_score, model0=model0, ll_dl=ll_dl, ll_d2=ll_d2, ratio_fx_dfx=ratio_fx_dfx, initDummy=initDummy, guessDummy=guessDummy, dum_fx=dum_fx, dum_dfx=dum_dfx, guessExpDummy=guessExpDummy))
 }
 
 
@@ -163,179 +187,208 @@ ml_logit = function(){
 #*************************#
 
 ml_negbin = function(){
-	#Cette fonction renvoie une famille de fonctions
-	ll = function(y,mu,env,coef,...){
+	# Cette fonction renvoie une famille de fonctions
+	ll = function(y, exp_mu, env, coef, ...){
+		# computing the lgamma is costly
+		if(".lgamma" %in% names(env)){
+			lgamm = get(".lgamma", env)
+		} else {
+			lgamm = sum(lgamma(y + 1))
+			assign(".lgamma", lgamm, env)
+		}
+
 		theta = coef[".theta"]
-		#theta = get(".theta",env)
-		#theta = attr(mu,".theta")
-		sum(lgamma(theta+y) - lgamma(theta) - lgamma(y+1) + theta*log(theta) + y*mu - (theta+y)*log(theta+exp(mu)))
+		N = length(y)
+
+		# sum(lgamma(theta+y) + y*mu - (theta+y)*log(theta+exp(mu))) - lgamm + N*(- lgamma(theta) + theta*log(theta))
+		sum(lgamma(theta+y) + y*log(exp_mu) - (theta+y)*log(theta+exp_mu)) - lgamm + N*(- lgamma(theta) + theta*log(theta))
 	}
 
-	#Derivee
-	ll_dl = function(y,mu,coef,env,...){
+	# Derivee
+	ll_dl = function(y, exp_mu, coef, env, ...){
 		theta = coef[".theta"]
-		#theta = get(".theta",env)
-		#theta = attr(mu,".theta")
-		c(y - (theta+y)*exp(mu)/(theta+exp(mu)))
+
+		# c(y - (theta+y)*exp(mu)/(theta+exp(mu)))
+		c(y - (theta+y)*exp_mu/(theta+exp_mu))
 	}
 
-	#Derivee croisee
-	ll_dx_dother = function(y,mu,coef,env,...){
+	# Derivee croisee
+	ll_dx_dother = function(y, exp_mu, coef, env, ...){
 		#Means the second derivative of the LL wrt to the linear part and theta
 		theta = coef[".theta"]
-		#theta = get(".theta",env)
-		#theta = attr(mu,".theta")
-		c(-exp(mu)*(exp(mu)-y)/(theta+exp(mu))^2)
+
+		# c(-exp(mu)*(exp(mu)-y)/(theta+exp(mu))^2)
+		c(-exp_mu*(exp_mu-y)/(theta+exp_mu)^2)
 	}
 
-	#Derivee seconde:
-	ll_d2 = function(y,mu,coef,env,...){
+	# Derivee seconde:
+	ll_d2 = function(y, exp_mu, coef, env, ...){
 		theta = coef[".theta"]
-		#theta = get(".theta",env)
-		#theta = attr(mu,".theta")
-		- theta * (theta+y) * c(exp(mu)/(theta+exp(mu))^2)
+
+		# - theta * (theta+y) * c(exp(mu)/(theta+exp(mu))^2)
+		- theta * (theta+y) * c(exp_mu/(theta+exp_mu)^2)
 	}
 
-	ll_TEST_score = function(y,mu,env,coef,...){
-		#used to compute the scores numerically
-		#Not to be used by end-users
+	ll_TEST_score = function(y, exp_mu, env, coef, ...){
+		# used to compute the scores numerically
+		# Not to be used by end-users
 		theta = coef[length(coef)]
-		#theta = attr(mu,".theta")
-		c(lgamma(theta+y) - lgamma(theta) - lgamma(y+1) + theta*log(theta) + y*mu - (theta+y)*log(theta+exp(mu)))
+
+		# c(lgamma(theta+y) - lgamma(theta) - lgamma(y+1) + theta*log(theta) + y*mu - (theta+y)*log(theta+exp(mu)))
+		c(lgamma(theta+y) - lgamma(theta) - lgamma(y+1) + theta*log(theta) + y*log(exp_mu) - (theta+y)*log(theta+exp_mu))
 	}
 
-	grad.theta = function(theta,y,mu,...){
-		sum( psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp(mu)) - (theta+y)/(theta+exp(mu)) )
+	grad.theta = function(theta, y, exp_mu, ...){
+		# sum( psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp(mu)) - (theta+y)/(theta+exp(mu)) )
+		sum( psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp_mu) - (theta+y)/(theta+exp_mu) )
 	}
 
-	scores.theta = function(theta,y,mu){
-		psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp(mu)) - (theta+y)/(theta+exp(mu))
+	scores.theta = function(theta, y, exp_mu){
+		# psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp(mu)) - (theta+y)/(theta+exp(mu))
+		psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp_mu) - (theta+y)/(theta+exp_mu)
 	}
 
-	hess.theta = function(theta,y,mu){
-		sum( psigamma(theta+y,1) - psigamma(theta,1) + 1/theta - 1/(theta+exp(mu)) + (y-exp(mu))/(theta+exp(mu))^2 )
+	hess.theta = function(theta, y, exp_mu){
+		# sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp(mu)) + (y-exp(mu))/(theta+exp(mu))^2 )
+		sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp_mu) + (y-exp_mu)/(theta+exp_mu)^2 )
 	}
 
-	hess.thetaL = function(theta,jacob.mat,y,dxi_dbeta,dxi_dother,ll_d2,ll_dx_dother){
-		res = crossprod((jacob.mat+dxi_dbeta),dxi_dother*ll_d2+ll_dx_dother)
+	hess.thetaL = function(theta, jacob.mat, y, dxi_dbeta, dxi_dother, ll_d2, ll_dx_dother){
+		res = crossprod((jacob.mat+dxi_dbeta), dxi_dother*ll_d2+ll_dx_dother)
 		return(res)
 		#DEPREC
 		#if there's no dummies, then dxi_dbeta = 0
 # 		ll_dxdt = exp(mu)*(y-exp(mu))/(theta+exp(mu))^2
 #
 # 		d_mu = jacob.mat + dxi_dbeta
-# 		H = crossprod(d_mu,dxi_dbeta * ll_d2 + ll_dxdt)
+# 		H = crossprod(d_mu, dxi_dbeta * ll_d2 + ll_dxdt)
 #		#The old version was:
-#		#H = crossprod(d_mu,ll_dxdt)
+#		#H = crossprod(d_mu, ll_dxdt)
 # 		return(as.matrix(H))
 	}
 
-	hess_theta_part = function(theta,y,mu,dxi_dother,ll_dx_dother,ll_d2){
-		#La derivee vav de theta en prenant en compte les dummies
-		d2ll_d2theta = hess.theta(theta,y,mu)
+	hess_theta_part = function(theta, y, exp_mu, dxi_dother, ll_dx_dother, ll_d2){
+		# La derivee vav de theta en prenant en compte les dummies
+		d2ll_d2theta = hess.theta(theta, y, exp_mu)
 		res = sum(dxi_dother^2*ll_d2 + 2*dxi_dother*ll_dx_dother) + d2ll_d2theta
 		return(res)
-		#DEPREC -- when theta-conditionned
-# 		#Here we add the part of the Hessian
-# 		#That corresponds to the theta profiled
-# 		e_mu = exp(mu)
-# 		n = length(y)
-# # print(n)
-# 		#First we get the sum(d2ll_d2theta)
-# 		d2l_d2t = sum( psigamma(theta+y,1) - 1/(theta+e_mu) + (y-e_mu)/(theta+e_mu)^2 ) - n*psigamma(theta,1) + n*1/theta
-# # 		print(d2l_d2t)
-#
-# 		#Then we get the dtheta_dbeta
-# 		d2ll_dxdt = e_mu*(y-e_mu)/(theta+e_mu)^2
-#
-# 		dt_db = - colSums(jacob.mat * d2ll_dxdt) / d2l_d2t
-#
-# 		#Finally:
-# # 		print(tcrossprod(dt_db) * d2l_d2t)
-# 		- tcrossprod(dt_db) * d2l_d2t
-
 	}
 
-	scores_theta_part = function(theta,jacob.mat,y,mu){
-		#We add the part of the score due to the profiled theta
+	scores_theta_part = function(theta, jacob.mat, y, mu){
+		# We add the part of the score due to the profiled theta
 		e_mu = exp(mu)
 		n = length(y)
 
-		#First we get the sum(d2ll_d2theta)
-		d2l_d2t = sum( psigamma(theta+y,1) - 1/(theta+e_mu) + (y-e_mu)/(theta+e_mu)^2 ) - n*psigamma(theta,1) + n*1/theta
+		# First we get the sum(d2ll_d2theta)
+		d2l_d2t = sum( psigamma(theta+y, 1) - 1/(theta+e_mu) + (y-e_mu)/(theta+e_mu)^2 ) - n*psigamma(theta, 1) + n*1/theta
 
-		#Then we get the dtheta_dbeta
+		# Then we get the dtheta_dbeta
 		d2ll_dxdt = e_mu*(y-e_mu)/(theta+e_mu)^2
 		dt_db = - colSums(jacob.mat * d2ll_dxdt) / d2l_d2t
 
-		#We also get dll_dtheta
+		# We also get dll_dtheta
 		dl_dt = psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+e_mu) - (theta+y)/(theta+e_mu)
 
-		#Finally:
-		tcrossprod(dl_dt,dt_db)
+		# Finally:
+		tcrossprod(dl_dt, dt_db)
 	}
 
-	expected.predictor = function(mu,env,...){
-		exp(mu)
+	expected.predictor = function(exp_mu, env, ...){
+		# exp(mu)
+		exp_mu
 	}
 
-	ratio_fx_dfx = function(x,dum,S,y,mu,env,coef,...){
+	ratio_fx_dfx = function(x, dum, S, y, mu, env, coef, ...){
 		sum_yi = as.vector(S%*%y)
 		theta = coef[".theta"]
- 		#theta = get(".theta",env)
+ 		#theta = get(".theta", env)
 		m = as.vector(S%*%c((theta+y) * exp(mu+x[dum]) / (theta+exp(mu+x[dum]))))
 		Value = c(sum_yi - m)
 		Derivee = - as.vector(S%*%c(theta * (theta+y) * exp(mu+x[dum]) / (theta+exp(mu+x[dum]))^2))
 		Value / Derivee
 	}
 
-	initDummy = function(S,y,mu,env,...){
+	initDummy = function(S, y, mu, env, ...){
 		sum_yi = as.vector(S%*%y)
 		ni = rowSums(S)
 		log(sum_yi) - log(ni) - as.vector(S%*%mu)/ni
 	}
 
-	guessDummy = function(sum_y,n_group,mu,...){
+	guessDummy = function(sum_y, n_group, mu, ...){
 		#guess for the dummy:
 		log(sum_y) - log(n_group) - mu
 	}
 
-	dum_fx = function(x,sum_y,S,mu,dum,y,coef,env,...){
+	guessExpDummy = function(sum_y, n_group, exp_mu, ...){
+		#guess for the dummy:
+		sum_y / n_group / exp_mu
+	}
+
+	dum_fx = function(x, sum_y, S, mu, dum, y, coef, env, ...){
 		theta = coef[".theta"]
-		#theta = get(".theta",env)
+		#theta = get(".theta", env)
 		sum_y - as.vector(S%*%c((theta+y) * exp(mu+x[dum]) / (theta+exp(mu+x[dum]))))
 	}
 
-	dum_dfx = function(x,S,mu,dum,y,coef,env,...){
+	dum_dfx = function(x, S, mu, dum, y, coef, env, ...){
 		theta = coef[".theta"]
-		#theta = get(".theta",env)
+		# theta = get(".theta", env)
 		- as.vector(S%*%c(theta * (theta+y) * exp(mu+x[dum]) / (theta+exp(mu+x[dum]))^2))
 	}
 
-	ll0 = function(coef,y){
+	ll0 = function(coef, y){
 		n = length(y)
-		#La fonction minimise, on renvoie "-"
+		# La fonction minimise, on renvoie "-"
 		theta = coef[2]
 		cste = coef[1]
 		ll = sum(lgamma(theta+y) - lgamma(theta) - lgamma(y+1) + theta*log(theta) + y*cste - (theta+y)*log(theta+exp(cste)))
 		-ll
 	}
 
-	grad0 = function(coef,y){
-		#La fonction minimise, on renvoie "-"
+	grad0 = function(coef, y){
+		# La fonction minimise, on renvoie "-"
 		theta = coef[2]
 		cste = coef[1]
 
 		grad.cste = sum(y - (theta+y)*exp(cste)/(theta+exp(cste)))
 		grad.theta = sum(psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp(cste)) - (theta+y)/(theta+exp(cste)))
 
-		- c(grad.cste,grad.theta)
+		- c(grad.cste, grad.theta)
 	}
 
-	init_theta = function(y,mu){
-		#We know that when theta is close to 0, the foc tends to +infinity
-		#So starting from a positive value is good because we are then 100%
-		#sure that we will find a solution
+	ll0_theta = function(theta, y, mean_y, invariant){
+		# La fonction minimise, on renvoie "-"
+		# print("ll")
+		N = length(y)
+
+		ll = sum(lgamma(theta+y)) + invariant + N*(- mean_y*log(theta+mean_y) - lgamma(theta) + theta*log(theta) - theta*log(theta+mean_y))
+		-ll
+	}
+
+	grad0_theta = function(theta, y, mean_y, ...){
+		# La fonction minimise, on renvoie "-"
+		# print("grad")
+		N = length(y)
+
+		grad.theta = sum(psigamma(theta+y)) + N*(- mean_y/(theta+mean_y) - psigamma(theta) + log(theta) + 1 - log(theta+mean_y) - theta/(theta+mean_y))
+
+		- grad.theta
+	}
+
+	hess0_theta = function(theta, y, mean_y, ...){
+		# La fonction minimise, on renvoie "-"
+		# print("hess")
+		N = length(y)
+
+		hess.theta = sum(psigamma(theta+y, 1)) + N*(- psigamma(theta, 1) + 1/theta - 1/(theta+mean_y))
+
+		- as.matrix(hess.theta)
+	}
+
+	init_theta = function(y, mu){
+		# We know that when theta is close to 0, the foc tends to +infinity
+		# So starting from a positive value is good because we are then 100%
+		# sure that we will find a solution
 		e_mu = exp(mu)
 		n = length(y)
 
@@ -344,14 +397,14 @@ ml_negbin = function(){
 		theta
 	}
 
-	ratio_fx_dfx_theta = function(theta,y,mu){
+	ratio_fx_dfx_theta = function(theta, y, mu){
 		e_mu = exp(mu)
 		n = length(y)
 
-		#fonction pour optimiser theta
-		#Il faut juste empecher la fonction d'aller trop a gauche
+		# fonction pour optimiser theta
+		# Il faut juste empecher la fonction d'aller trop a gauche
 		Value = sum(psigamma(theta+y) - log(1+e_mu/theta) - (y-e_mu)/(theta+e_mu)) - n*psigamma(theta)
-		Derivee = sum(psigamma(theta+y,1) - 1/(theta+e_mu) + (y-e_mu)/(theta+e_mu)^2) - n*psigamma(theta,1) + n*1/theta
+		Derivee = sum(psigamma(theta+y, 1) - 1/(theta+e_mu) + (y-e_mu)/(theta+e_mu)^2) - n*psigamma(theta, 1) + n*1/theta
 		if( (theta - Value / Derivee) <= 0){
 			return(theta/2)
 		} else{
@@ -359,19 +412,19 @@ ml_negbin = function(){
 		}
 	}
 
-	get_theta = function(theta,y,mu){
-		#Attention a la precision de calcul! c'est important
-		#quand on calcule les dummies
+	get_theta = function(theta, y, mu){
+		# Attention a la precision de calcul! c'est important
+		# quand on calcule les dummies
 		show=FALSE
-		if(show) cat("\n\nENTRANCE theta = ",theta,"\n")
-		#This function gets the optimal value of theta wrt mu
+		if(show) cat("\n\nENTRANCE theta = ", theta, "\n")
+		# This function gets the optimal value of theta wrt mu
 		e_mu = exp(mu)
 		n = length(y)
 
 		# Condition de Premier Ordre:
 		cpo = function(theta) sum(psigamma(theta+y) - log(1+e_mu/theta) - (y-e_mu)/(theta+e_mu)) - n*psigamma(theta)
 		# Condition de Second Ordre
-		cso = function(theta) sum(psigamma(theta+y,1) - 1/(theta+e_mu) + (y-e_mu)/(theta+e_mu)^2) - n*psigamma(theta,1) + n*1/theta
+		cso = function(theta) sum(psigamma(theta+y, 1) - 1/(theta+e_mu) + (y-e_mu)/(theta+e_mu)^2) - n*psigamma(theta, 1) + n*1/theta
 
 		# Step 1: get the boundaries + set the starting value
 		Value = sum(psigamma(theta+y) - log(1+e_mu/theta) - (y-e_mu)/(theta+e_mu)) - n*psigamma(theta)
@@ -403,9 +456,9 @@ ml_negbin = function(){
 			else borne_sup = x1
 
 			if(show){
-				cat("\nStart iter",iter,":")
-				cat(sprintf("\nx1: %.10f\nValues: %e\n",x1,Value))
-				cat(sprintf("borne_inf: %.10f\nborne_sup: %.10f\n",borne_inf,borne_sup))
+				cat("\nStart iter", iter, ":")
+				cat(sprintf("\nx1: %.10f\nValues: %e\n", x1, Value))
+				cat(sprintf("borne_inf: %.10f\nborne_sup: %.10f\n", borne_inf, borne_sup))
 			}
 
 			# 2nd step: NR iteration
@@ -413,13 +466,13 @@ ml_negbin = function(){
 			Derivee = cso(x1)
 			x1 = x0 - Value / Derivee
 
-			if(show) cat(sprintf("X new (NR): %.10f\n",x1))
+			if(show) cat(sprintf("X new (NR): %.10f\n", x1))
 
 			#3rd step: dichotomy (if necessary)
 			# Update of the value if it goes out of the boundaries
 			if(x1>=borne_sup | x1<=borne_inf) x1 = (borne_inf + borne_sup)/2
 
-			if(show) cat(sprintf("X new (dicho): %.10f\n",x1))
+			if(show) cat(sprintf("X new (dicho): %.10f\n", x1))
 
 			if((iter<-iter+1)==itermax) stop("The algorithm getting the dummies diverged.\nThe error is unknown.")
 			if(anyNA(x1)) stop("The algorithm getting the dummies diverged.\nThe error is unknown.")
@@ -428,30 +481,32 @@ ml_negbin = function(){
 		x1
 	}
 
-	theta0 = function(y){
-		# Quand il y a seulement la constante!
-		y_bar = mean(y)
-		n = length(y)
+	# Deprecated
+	# theta0 = function(y){
+	# 	# Quand il y a seulement la constante!
+	# 	y_bar = mean(y)
+	# 	n = length(y)
+	#
+	# 	ratio_fx_dfx_theta = function(x){
+	# 		Value = sum(psigamma(x+y) - (x+y)/(x+y_bar)) + n*( -psigamma(x) + log(x) + 1 - log(x+y_bar))
+	# 		Derivee = sum(psigamma(x+y, 1)) + n*( -psigamma(x, 1) + 1/x - 1/(x+y_bar))
+	# 		Value / Derivee
+	# 	}
+	# 	#il faut trouver la bonne initialisation de theta!
+	# 	init=555
+	# 	theta0 = qNR(init, ratio_fx_dfx_theta)
+	#
+	# }
 
-		ratio_fx_dfx_theta = function(x){
-			Value = sum(psigamma(x+y) - (x+y)/(x+y_bar)) + n*( -psigamma(x) + log(x) + 1 - log(x+y_bar))
-			Derivee = sum(psigamma(x+y,1)) + n*( -psigamma(x,1) + 1/x - 1/(x+y_bar))
-			Value / Derivee
-		}
-		#il faut trouver la bonne initialisation de theta!
-		init=555
-		theta0 = qNR(init,ratio_fx_dfx_theta)
+	# deprecated
+	# model0 = function(y){
+	# 	x = log(mean(y))
+	# 	theta = theta0(y)
+	# 	#get theta!
+	# 	list(loglik=ll, constant=x)
+	# }
 
-	}
-
-	model0 = function(y){
-		x = log(mean(y))
-		theta = theta0(y)
-		#get theta!
-		list(loglik=ll,constant=x)
-	}
-
-	return(list(ll=ll,expected.predictor=expected.predictor,ll0=ll0,grad0=grad0,ll_TEST_score=ll_TEST_score,hess.thetaL=hess.thetaL,hess.theta=hess.theta,grad.theta=grad.theta,scores.theta=scores.theta,ll_dl=ll_dl,ll_d2=ll_d2,ratio_fx_dfx=ratio_fx_dfx,initDummy=initDummy,guessDummy=guessDummy,dum_fx=dum_fx,dum_dfx=dum_dfx,ratio_fx_dfx_theta=ratio_fx_dfx_theta,init_theta=init_theta,hess_theta_part=hess_theta_part,scores_theta_part=scores_theta_part,get_theta=get_theta,ll_dx_dother=ll_dx_dother))
+	return(list(ll=ll, expected.predictor=expected.predictor, ll0=ll0, grad0=grad0, ll0_theta=ll0_theta, grad0_theta=grad0_theta, hess0_theta=hess0_theta, ll_TEST_score=ll_TEST_score, hess.thetaL=hess.thetaL, hess.theta=hess.theta, grad.theta=grad.theta, scores.theta=scores.theta, ll_dl=ll_dl, ll_d2=ll_d2, ratio_fx_dfx=ratio_fx_dfx, initDummy=initDummy, guessDummy=guessDummy, dum_fx=dum_fx, dum_dfx=dum_dfx, ratio_fx_dfx_theta=ratio_fx_dfx_theta, init_theta=init_theta, hess_theta_part=hess_theta_part, scores_theta_part=scores_theta_part, get_theta=get_theta, ll_dx_dother=ll_dx_dother, guessExpDummy=guessExpDummy))
 }
 
 
@@ -463,72 +518,72 @@ ml_negbin = function(){
 ml_probit = function(){
 
 	IHR = function(x){
-		#Actually it's the inverse hazard rate
-		#I have to create such a function to compute
-		#properly the hazard rate that is not numerically
-		#computable for large values of x
-		#yet it tends to x
+		# Actually it's the inverse hazard rate
+		# I have to create such a function to compute
+		# properly the hazard rate that is not numerically
+		# computable for large values of x
+		# yet it tends to x
 		v = dnorm(x)/pnorm(-x)
 		qui = which(is.na(v) | !is.finite(v))
 		v[qui] = x[qui]
 		v
 	}
 
-	ll = function(y,mu,env,...){
+	ll = function(y, mu, env, ...){
 		mu = mu * (2*y-1)
-		sum(pnorm(mu,log.p = TRUE))
+		sum(pnorm(mu, log.p = TRUE))
 	}
 
 	#Derivee
-	ll_dl = function(y,mu,...){
+	ll_dl = function(y, mu, ...){
 		y_sign = 2*y-1
 		#c(y_sign * dnorm(mu)/pnorm(mu*y_sign))
 		c(y_sign * IHR(-mu*y_sign))
 	}
 
 	#Derivee seconde
-	ll_d2 = function(y,mu,...){
+	ll_d2 = function(y, mu, ...){
 		y_sign = 2*y-1
 		#dnorm(mu)/pnorm(mu*y_sign)*(-(y_sign*mu) - y_sign*dnorm(mu)/pnorm(y_sign*mu))
 		IHR(-mu*y_sign)*(-(y_sign*mu) - y_sign*IHR(-y_sign*mu))
 	}
 
-	ll_TEST_score = function(y,mu,env,...){
+	ll_TEST_score = function(y, mu, env, ...){
 		#used to compute the scores numerically
 		#Not to be used by end-users
 		mu = mu * (2*y-1)
-		c(-pnorm(mu,log.p = TRUE))
+		c(-pnorm(mu, log.p = TRUE))
 	}
 
-	expected.predictor = function(mu,env,...){
+	expected.predictor = function(mu, env, ...){
 		#mu = mu * (2*y-1)#=>no, not the LL, the exp.pred.
 		pnorm(mu)
 	}
 
-	initDummy = function(S,y,mu,env,...){
+	initDummy = function(S, y, mu, env, ...){
 		#guess for the dummy:
 		#we assume mu is at the average level
 		ni1 = as.vector(S%*%y)
 		ni = rowSums(S)
-		qnorm(ni1/ni)-as.vector(S%*%mu)/ni
+		stats::qnorm(ni1/ni)-as.vector(S%*%mu)/ni
 	}
 
-	guessDummy = function(sum_y,n_group,mu,...){
+	guessDummy = function(sum_y, n_group, mu, ...){
 		#Dummy when mu is constant within the group
-		qnorm(sum_y/n_group)-mu
+		stats::qnorm(sum_y/n_group)-mu
 	}
 
-	dum_fx = function(x,sum_y,S,mu,dum,y,coef,env,...){
+	dum_fx = function(x, sum_y, S, mu, dum, y, coef, env, ...){
 		mu = mu + x[dum]
 		as.vector(S%*%c(IHR(-mu) * (y/pnorm(-mu) - IHR(mu))))
 	}
 
-	dum_dfx = function(x,sum_y,S,mu,dum,y,coef,env,...){
+	dum_dfx = function(x, sum_y, S, mu, dum, y, coef, env, ...){
 		stop("not yet implemented")
 		-as.vector(S%*%c(exp(mu+x[dum]) / (1+exp(mu+x[dum]))^2))
 	}
 
-	ratio_fx_dfx = function(x,dum,S,y,mu,env,...){
+	ratio_fx_dfx = function(x, dum, S, y, mu, env, ...){
 		stop("not yet implemented")
 		mu = mu + x[dum]
 		Value = as.vector(S%*%c(IHR(-mu) * (y/pnorm(-mu) - IHR(mu))))
@@ -537,13 +592,13 @@ ml_probit = function(){
 		Value / Derivee
 	}
 
-	ll0 = function(cste,y){
+	ll0 = function(cste, y){
 		y_sign = 2*y-1
 		#la fonction minimise, on renvoie "-"
-		- sum(pnorm(y_sign*cste,log.p = TRUE))
+		- sum(pnorm(y_sign*cste, log.p = TRUE))
 	}
 
-	grad0 = function(cste,y){
+	grad0 = function(cste, y){
 		#la fonction minimise, on renvoie "-"
 		y_sign = 2*y-1
 		-c(y_sign * dnorm(cste)/pnorm(cste*y_sign))
@@ -554,10 +609,10 @@ ml_probit = function(){
 		n = length(y)
 		x = log(sum(y)) - log(length(y) - sum(y))
 		ll = x*sum(y) - n*log(1+exp(x))
-		list(loglik=ll,constant=x)
+		list(loglik=ll, constant=x)
 	}
 
-	return(list(ll=ll,expected.predictor=expected.predictor,ll0=ll0,grad0=grad0,ll_TEST_score=ll_TEST_score,model0=model0,ll_dl=ll_dl,ll_d2=ll_d2,ratio_fx_dfx=ratio_fx_dfx,initDummy=initDummy,guessDummy=guessDummy,dum_fx=dum_fx,dum_dfx=dum_dfx))
+	return(list(ll=ll, expected.predictor=expected.predictor, ll0=ll0, grad0=grad0, ll_TEST_score=ll_TEST_score, model0=model0, ll_dl=ll_dl, ll_d2=ll_d2, ratio_fx_dfx=ratio_fx_dfx, initDummy=initDummy, guessDummy=guessDummy, dum_fx=dum_fx, dum_dfx=dum_dfx))
 }
 
 #***************************#
@@ -567,48 +622,50 @@ ml_probit = function(){
 
 ml_gaussian = function(){
 
-	ll = function(y,mu,env,...){
+	ll = function(y, mu, env, ...){
 		sigma = sqrt(mean((y-mu)^2))
 		n = length(y)
 		-1/2/sigma^2*sum((y-mu)^2) - n*log(sigma) - n*log(2*pi)/2
 	}
 
-	#Derivee
-	ll_dl = function(y,mu,env,...){
+	# Derivee
+	ll_dl = function(y, mu, env, ...){
 		sigma = sqrt(mean((y-mu)^2))
 		(y-mu)/sigma^2
 	}
 
-	#Derivee seconde
-	ll_d2 = function(y,mu,env,...){
+	# Derivee seconde
+	ll_d2 = function(y, mu, env, ...){
 		sigma = sqrt(mean((y-mu)^2))
-		rep(-1/sigma^2,length(y))
+		rep(-1/sigma^2, length(y))
 	}
 
-	ll_TEST_score = function(y,mu,env,...){
-		#used to compute the scores numerically
-		#Not to be used by end-users
+	ll_TEST_score = function(y, mu, env, ...){
+		# used to compute the scores numerically
+		# Not to be used by end-users
 		sigma = sqrt(mean((y-mu)^2))
 		c(-1/2/sigma^2*(y-mu)^2 - log(sigma) - log(2*pi)/2)
 	}
 
-	expected.predictor = function(mu,env,...){
+	expected.predictor = function(mu, env, ...){
 		mu
 	}
 
-	closedFormDummies = function(dum,S,y,mu,env,...){
-		#We send only the dummies (not the vector of dummies)
-		as.vector(S%*%(y-mu)) / as.vector(rowSums(S))
+	closedFormDummies = function(dum, y, mu, env, sum_y, tableCluster, ...){
+		# We send only the dummies (not the vector of dummies)
+		# as.vector(S%*%(y-mu)) / as.vector(rowSums(S))
+		# (sum_y - as.vector(S%*%mu)) / tableCluster
+		(sum_y - cpp_tapply_vsum(length(tableCluster), mu, dum)) / tableCluster
 	}
 
-	ll0 = function(cste,y){
-		#la fonction minimise, on renvoie "-"
+	ll0 = function(cste, y){
+		# la fonction minimise, on renvoie "-"
 		n = length(y)
 		sigma = sqrt(sum((y-cste)^2)/n)
 		-(-1/2/sigma^2*sum((y-cste)^2) - n*log(sigma) - n*log(2*pi)/2)
 	}
 
-	grad0 = function(cste,y){
+	grad0 = function(cste, y){
 		#la fonction minimise, on renvoie "-"
 		n = length(y)
 		sigma = sqrt(sum((y-cste)^2)/n)
@@ -620,10 +677,10 @@ ml_gaussian = function(){
 		x = mean(y)
 		sigma = sqrt(sum((y-x)^2)/n)
 		ll = -1/2/sigma^2*sum((y-x)^2) - n*log(sigma) - n*log(2*pi)/2
-		list(loglik=ll,constant=x)
+		list(loglik=ll, constant=x)
 	}
 
-	return(list(ll=ll,expected.predictor=expected.predictor,ll0=ll0,grad0=grad0,ll_TEST_score=ll_TEST_score,model0=model0,ll_dl=ll_dl,ll_d2=ll_d2,closedFormDummies=closedFormDummies))
+	return(list(ll=ll, expected.predictor=expected.predictor, ll0=ll0, grad0=grad0, ll_TEST_score=ll_TEST_score, model0=model0, ll_dl=ll_dl, ll_d2=ll_d2, closedFormDummies=closedFormDummies))
 }
 
 #************************#
@@ -648,8 +705,8 @@ ml_tobit = function(){
 		v
 	}
 
-	ll = function(y,mu,env,coef,...){
-		#sigma = get(".sigma",env)
+	ll = function(y, mu, env, coef, ...){
+		#sigma = get(".sigma", env)
 		sigma = coef[".sigma"]
 		y_U = y[y>0]
 		mu_U = mu[y>0]
@@ -657,19 +714,19 @@ ml_tobit = function(){
 		mu_C = mu[y==0]
 		n_U = length(y_U)
 
-		sum(pnorm(-mu_C/sigma,log.p = TRUE)) - 1/2/sigma^2*sum((y_U-mu_U)^2) - n_U*log(sigma) - n_U/2*log(2*pi)
+		sum(pnorm(-mu_C/sigma, log.p = TRUE)) - 1/2/sigma^2*sum((y_U-mu_U)^2) - n_U*log(sigma) - n_U/2*log(2*pi)
 	}
 
 	#Derivee
-	ll_dl = function(y,mu,env,coef,...){
-		#sigma = get(".sigma",env)
+	ll_dl = function(y, mu, env, coef, ...){
+		#sigma = get(".sigma", env)
 		sigma = coef[".sigma"]
 		y_U = y[y>0]
 		mu_U = mu[y>0]
 		y_C = y[y==0]
 		mu_C = mu[y==0]
 
-		ll_dl = rep(NA,length(y))
+		ll_dl = rep(NA, length(y))
 		ll_dl[y==0] = -1/sigma*IHR(mu_C/sigma)
 		ll_dl[y>0] = 1/sigma^2*(y_U-mu_U)
 
@@ -677,8 +734,8 @@ ml_tobit = function(){
 	}
 
 	#Derivee seconde
-	ll_d2 = function(y,mu,env,coef,...){
-		#sigma = get(".sigma",env)
+	ll_d2 = function(y, mu, env, coef, ...){
+		#sigma = get(".sigma", env)
 		sigma = coef[".sigma"]
 		y_U = y[y>0]
 		mu_U = mu[y>0]
@@ -688,17 +745,17 @@ ml_tobit = function(){
 		mu_C = mu_C/sigma
 		coef_C = IHR(mu_C)
 
-		ll_d2 = rep(NA,length(y))
+		ll_d2 = rep(NA, length(y))
 		ll_d2[y==0] = 1/sigma^2*coef_C*( mu_C - coef_C )
 		ll_d2[y>0] = - 1/sigma^2
 
 		ll_d2
 	}
 
-	ll_TEST_score = function(y,mu,env,coef,...){
+	ll_TEST_score = function(y, mu, env, coef, ...){
 		#used to compute the scores numerically
 		#Not to be used by end-users
-		#sigma = get(".sigma",env)
+		#sigma = get(".sigma", env)
 		sigma = coef[".sigma"]
 		y_U = y[y>0]
 		mu_U = mu[y>0]
@@ -707,13 +764,13 @@ ml_tobit = function(){
 
 		n_U = length(y_U)
 
-		ll = rep(NA,length(y))
-		ll[y==0] = pnorm(-mu_C/sigma,log.p = TRUE)
+		ll = rep(NA, length(y))
+		ll[y==0] = pnorm(-mu_C/sigma, log.p = TRUE)
 		ll[y>0] = 1/2/sigma^2*(y_U-mu_U)^2 - n_U*log(sigma) - n_U/2*log(2*pi)
 		ll
 	}
 
-	grad.sigma = function(sigma,y,mu,...){
+	grad.sigma = function(sigma, y, mu, ...){
 
 		y_U = y[y>0]
 		mu_U = mu[y>0]
@@ -729,20 +786,20 @@ ml_tobit = function(){
 		grad.sigma
 	}
 
-	scores.sigma = function(sigma,y,mu){
+	scores.sigma = function(sigma, y, mu){
 		y_U = y[y>0]
 		mu_U = mu[y>0]
 		y_C = y[y==0]
 		mu_C = mu[y==0]
 
-		score.sigma = rep(NA,length(y))
+		score.sigma = rep(NA, length(y))
 		score.sigma[y==0] = mu_C/sigma^2*IHR(mu_C/sigma)
 		score.sigma[y>0] = 1/sigma^3*(y_U-mu_U)^2 - 1/sigma
 
 		score.sigma
 	}
 
-	hess.sigma = function(sigma,y,mu){
+	hess.sigma = function(sigma, y, mu){
 		y_U = y[y>0]
 		mu_U = mu[y>0]
 		y_C = y[y==0]
@@ -757,7 +814,7 @@ ml_tobit = function(){
 		hess.sigma
 	}
 
-	hess.sigmaL = function(sigma,jacob.mat,y,mu,dxi_dbeta,ll_d2){
+	hess.sigmaL = function(sigma, jacob.mat, y, mu, dxi_dbeta, ll_d2){
 		#if there's no dummies, then dxi_dbeta = 0
 		y_U = y[y>0]
 		mu_U = mu[y>0]
@@ -767,40 +824,40 @@ ml_tobit = function(){
 		mu_s_C = mu_C/sigma
 		coef_C = IHR(mu_s_C)/sigma
 
-		ll_dxdt = crossprod(jacob.mat[y==0,],coef_C/sigma*(1-mu_s_C^2+mu_C*coef_C)) - 2*crossprod(jacob.mat[y>0,],(y_U-mu_U)/sigma^3)
+		ll_dxdt = crossprod(jacob.mat[y==0, ], coef_C/sigma*(1-mu_s_C^2+mu_C*coef_C)) - 2*crossprod(jacob.mat[y>0, ], (y_U-mu_U)/sigma^3)
 
 		d_mu = jacob.mat + dxi_dbeta
-		H = crossprod(d_mu,dxi_dbeta * ll_d2 + ll_dxdt)
+		H = crossprod(d_mu, dxi_dbeta * ll_d2 + ll_dxdt)
 
 		return(as.matrix(H))
 	}
 
-	expected.predictor = function(mu,env,coef,...){
-		#sigma = get(".sigma",env)
+	expected.predictor = function(mu, env, coef, ...){
+		#sigma = get(".sigma", env)
 		sigma = coef[".sigma"]
 		sigma * dnorm(mu/sigma) + pnorm(mu/sigma) * mu
 	}
 
-	initDummy = function(S,y,mu,env,...){
+	initDummy = function(S, y, mu, env, ...){
 		stop("not yet implemented")
 		#guess for the dummy:
 		#we assume mu is at the average level
 		ni1 = as.vector(S%*%y)
 		ni = rowSums(S)
-		qnorm(ni1/ni)-as.vector(S%*%mu)/ni
+		stats::qnorm(ni1/ni)-as.vector(S%*%mu)/ni
 	}
 
-	guessDummy = function(sum_y,n_group,mu,...){
+	guessDummy = function(sum_y, n_group, mu, ...){
 		stop("not yet implemented")
 		#Dummy when mu is constant within the group
-		qnorm(sum_y/n_group)-mu
+		stats::qnorm(sum_y/n_group)-mu
 	}
 
-	dum_fx = function(y,x,sum_y,S,mu,dum,env,...){
+	dum_fx = function(y, x, sum_y, S, mu, dum, env, ...){
 		#On calcule la condition de premier ordre des dummies
 		# ATTENTION PAS IMPLEMENTE CORRECTEMENT
 		stop("not yet implemented")
-		sigma = get(".sigma",env)
+		sigma = get(".sigma", env)
 		id_U = which(y>0)
 		id_C = which(y==0)
 
@@ -814,16 +871,16 @@ ml_tobit = function(){
 		mu_s_C = mu_C/sigma
 		coef_C = IHR(mu_s_C)
 
-		cpo = rep(NA,length(y))
+		cpo = rep(NA, length(y))
 		cpo[id_C] = - coef_C
 		cpo[id_U] = (y_U - mu_U)/sigma^2
 
 		as.vector(S%*%cpo)
 	}
 
-	dum_dfx = function(x,S,mu,dum,y,coef,env,...){
+	dum_dfx = function(x, S, mu, dum, y, coef, env, ...){
 		#On calcule la derivee des dummies
-		sigma = get(".sigma",env)
+		sigma = get(".sigma", env)
 		id_U = which(y>0)
 		id_C = which(y==0)
 
@@ -835,17 +892,17 @@ ml_tobit = function(){
 		mu_s_C = mu_C/sigma
 		coef_C = IHR(mu_s_C)
 
-		cso = rep(NA,length(y))
+		cso = rep(NA, length(y))
 		cso[id_C] = coef_C/sigma^2 * (mu_s_C-coef_C)
 		cso[id_U] = -1/sigma^2
 
 		as.vector(S%*%cso)
 	}
 
-	ratio_fx_dfx = function(x,dum,S,y,mu,env,...){
+	ratio_fx_dfx = function(x, dum, S, y, mu, env, ...){
 		#On calcule la cond. de premier ordre, celle de second
 		#ordre, et alors le pas optimal
-		sigma = get(".sigma",env)
+		sigma = get(".sigma", env)
 		id_U = which(y>0)
 		id_C = which(y==0)
 
@@ -859,13 +916,13 @@ ml_tobit = function(){
 		mu_s_C = mu_C/sigma
 		coef_C = IHR(mu_s_C)
 
-		cpo = rep(NA,length(y))
+		cpo = rep(NA, length(y))
 		cpo[id_C] = - coef_C
 		cpo[id_U] = (y_U - mu_U)/sigma^2
 
 		Value = as.vector(S%*%cpo)
 
-		cso = rep(NA,length(y))
+		cso = rep(NA, length(y))
 		cso[id_C] = coef_C/sigma^2 * (mu_s_C-coef_C)
 		cso[id_U] = -1/sigma^2
 
@@ -874,7 +931,7 @@ ml_tobit = function(){
 		Value / Derivee
 	}
 
-	ll0 = function(coef,y){
+	ll0 = function(coef, y){
 		#La fonction minimise, on renvoie "-"
 		sigma = coef[2]
 		cste = coef[1]
@@ -883,12 +940,12 @@ ml_tobit = function(){
 		n_U = length(y_U)
 		n_C = sum(y==0)
 
-		ll = n_C*pnorm(-cste/sigma,log.p = TRUE) - 1/2/sigma^2*sum((y_U-cste)^2) - n_U*log(sigma) - n_U/2*log(2*pi)
+		ll = n_C*pnorm(-cste/sigma, log.p = TRUE) - 1/2/sigma^2*sum((y_U-cste)^2) - n_U*log(sigma) - n_U/2*log(2*pi)
 
 		-ll
 	}
 
-	grad0 = function(coef,y){
+	grad0 = function(coef, y){
 		#La fonction minimise, on renvoie "-"
 		sigma = coef[2]
 		cste = coef[1]
@@ -905,7 +962,7 @@ ml_tobit = function(){
 		grad.sigma = grad.sigma + n_C*cste/sigma^2*IHR(cste/sigma)
 		grad.sigma = grad.sigma + 1/sigma^3*sum((y_U-cste)^2) - n_U*1/sigma
 
-		- c(grad.cste,grad.sigma)
+		- c(grad.cste, grad.sigma)
 	}
 
 	model0 = function(y){
@@ -913,9 +970,9 @@ ml_tobit = function(){
 		n = length(y)
 		x = log(sum(y)) - log(length(y) - sum(y))
 		ll = x*sum(y) - n*log(1+exp(x))
-		list(loglik=ll,constant=x)
+		list(loglik=ll, constant=x)
 	}
 
-	return(list(ll=ll,expected.predictor=expected.predictor,ll0=ll0,grad0=grad0,ll_TEST_score=ll_TEST_score,model0=model0,ll_dl=ll_dl,ll_d2=ll_d2,ratio_fx_dfx=ratio_fx_dfx,initDummy=initDummy,guessDummy=guessDummy,dum_fx=dum_fx,dum_dfx=dum_dfx))
+	return(list(ll=ll, expected.predictor=expected.predictor, ll0=ll0, grad0=grad0, ll_TEST_score=ll_TEST_score, model0=model0, ll_dl=ll_dl, ll_d2=ll_d2, ratio_fx_dfx=ratio_fx_dfx, initDummy=initDummy, guessDummy=guessDummy, dum_fx=dum_fx, dum_dfx=dum_dfx))
 }
 

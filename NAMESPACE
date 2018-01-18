@@ -1,12 +1,24 @@
+useDynLib(FENmlm, .registration = TRUE)
 
-export(feNmlm,femlm,res2tex,res2table,getFE)
+export(femlm, res2tex, res2table, getFE)
 
-S3method(print,feNmlm)
-S3method(summary,feNmlm)
+S3method(print, femlm)
+S3method(print, feNmlm)
+S3method(summary, femlm)
+S3method(summary, feNmlm)
+S3method(plot, femlm.cluster)
+S3method(plot, femlm.allClusters)
 
-importFrom(numDeriv,hessian,jacobian,genD)
-#importFrom(Matrix,Matrix,Diagonal,rowSums)
-importFrom(stats, cor, dnorm, lm, model.matrix, nlminb, optim, pnorm, qnorm)
+importFrom(numDeriv, hessian, jacobian, genD)
+importFrom(stats, cor, dnorm, lm, model.matrix, nlminb, optim,
+			  pnorm, qnorm, as.formula, terms, var, sd)
+importFrom(MASS, ginv)
+importFrom(utils, combn)
+
+importFrom(Rcpp, evalCpp)
+
 import(Matrix)
-importFrom(MASS,ginv)
+
+# Graphics
+importFrom(graphics, par, plot, box, axis, abline, points, text, title)
 
