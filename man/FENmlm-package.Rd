@@ -6,24 +6,28 @@
 Fixed Effects Nonlinear Maximum Likelihood Models
 }
 \description{
-Efficient estimation of fixed-effect maximum likelihood models with, possibly, non-linear right hand sides.
+Efficient estimation of multiple fixed-effects maximum likelihood models
+    with, possibly, non-linear in parameters right hand sides. Standard-errors
+    can easily be clustered. It also includes tools to seamlessly export (to Latex)
+    the results of various estimations.
 }
 \details{
 \tabular{ll}{
 Package: \tab FENmlm\cr
 Type: \tab Package\cr
-Version: \tab 1.0\cr
-Date: \tab 2015-10-02\cr
+Version: \tab 2.0.1\cr
+Date: \tab 2018-01-30\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
-This package intends to efficiently estimate fixed-effect maximum likelihood models. The function \var{feNmlm} perfoms estimates fixed-effect maximum likelihood models with non-linear right hand sides. The function \var{femlm} is similar but is restricted to linear right hand sides.
-Several features are also included such as the possibility to easily compute different types of standard-errors (including one-way and two-way clustering). It is possible to compare the results of severeal estimations by using the function \var{res2table}, and to export them to Latex using \var{res2tex}.
+This package intends to efficiently estimate fixed-effect maximum likelihood models. The function \code{\link[FENmlm]{femlm}} estimates fixed-effect unconditionnal maximum likelihood models with, possibly, non-linear in parameters right hand sides. The ML families currently available are: poisson, negative binomial, logit and Gaussian.
+
+Several features are also included such as the possibility to easily compute different types of standard-errors (including multi-way clustering). It is possible to compare the results of severeal estimations by using the function \code{\link[FENmlm]{res2table}}, and to export them to Latex using \code{\link[FENmlm]{res2tex}}.
 }
 \author{
 Laurent Berge
 
-Maintainer: Laurent Berge <laurent.berge at u-bordeaux.fr>
+Maintainer: Laurent Berge <laurent.berge at uni.lu>
 }
 
 \keyword{ package }

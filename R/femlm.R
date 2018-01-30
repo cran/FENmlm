@@ -1,6 +1,7 @@
 # Commands to genereate the help files:
 # file.sources = list.files("R", pattern="*.R$", full.names=TRUE, ignore.case=TRUE)
 # sapply(file.sources, source, .GlobalEnv)
+# load("data/trade.RData")
 # roxygen2::roxygenise(roclets = "rd")
 
 # TODO:
@@ -18,6 +19,7 @@
 #' @param data A data.frame containing the necessary variables to run the model. The variables of the non-linear right hand side of the formula are identified with this \code{data.frame} names. Note that no \code{NA} is allowed in the variables to be used in the estimation.
 #' @param family Character scalar. It should provide the family. The possible values are "poisson" (Poisson model with log-link, the default), "negbin" (Negative Binomial model with log-link), "logit" (LOGIT model with log-link), "gaussian" (Gaussian model).
 #' @param cluster Character vector. The name/s of a/some variable/s within the dataset to be used as clusters. These variables should contain the identifier of each observation (e.g., think of it as a panel identifier).
+#' @param useAcc Default is \code{TRUE}. Whether an acceleration algorithm (Irons and Tuck iterations) should be used to otbain the cluster coefficients when there are two clusters.
 #' @param start A list. Starting values for the non-linear parameters. ALL the parameters are to be named and given a staring value. Example: \code{start=list(a=1,b=5,c=0)}. Though, there is an exception: if all parameters are to be given the same starting value, you can use the argument \code{start.init}.
 #' @param lower A list. The lower bound for each of the non-linear parameters that requires one. Example: \code{lower=list(b=0,c=0)}. Beware, if the estimated parameter is at his lower bound, then asymptotic theory cannot be applied and the standard-error of the parameter cannot be estimated because the gradient will not be null. In other words, when at its upper/lower bound, the parameter is considered as 'fixed'.
 #' @param upper A list. The upper bound for each of the non-linear parameters that requires one. Example: \code{upper=list(a=10,c=50)}. Beware, if the estimated parameter is at his upper bound, then asymptotic theory cannot be applied and the standard-error of the parameter cannot be estimated because the gradient will not be null. In other words, when at its upper/lower bound, the parameter is considered as 'fixed'.
@@ -28,11 +30,30 @@
 #' @param linear.start Numeric named vector. The starting values of the linear part. Note that you can
 #' @param jacobian.method Character scalar. Provides the method used to numerically compute the jacobian of the non-linear part. Can be either \code{"simple"} or \code{"Richardson"}. Default is \code{"simple"}. See the help of \code{\link[numDeriv]{jacobian}} for more information.
 #' @param useHessian Logical. Should the Hessian be computed in the optimization stage? Default is \code{TRUE}.
-#' @param opt.control List of elements to be passed to the optimization method (\code{\link[stats]{nlminb}}.
+#' @param opt.control List of elements to be passed to the optimization method \code{\link[stats]{nlminb}}.
 #' @param debug Logical. If \code{TRUE} then the log-likelihood as well as all parameters are printed at each iteration. Default is \code{FALSE}.
 #' @param theta.init Positive numeric scalar. The starting value of the dispersion parameter if \code{family="negbin"}. By default, the algorithm uses as a starting value the theta obtained from the model with only the intercept.
 #' @param noWarning Logical, default is \code{FALSE}. Should the warnings be displayed?
 #' @param ... Not currently used.
+#'
+#' @details
+#' This function estimates maximum likelihood models where the conditional expectations are as follows:
+#'
+#' Gaussian likelihood:
+#' \deqn{E(Y|X)=X\beta}{E(Y|X) = X*beta}
+#' Poisson and Negative Binomial likelihoods:
+#' \deqn{E(Y|X)=\exp(X\beta)}{E(Y|X) = exp(X*beta)}
+#' where in the Negative Binomial there is the parameter \eqn{\theta}{theta} used to model the variance as \eqn{\mu+\mu^2/\theta}{mu+mu^2/theta}, with \eqn{\mu}{mu} the conditional expectation.
+#' Logit likelihood:
+#' \deqn{E(Y|X)=\frac{\exp(X\beta)}{1+\exp(X\beta)}}{E(Y|X) = exp(X*beta) / (1 + exp(X*beta))}
+#'
+#' When there are one or more clusters, the conditional expectation can be written as:
+#' \deqn{E(Y|X) = h(X\beta+\sum_{k}\sum_{m}\gamma_{m}^{k}\times C_{im}^{k}),}
+#' where \eqn{h(.)} is the function corresponding to the likelihood function as shown before. \eqn{C^k} is the matrix associated to cluster \eqn{k} such that \eqn{C^k_{im}} is equal to 1 if observation \eqn{i} is of category \eqn{m} in cluster \eqn{k} and 0 otherwise.
+#'
+#' When there are non linear in parameters functions, we can schematically split the set of regressors in two:
+#' \deqn{f(X,\beta)=X^1\beta^1 + g(X^2,\beta^2)}
+#' with first a linear term and then a non linear part expressed by the function g. That is, we add a non-linear term to the linear terms (which are \eqn{X*beta} and the cluster coefficients). It is always better (more efficient) to put into the argument \code{NL.fml} only the non-linear in parameter terms, and add all linear terms in the \code{fml} argument.
 #'
 #' @return
 #' An \code{femlm} object.
@@ -59,6 +80,17 @@
 #'
 #' @author
 #' Laurent Berge
+#'
+#' @references
+#' For models with multiple fixed-effects:
+#'
+#' Gaure, Simen, 2013, "OLS with multiple high dimensional category variables", Computational Statistics & Data Analysis 66 pp. 8--18
+#'
+#'
+#'
+#' On the unconditionnal Negative Binomial model:
+#'
+#' Allison, Paul D and Waterman, Richard P, 2002, "Fixed-Effects Negative Binomial Regression Models", Sociological Methodology 32(1) pp. 247--265
 #'
 #' @examples
 #'
@@ -135,7 +167,7 @@
 #'                      nl.gradient = ~myGrad(a,x,b,y))
 #'
 #'
-femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, start, lower, upper, env, start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), debug=FALSE, theta.init, noWarning = FALSE, ...){
+femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, useAcc=TRUE, start, lower, upper, env, start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), debug=FALSE, theta.init, noWarning = FALSE, ...){
 
 	# use of the conjugate gradient in the gaussian case to get
 	# the cluster coefficients
@@ -182,6 +214,9 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	eps.deriv = ifelse(is.null(dots$eps.deriv), 1e-4, dots$eps.deriv)
 	# if it is null => OK
 	d.hessian = dots$d.hessian
+
+	# Acceleration
+	# useAcc = ifelse(is.null(dots$useAcc), FALSE, dots$useAcc)
 
 	famFuns = switch(family,
 						 poisson = ml_poisson(),
@@ -400,7 +435,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 		# If there is a linear intercept, we withdraw it
 		# We drop the intercept:
-		if("(Intercept)" %in% colnames(linear.mat)){
+		if(isLinear && "(Intercept)" %in% colnames(linear.mat)){
 			var2remove = which(colnames(linear.mat) == "(Intercept)")
 			if(ncol(linear.mat) == length(var2remove)){
 				isLinear = FALSE
@@ -428,7 +463,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# Checks for MONKEY TEST
 	#
 
-	if(lparams==0) stop("No parameter to be estimated.")
+	if(lparams==0 & Q==0) stop("No parameter to be estimated.")
 	if(!is.logical(useHessian)) stop("'useHessian' must be of type 'logical'!")
 
 	#
@@ -666,7 +701,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	#### Sending to the env ####
 	####
 
-	useExp = family %in% c("poisson", "logit", "negbin")
+	useExp_clusterCoef = family %in% c("poisson")
 
 	# The dummies
 	assign("isDummy", isDummy, env)
@@ -678,7 +713,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		assign(".tableCluster", obs_per_cluster_all, env)
 
 		# the saved dummies
-		if(useExp){
+		if(useExp_clusterCoef){
 			assign(".savedDummy", rep(1, length(lhs)), env)
 		} else {
 			assign(".savedDummy", rep(0, length(lhs)), env)
@@ -715,6 +750,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# Pour gerer les valeurs de mu:
 	assign(".coefMu", list(), env)
 	assign(".valueMu", list(), env)
+	assign(".valueExpMu", list(), env)
 	assign(".wasUsed", TRUE, env)
 	# Pour les valeurs de la Jacobienne non lineaire
 	assign(".JC_nbSave", 0, env)
@@ -725,6 +761,9 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	assign(".eps.cluster", eps.cluster, env)
 	assign(".eps.NR", eps.NR, env)
 	assign(".eps.deriv", eps.deriv, env)
+	# OTHER
+	assign(".useAcc", useAcc, env)
+	assign(".warn_0_Hessian", FALSE, env)
 
 	#
 	# if there is only the intercept and cluster => we estimate only the clusters
@@ -925,7 +964,9 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	attr(se, "type") = attr(coeftable, "type") = "Standard"
 
-	mu = get_mu(coef, env)
+	mu_both = get_mu(coef, env)
+	mu = mu_both$mu
+	exp_mu = mu_both$exp_mu
 
 	# calcul pseudo r2
 	loglik <- -opt$objective # moins car la fonction minimise
@@ -943,7 +984,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# null.resids <- lhs-mean(lhs)
 
 	# Calcul residus
-	expected.predictor = famFuns$expected.predictor(mu, env)
+	expected.predictor = famFuns$expected.predictor(mu, exp_mu, env)
 	resids = lhs - expected.predictor
 
 	# calcul squared corr
@@ -970,44 +1011,28 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	if(isDummy){
 		# NOT YET IMPLEMENTED FOR VARIOUS CLUSTERS
 		dummies = attr(mu, "mu_dummies")
-		if(useExp){
+		if(useExp_clusterCoef){
 			dummies = log(dummies)
 		}
 
-		if(FALSE & all(dum_names == "(Intercept)")){
-			# get the variance of the intercept
-			# and include it in the coefficients
-			ptm = proc.time()
-			res$Intercept = dummies
-			jacob.mat = get_Jacobian(coef, env)
-			se = famFuns$dumVar(jacob.mat, mu, env, coef)
-			zvalue = dummies/se
-			pvalue = 2*pnorm(-abs(zvalue))
-			line_intercept = matrix(c(dummies, se, zvalue, pvalue), 1, 4)
-			rownames(line_intercept) = "(Intercept)"
-			coeftable = rbind(line_intercept, res$coeftable)
-			print(coeftable)
-			cat("SD of the intercept in:", (proc.time()-ptm)[3], "\n")
-		} else {
-			res$dummies = dummies
-			res$clusterNames = cluster
+		res$dummies = dummies
+		res$clusterNames = cluster
 
-			id_dummies = list()
-			for(i in 1:length(cluster)){
-				# id_dummies[[cluster[i]]] = factor(dum_all[[i]], labels=dum_names[[i]])
-				dum = dum_all[[i]]
-				attr(dum, "clust_names") = as.character(dum_names[[i]])
-				id_dummies[[cluster[i]]] = dum
-			}
+		id_dummies = list()
+		for(i in 1:length(cluster)){
+			# id_dummies[[cluster[i]]] = factor(dum_all[[i]], labels=dum_names[[i]])
+			dum = dum_all[[i]]
+			attr(dum, "clust_names") = as.character(dum_names[[i]])
+			id_dummies[[cluster[i]]] = dum
+		}
 
-			res$id_dummies = id_dummies
-			clustSize = sapply(dum_all, max)
-			names(clustSize) = cluster
-			res$clusterSize = clustSize
-			if(length(obs2remove)>0){
-				res$obsRemoved = obs2remove
-				res$clusterRemoved = dummyOmises
-			}
+		res$id_dummies = id_dummies
+		clustSize = sapply(dum_all, max)
+		names(clustSize) = cluster
+		res$clusterSize = clustSize
+		if(length(obs2remove)>0){
+			res$obsRemoved = obs2remove
+			res$clusterRemoved = dummyOmises
 		}
 	}
 
@@ -1040,6 +1065,7 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 
 	# indicator of whether we compute the exp(mu)
 	useExp = family %in% c("poisson", "logit", "negbin")
+	useExp_clusterCoef = family %in% c("poisson")
 
 	# mu, using the offset
 	mu_noDum = offset.value
@@ -1047,17 +1073,22 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 
 	# we create the exp of mu => used for later functions
 	exp_mu_noDum = NULL
-	if(useExp){
+	if(useExp_clusterCoef){
 		exp_mu_noDum = exp(mu_noDum)
 	}
 
 	dummies = getDummies(mu_noDum, exp_mu_noDum, env, coef)
 
-	if(useExp){
+	exp_mu = NULL
+	if(useExp_clusterCoef){
 		# despite being called mu, it is in fact exp(mu)!!!
-		mu = exp_mu_noDum*dummies
+		exp_mu = exp_mu_noDum*dummies
+		mu = log(exp_mu)
 	} else {
 		mu = mu_noDum + dummies
+		if(useExp){
+			exp_mu = exp(mu)
+		}
 	}
 
 	#
@@ -1069,7 +1100,7 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 	lhs = get(".lhs", env)
 
 	# The log likelihoods
-	loglik = famFuns$ll(lhs, mu, env, coef)
+	loglik = famFuns$ll(lhs, mu, exp_mu, env, coef)
 	ll_null = model0$loglik
 
 	# degres de liberte
@@ -1077,7 +1108,7 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 	pseudo_r2 = 1 - loglik/ll_null # NON Adjusted
 
 	# Calcul residus
-	expected.predictor = famFuns$expected.predictor(mu, env)
+	expected.predictor = famFuns$expected.predictor(mu, exp_mu, env)
 	resids = lhs - expected.predictor
 
 	# calcul squared corr
@@ -1094,7 +1125,7 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 	#
 	# Information on the dummies
 
-	if(useExp){
+	if(useExp_clusterCoef){
 		dummies = log(dummies)
 	}
 
@@ -1138,11 +1169,13 @@ ll_glm_hessian <- function(coef, env){
 	family = get(".family", env)
 	y = get(".lhs", env)
 	isDummy = get("isDummy", env)
-	mu = get_savedMu(coef, env)
+	mu_both = get_savedMu(coef, env)
+	mu = mu_both$mu
+	exp_mu = mu_both$exp_mu
 
 	jacob.mat = get_Jacobian(coef, env)
 
-	ll_d2 = famFuns$ll_d2(y, mu, coef)
+	ll_d2 = famFuns$ll_d2(y, mu, exp_mu, coef)
 	if(isDummy){
 		dxi_dbeta = deriv_xi(jacob.mat, ll_d2, env, coef)
 		jacob.mat = jacob.mat + dxi_dbeta
@@ -1151,9 +1184,9 @@ ll_glm_hessian <- function(coef, env){
 	hessVar = crossprod(jacob.mat, jacob.mat * ll_d2)
 
 	if(isNL){
-		#we get the 2nd derivatives
+		# we get the 2nd derivatives
 		z = numDeriv::genD(evalNLpart, coef[nonlinear.params], env=env, method.args = hessianArgs)$D[, -(1:k), drop=FALSE]
-		ll_dl = famFuns$ll_dl(y, mu, coef=coef, env=env)
+		ll_dl = famFuns$ll_dl(y, mu, exp_mu, coef=coef, env=env)
 		id_r = rep(1:k, 1:k)
 		id_c = c(sapply(1:k, function(x) 1:x), recursive=TRUE)
 		H = matrix(0, nrow=k, ncol=k)
@@ -1165,7 +1198,7 @@ ll_glm_hessian <- function(coef, env){
 
 	if(family=="negbin"){
 		theta = coef[".theta"]
-		ll_dx_dother = famFuns$ll_dx_dother(y, mu, coef, env)
+		ll_dx_dother = famFuns$ll_dx_dother(y, mu, exp_mu, coef, env)
 
 		if(isDummy){
 			dxi_dother = deriv_xi_other(ll_dx_dother, ll_d2, env, coef)
@@ -1176,7 +1209,7 @@ ll_glm_hessian <- function(coef, env){
 		# calcul des derivees secondes vav de theta
 		h.theta.L = famFuns$hess.thetaL(theta, jacob.mat, y, dxi_dbeta, dxi_dother, ll_d2, ll_dx_dother)
 		hessVar = cbind(hessVar, h.theta.L)
-		h.theta = famFuns$hess_theta_part(theta, y, mu, dxi_dother, ll_dx_dother, ll_d2)
+		h.theta = famFuns$hess_theta_part(theta, y, mu, exp_mu, dxi_dother, ll_dx_dother, ll_d2)
 		hessVar = rbind(hessVar, c(h.theta.L, h.theta))
 
 # 		theta = attr(mu, ".theta")
@@ -1192,8 +1225,23 @@ ll_glm_hessian <- function(coef, env){
 		print(hessVar)
 	}
 
+	# iter = get("iter", env)
+	# if(iter == 6) browser()
+
+	if(anyNA(hessVar)){
+		stop("NaN in the Hessian, can be due to a possible overfitting problem.\nIf so you can change the 'rel.tol' of the nlminb algorithm with the argument 'opt.control'.")
+	}
+
+	warn_0_Hessian = get(".warn_0_Hessian", env)
+	if(!warn_0_Hessian && any(diag(hessVar) == 0)){
+		# We apply the warning only once
+		var_problem = params[diag(hessVar) == 0]
+		warning("Some elements of the diagonal of the hessian are equal to 0: likely presence of collinearity. \nFYI the problematic variables are:\n", paste0(var_problem, collapse = ", "), ".", immediate. = TRUE)
+		assign(".warn_0_Hessian", TRUE, env)
+	}
+
 	if(debug) cat("\nHessian: ", (proc.time()-ptm)[3], "s")
-# print(hessVar) ; print(class(hessVar))
+	# print(hessVar) ; print(class(hessVar))
 	- hessVar
 }
 
@@ -1207,7 +1255,9 @@ ll_glm_gradient <- function(coef, env){
 	famFuns = get(".famFuns", env)
 	family = get(".family", env)
 	y = get(".lhs", env)
-	mu = get_savedMu(coef, env)
+	mu_both = get_savedMu(coef, env)
+	mu = mu_both$mu
+	exp_mu = mu_both$exp_mu
 
 	# calcul de la jacobienne
 	res <- list() #stocks the results
@@ -1220,15 +1270,15 @@ ll_glm_gradient <- function(coef, env){
 	# cat("\tComputing gradient ")
 	# ptm = proc.time()
 	# res = famFuns$grad(jacob.mat, y, mu, env, coef)
-	res = getGradient(jacob.mat, y, mu, env, coef)
+	res = getGradient(jacob.mat, y, mu, exp_mu, env, coef)
 	# cat("in", (proc.time()-ptm)[3], "s.\n")
 	names(res) = c(nonlinear.params, linear.params)
 
 	if(family=="negbin"){
 		theta = coef[".theta"]
-		res[".theta"] = famFuns$grad.theta(theta, y, mu)
+		res[".theta"] = famFuns$grad.theta(theta, y, mu, exp_mu)
 	}
-# print(res)
+
 	return(-unlist(res[params]))
 }
 
@@ -1239,14 +1289,16 @@ ll_glm_scores <- function(coef, env){
 	famFuns = get(".famFuns", env)
 	family = get(".family", env)
 	y = get(".lhs", env)
-	mu = get_savedMu(coef, env)
+	mu_both = get_savedMu(coef, env)
+	mu = mu_both$mu
+	exp_mu = mu_both$exp_mu
 
 	jacob.mat = get_Jacobian(coef, env)
-	scores = getScores(jacob.mat, y, mu, env, coef)
+	scores = getScores(jacob.mat, y, mu, exp_mu, env, coef)
 
 	if(family=="negbin"){
 		theta = coef[".theta"]
-		score.theta = famFuns$scores.theta(theta, y, mu)
+		score.theta = famFuns$scores.theta(theta, y, mu, exp_mu)
 		scores = cbind(scores, score.theta)
 		# DEPREC (theta-conditionned)
 # 		isDummy = get("isDummy", env)
@@ -1279,10 +1331,12 @@ ll_glm <- function(coef, env){
 
 	if(any(is.na(coef))) stop("Divergence... (some coefs are NA)\nTry option debug=TRUE to see the problem.")
 
-	mu = get_mu(coef, env)
+	mu_both = get_mu(coef, env)
+	mu = mu_both$mu
+	exp_mu = mu_both$exp_mu
 
 	# for the NEGBIN, we add the coef
-	ll = famFuns$ll(y, mu, env, coef)
+	ll = famFuns$ll(y, mu, exp_mu, env, coef)
 
 	if(debug) cat("LL =", ll, " (", (proc.time()-ptm)[3], " s)", sep = "")
 	if(ll==(-Inf)) return(1e308)
@@ -1302,7 +1356,9 @@ ll_glm_TEST_score <- function(coef, env){
 
 	if(any(is.na(coef))) stop("Divergence... (some coefs are NA)\nTry option debug=TRUE to see the problem.")
 
-	mu = get_mu(coef, env)
+	mu_both = get_mu(coef, env)
+	mu = mu_both$mu
+	exp_mu = mu_both$exp_mu
 
 	ll = famFuns$ll_TEST_score(y, mu, env, coef)
 
@@ -1380,18 +1436,21 @@ get_mu = function(coef, env){
 	offset.value = get("offset.value", env)
 	names(coef) = params
 
-	# indicator of whether we compute the exp(mu)
-	# if usExp==TRUE, alors mu_dummies est aussi l'exponentielle des dummies
-	# BEWARE, the variable mu will be called mu although it can be equal to exp(mu)!!!!!!!
-	# this is a notational abuse in order to simplify the coding
+	# UseExp: indicator if the family needs to use exp(mu) in the likelihoods:
+	#     this is useful because we have to compute it only once (save computing time)
+	# useExp_clusterCoef: indicator if we use the exponential of mu to obtain the cluster coefficients
+	#     if it is TRUE, it will mean that the dummy will be equal
+	#     to exp(mu_dummies) despite being named mu_dummies
 	useExp = family %in% c("poisson", "logit", "negbin")
+	useExp_clusterCoef = family %in% c("poisson")
 
 	# For managing mu:
 	coefMu = get(".coefMu", env)
 	valueMu = get(".valueMu", env)
+	valueExpMu = get(".valueExpMu", env)
 	wasUsed = get(".wasUsed", env)
 	if(wasUsed){
-		coefMu = valueMu = list()
+		coefMu = valueMu = valueExpMu = list()
 		assign(".wasUsed", FALSE, env)
 	}
 
@@ -1411,7 +1470,7 @@ get_mu = function(coef, env){
 
 	# we create the exp of mu => used for later functions
 	exp_mu_noDum = NULL
-	if(useExp){
+	if(useExp_clusterCoef){
 		exp_mu_noDum = exp(mu_noDum)
 	}
 
@@ -1419,23 +1478,28 @@ get_mu = function(coef, env){
 		# we get back the last dummy
 		mu_dummies = getDummies(mu_noDum, exp_mu_noDum, env, coef)
 	} else {
-		if(useExp){
+		if(useExp_clusterCoef){
 			mu_dummies = 1
 		} else {
 			mu_dummies = 0
 		}
 	}
 
-	# We add the value of the dummy to mu
-	if(useExp){
-		# despite being called mu, it is in fact exp(mu)!!!
-		mu = exp_mu_noDum*mu_dummies
+	# We add the value of the dummy to mu and we compute the exp if necessary
+	exp_mu = NULL
+	if(useExp_clusterCoef){
+		# despite being called mu_dummies, it is in fact exp(mu_dummies)!!!
+		exp_mu = exp_mu_noDum*mu_dummies
+		mu = log(exp_mu)
 	} else {
 		mu = mu_noDum + mu_dummies
+		if(useExp){
+			exp_mu = exp(mu)
+		}
 	}
 
 	if(isDummy){
-		# BEWARE, if useExp, it is equal to exp(dummies)
+		# BEWARE, if useExp_clusterCoef, it is equal to exp(mu_dummies)
 		attr(mu, "mu_dummies") = mu_dummies
 	}
 
@@ -1444,10 +1508,12 @@ get_mu = function(coef, env){
 	# we save the value of mu:
 	coefMu = append(coefMu, list(coef))
 	valueMu = append(valueMu, list(mu))
+	valueExpMu = append(valueExpMu, list(exp_mu))
 	assign(".coefMu", coefMu, env)
 	assign(".valueMu", valueMu, env)
+	assign(".valueExpMu", valueExpMu, env)
 
-	return(mu)
+	return(list(mu = mu, exp_mu = exp_mu))
 }
 
 get_savedMu = function(coef, env){
@@ -1455,11 +1521,12 @@ get_savedMu = function(coef, env){
 	# It follows a LL evaluation
 	coefMu = get(".coefMu", env)
 	valueMu = get(".valueMu", env)
+	valueExpMu = get(".valueExpMu", env)
 	assign(".wasUsed", TRUE, env)
 
 	if(length(coefMu)>0) for(i in 1:length(coefMu)) if(all(coef==coefMu[[i]])){
 		# cat("coef nb:", i, "\n")
-		return(valueMu[[i]])
+		return(list(mu = valueMu[[i]], exp_mu = valueExpMu[[i]]))
 	}
 
 	stop("Problem in \"get_savedMu\":\n gradient did not follow LL evaluation.")
@@ -1643,21 +1710,21 @@ get_model_null <- function(env, theta.init){
 	return(list(loglik=loglik, constant=constant, theta = theta))
 }
 
-getGradient = function(jacob.mat, y, mu, env, coef, ...){
+getGradient = function(jacob.mat, y, mu, exp_mu, env, coef, ...){
 	famFuns = get(".famFuns", env)
-	ll_dl = famFuns$ll_dl(y, mu, coef=coef, env=env)
+	ll_dl = famFuns$ll_dl(y, mu, exp_mu, coef=coef, env=env)
 	c(crossprod(jacob.mat, ll_dl))
 }
 
-getScores = function(jacob.mat, y, mu, env, coef, ...){
+getScores = function(jacob.mat, y, mu, exp_mu, env, coef, ...){
 	famFuns = get(".famFuns", env)
 	isDummy = get("isDummy", env)
 
-	ll_dl = famFuns$ll_dl(y, mu, coef=coef, env=env)
+	ll_dl = famFuns$ll_dl(y, mu, exp_mu, coef=coef, env=env)
 	scores = jacob.mat* ll_dl
 
 	if(isDummy){
-		ll_d2 = famFuns$ll_d2(y, mu, coef=coef, env=env)
+		ll_d2 = famFuns$ll_d2(y, mu, exp_mu, coef=coef, env=env)
 		dxi_dbeta = deriv_xi(jacob.mat, ll_d2, env, coef)
 		scores = scores + dxi_dbeta * ll_dl
 	}
@@ -1675,6 +1742,9 @@ getDummies = function(mu, exp_mu, env, coef){
 	debug = get("debug", env)
 	if(debug) ptm = proc.time()
 
+	# Acceleration
+	useAcc = get(".useAcc", env)
+
 	iterMax = 10000
 	dum_all = get(".dummy", env)
 	sum_y_all = get(".sum_y", env)
@@ -1684,42 +1754,17 @@ getDummies = function(mu, exp_mu, env, coef){
 	Q = length(dum_all)
 
 	# whether we use the eponentiation of mu
-	useExp = family %in% c("poisson", "logit", "negbin")
+	useExp_clusterCoef = family %in% c("poisson")
 
-	if(useExp){
+	if(useExp_clusterCoef){
 		exp_mu_in = exp_mu * mu_dummies
 	} else {
 		mu_in = mu + mu_dummies
 	}
-# browser()
+
 	useCG = get(".useCG", env)
 
-	if(useCG && family == "gaussian" && Q>=2){
-		# in this case, we can use the algorithm of the conjugate gradient
-		# This algorithm is efficient only for complicated cases
-		# otherwise, there is no much value added
-
-		A = get(".A", env)
-		# we get the value of the constant: we need to compute the sum of the x's for each cluster
-		sum_x_all = list()
-		for(q in 1:Q){
-			dum = dum_all[[q]]
-			k  = nbCluster[q]
-			sum_x_all[[q]] = cpp_tapply_vsum(k, mu_in, dum)
-		}
-
-		b = (unlist(sum_y_all) - unlist(sum_x_all))
-
-		all_clusters_coef = simple_CG(A, b, eps.cluster)
-
-		# update of the dummies
-		adj_nb =  c(0, cumsum(nbCluster))
-		for(q in 1:Q){
-			dum = dum_all[[q]]
-			mu_dummies = mu_dummies + all_clusters_coef[(adj_nb[q]+1):adj_nb[q+1]][dum]
-		}
-
-	} else if(family == "poisson" && Q==2){
+	if(!useAcc && family == "poisson" && Q==2){
 		# This method is usually faster, however, in simple cases it might be not efficient because of the
 		# setup of the matrices
 		# for complicated cases, it is much more efficient
@@ -1757,12 +1802,141 @@ getDummies = function(mu, exp_mu, env, coef){
 			if(diff < eps.cluster) break
 		}
 
-		# DEPREC: now we use directly the exponentiation
-		# lbeta = log(cb) - log(Bt%*%alpha)
-		# mu_dummies = mu_dummies + log(alpha)[dum_all[[i]]] + lbeta[dum_all[[j]]]
-
 		beta = cb / Bt%*%alpha
 		mu_dummies = mu_dummies * alpha[dum_all[[i]]] * beta[dum_all[[j]]]
+
+	} else if(useAcc && family == "poisson" && Q == 2) {
+		# Here we apply the Iron and Tuck Algorithm
+		# We deal with the Poisson case that is special
+
+		# We select the cluster with the lowest nber of cases
+		if(nbCluster[1] < nbCluster[2]){
+			i = 1
+			j = 2
+		} else {
+			i = 2
+			j = 1
+		}
+
+		# Variables used in function G:
+		dum_1 = dum_all[[i]]
+		dum_2 = dum_all[[j]]
+
+		sum_y_1 = sum_y_all[[i]]
+		sum_y_2 = sum_y_all[[j]]
+
+		tableCluster_1 = tableCluster_all[[i]]
+		tableCluster_2 = tableCluster_all[[j]]
+
+		n_1 = length(tableCluster_1)
+		n_2 = length(tableCluster_2)
+
+		# Function defined with some variables local to getDummies function
+		G = function(X){
+
+			# X_2 is deduced from X_1
+			X_2 = sum_y_2 / cpp_tapply_vsum(n_2, exp_mu_in * X[dum_1], dum_2)
+
+			# We compute the new values
+			X_new = sum_y_1 / cpp_tapply_vsum(n_1, exp_mu_in * X_2[dum_2], dum_1)
+
+			# we return them
+			X_new
+		}
+
+		# The main loop
+		X = rep(1, n_1)
+		GX = G(X)
+		GGX = G(GX)
+		for(iter in 1:iterMax){
+			X_new = irons_tuck_iteration(X, GX, GGX)
+			GX = G(X_new)
+			GGX = G(GX)
+
+			# Stopping criterion:
+			diff = max(abs(X_new - GX))
+			if(diff < eps.cluster) break
+
+			# update
+			X = X_new
+		}
+
+		print(iter)
+		if(iter==iterMax) warning("[getting dummies] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
+
+		# getting the value of the dummies
+		X_2 = sum_y_2 / cpp_tapply_vsum(n_2, exp_mu_in * X[dum_1], dum_2)
+
+		mu_dummies = exp_mu_in / exp_mu * X[dum_1] * X_2[dum_2]
+
+	} else if(useAcc && Q == 2) {
+		# Here we apply the Iron and Tuck Algorithm
+
+		# Poisson case:
+		if(family == "poisson") mu_in = mu + log(mu_dummies)
+
+		# We select the cluster with the lowest nber of cases
+		if(nbCluster[1] < nbCluster[2]){
+			i = 1
+			j = 2
+		} else {
+			i = 2
+			j = 1
+		}
+
+		# Variables used in function G:
+		dum_1 = dum_all[[i]]
+		dum_2 = dum_all[[j]]
+
+		sum_y_1 = sum_y_all[[i]]
+		sum_y_2 = sum_y_all[[j]]
+
+		orderCluster_1 = orderCluster_all[[i]]
+		orderCluster_2 = orderCluster_all[[j]]
+
+		tableCluster_1 = tableCluster_all[[i]]
+		tableCluster_2 = tableCluster_all[[j]]
+
+		n_1 = length(tableCluster_1)
+		n_2 = length(tableCluster_2)
+
+		# Function defined with some variables local to getDummies function
+		G = function(X){
+
+			# X_2 is deduced from X_1
+			X_2 = computeDummies(dum_2, mu_in + X[dum_1], env, coef, sum_y_2, orderCluster_2, tableCluster_2)
+
+			# We compute the new values
+			X_new = computeDummies(dum_1, mu_in + X_2[dum_2], env, coef, sum_y_1, orderCluster_1, tableCluster_1)
+
+			# we return them
+			X_new
+		}
+
+		# The main loop
+		X = rep(0, n_1)
+		GX = G(X)
+		GGX = G(GX)
+		for(iter in 1:iterMax){
+			X_new = irons_tuck_iteration(X, GX, GGX)
+			GX = G(X_new)
+			GGX = G(GX)
+
+			# Stopping criterion:
+			diff = max(abs(X_new - GX))
+			if(diff < eps.cluster) break
+
+			# update
+			X = X_new
+		}
+
+		print(iter)
+		if(iter==iterMax) warning("[getting dummies] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
+
+		# getting the value of the dummies
+		X_2 = computeDummies(dum_2, mu_in + X[dum_1], env, coef, sum_y_2, orderCluster_2, tableCluster_2)
+
+		mu_dummies = mu_in - mu + X[dum_1] + X_2[dum_2]
 
 	} else if (family == "poisson"){
 		# Quicker than before, 100% sure
@@ -1791,49 +1965,10 @@ getDummies = function(mu, exp_mu, env, coef){
 		# print(iter)
 		if(iter==iterMax) warning("[getting dummies] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
 
-		# mu_dummies = log(exp_mu_in) - mu
-		mu_dummies = exp_mu_in / exp_mu
-
-	} else if (TRUE && useCG && family %in% c("negbin","logit")){
-		# The new versions of the logit and negbin
-		# no much more efficient because the NR is inefficient when we try to find the exp() of the dummy
-		# => so we compute the NR on the log of the dummy and then exponentiate it, not very efficient...
-
-		for(iter in 1:iterMax){
-
-			exp_mu0 = exp_mu_in
-
-			for(q in 1:Q){
-				dum = dum_all[[q]]
-				sum_y = sum_y_all[[q]]
-				tableCluster = tableCluster_all[[q]]
-				orderCluster = orderCluster_all[[q]]
-				# get the dummies
-				mu_dum = dichoNR_Cpp_exp(dum, exp_mu_in, env, coef, sum_y, orderCluster, tableCluster)
-				# add them to the stack
-				exp_mu_in = exp_mu_in * exp(mu_dum)[dum]
-			}
-
-			if(Q==1) break
-
-			diff <- max(abs(log(range(exp_mu0/exp_mu_in)))) # max error
-			# print(diff)
-
-			if(anyNA(exp_mu_in)) stop("NA in cluster coefficients, unknown origin.")
-
-			if(diff < eps.cluster) break
-
-		}
-
-		# print(iter)
-		if(iter==iterMax) warning("[getting dummies] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
-
-		# mu_dummies = log(exp_mu_in) - mu
 		mu_dummies = exp_mu_in / exp_mu
 
 	} else {
 		# in the case we are in the useExp case, we need to make some changes for consistency
-		if(useExp) mu_in = log(exp_mu_in)
 
 		for(iter in 1:iterMax){
 
@@ -1850,7 +1985,7 @@ getDummies = function(mu, exp_mu, env, coef){
 				mu_in = mu_in + mu_dum[dum]
 			}
 
-			if(anyNA(mu_in)) stop("Dummies could not be computed.")
+			if(anyNA(mu_in)) stop("Dummies could not be computed. Unknown error.")
 
 			if(Q==1) break
 
@@ -1863,10 +1998,6 @@ getDummies = function(mu, exp_mu, env, coef){
 		if(iter==iterMax) warning("[getting dummies] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
 
 		mu_dummies = mu_in - mu
-
-		# Idem, if useExp, we need to make some changes
-		if(useExp) mu_dummies = exp(mu_dummies)
-
 	}
 
 	# we save the dummy:
@@ -1875,6 +2006,19 @@ getDummies = function(mu, exp_mu, env, coef){
 	if(debug) cat("\nDummies: ", (proc.time()-ptm)[3], "s\t")
 
 	mu_dummies
+}
+
+irons_tuck_iteration = function(X, GX, GGX){
+	# We compute one iteration
+
+	# GX = G(X)
+	# GGX = G(GX)
+
+	delta_X = GX - X
+	delta_GX = GGX - GX
+	delta2_X = delta_GX - delta_X
+
+	GGX - c(delta_GX %*% delta2_X) / c(crossprod(delta2_X)) * delta_GX
 }
 
 computeDummies = function(dum, mu, env, coef, sum_y, orderCluster, tableCluster){
@@ -1972,9 +2116,6 @@ dichoNR_Cpp = function(dum, mu, env, coef, sum_y, orderCluster, tableCluster){
 	# Get the init, the inf and sup boundaries
 	minMax = cpp_conditional_minMax(nb_cases, N, mu, dum, tableCluster)
 
-	# Init => 0, car a la fin, cela doit converger vers 0
-	init = rep(0, nb_cases)
-
 	# mu est la valeur estimee en les parametres (hors les dummies)
 	# plus les mu sont eleves, plus la dummy doit etre petite pour compenser
 	borne_inf = famFuns$guessDummy(sum_y, tableCluster, minMax[, 2]) # Value > 0, (on fait moins muMax)
@@ -1983,7 +2124,12 @@ dichoNR_Cpp = function(dum, mu, env, coef, sum_y, orderCluster, tableCluster){
 	family = get(".family", env)
 	family_nb = switch(family, poisson=1, negbin=2, logit=3, gaussian=4, probit=5)
 
+	# iter = get("iter", env)
+	# if(iter == 18) browser()
+
 	theta = coef[".theta"]
+	# in the case there are no params to estimate
+	if(!is.numeric(theta)) theta = as.numeric(NA)
 	# ptm <- proc.time()
 	res = RcppDichotomyNR(N = N, K = nb_cases, family = family_nb, theta,
 							  epsDicho=eps.NR, lhs=y, mu, borne_inf,
@@ -1994,7 +2140,7 @@ dichoNR_Cpp = function(dum, mu, env, coef, sum_y, orderCluster, tableCluster){
 }
 
 deriv_xi = function(jacob.mat, ll_d2, env, coef){
-	#Derivee des dummies
+	# Derivee des dummies
 	dum_all = get(".dummy", env)
 	dumMat_cpp = get(".dumMat_cpp", env)
 	nbCluster = get(".nbCluster", env)

@@ -3,7 +3,17 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
-\section{Changes in version 1.1}{
+\section{Changes in version 2.0.1}{
+	\itemize{
+	  \item [c++ code] Fixed overloading problem.
+	  \item Improved help pages.
+	  \item Code more robust to overfitting situations (in particular for the Logit case).
+	  \item Added an acceleration algorithm to get the fixed-point for 2 clusters.
+	  \item New collinearity warnings.
+    }
+  }
+
+\section{Changes in version 2.0}{
   \subsection{New Features}{
     \itemize{
 	  \item Algorithm is greatly improved.

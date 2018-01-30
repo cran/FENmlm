@@ -434,8 +434,8 @@ summary.femlm <- summary.feNmlm <- function(object, se=c("standard", "white", "c
 #' @param pseudo Logical, default is \code{TRUE}. Should the pseudo R2 be displayed?
 #' @param title Character scalar. The title of the Latex table.
 #' @param sdBelow Logical, default is \code{TRUE}. Should the standard-errors be displayed below the coefficients?
-#' @param drop Character vector. This element is used if some variables are not to be displayed. This should be a regular expression (see \code{\link[base]{regexp}} help for more info). There can be more than one regular expression. Each variable satisfying the regular expression will be discarded.
-#' @param order Character vector. This element is used if the user wants the variables to be ordered in a certain way. This should be a regular expression (see \code{\link[base]{regexp}} help for more info). There can be more than one regular expression. The variables satisfying the first regular expression will be placed first, then the order follows the sequence of regular expressions.
+#' @param drop Character vector. This element is used if some variables are not to be displayed. This should be a regular expression (see \code{\link[base]{regex}} help for more info). There can be more than one regular expression. Each variable satisfying the regular expression will be discarded.
+#' @param order Character vector. This element is used if the user wants the variables to be ordered in a certain way. This should be a regular expression (see \code{\link[base]{regex}} help for more info). There can be more than one regular expression. The variables satisfying the first regular expression will be placed first, then the order follows the sequence of regular expressions.
 #' @param dict A named character vector. If provided, it changes the original variable names to the ones contained in the \code{dict}. Example: I want to change my variable named "a" to "$log(a)$" and "b3" to "$bonus^3$", then I used \code{dict=c(a="$log(a)$",b3="$bonus^3$")}.
 #' @param file A character scalar. If provided, the Latex table will be saved in a file whose path is \code{file}.
 #' @param append Logical, default is \code{TRUE}. Only used if option \code{file} is used. Should the Latex table be appended to the existing file?
@@ -609,13 +609,13 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 
 	# dropping some coefs
 	if(!missing(drop)){
-		if(!is.character(drop)) stop("the arg. 'drop' must be a character vector of regular expression (see help regexp).")
+		if(!is.character(drop)) stop("the arg. 'drop' must be a character vector of regular expression (see help regex).")
 		for(var2drop in drop) all_vars = all_vars[!grepl(var2drop, all_vars)]
 	}
 
 	# ordering the coefs
 	if(!missing(order)){
-		if(!is.character(order)) stop("the arg. 'order' must be a character vector of regular expression (see help regexp).")
+		if(!is.character(order)) stop("the arg. 'order' must be a character vector of regular expression (see help regex).")
 		for(var2order in rev(order)){
 			who = grepl(var2order, all_vars)
 			all_vars = c(all_vars[who], all_vars[!who])
@@ -857,13 +857,13 @@ res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "three
 
 	# dropping some coefs
 	if(!missing(drop)){
-		if(!is.character(drop)) stop("the arg. 'drop' must be a character vector of regular expression (see help regexp).")
+		if(!is.character(drop)) stop("the arg. 'drop' must be a character vector of regular expression (see help regex).")
 		for(var2drop in drop) all_vars = all_vars[!grepl(var2drop, all_vars)]
 	}
 
 	# ordering the coefs
 	if(!missing(order)){
-		if(!is.character(order)) stop("the arg. 'order' must be a character vector of regular expression (see help regexp).")
+		if(!is.character(order)) stop("the arg. 'order' must be a character vector of regular expression (see help regex).")
 		for(var2order in rev(order)){
 			who = grepl(var2order, all_vars)
 			all_vars = c(all_vars[who], all_vars[!who])
@@ -1502,6 +1502,12 @@ numberFormatNormal = function(x){
 
 char2num = function(x){
 	# we transform the data to numeric => faster analysis
+
+	# special case
+	qui = which(x == "")
+	if(length(qui) > 0){
+		x[qui] = "xxEMPTYxx"
+	}
 
 	x_unik = unique(x)
 	dict = 1:length(x_unik)

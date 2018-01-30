@@ -12,6 +12,10 @@ using namespace Rcpp;
 // Rcpp::stop("problem here");
 // R_CheckUserInterrupt(); // to allow the user to stop the algo if the process is too long
 
+// Some mathematical expressions that might be problematic
+// exp log
+// Attention: pour les fonctions log ou exp: il faut absolument du numeric vector (et pas du integer ou ca cree du overloading)
+
 double cpp_abs(double x){
 	//simple function to compute the absolute value
 	if(x > 0){
@@ -245,7 +249,7 @@ NumericVector RcppPartialDerivative_other(int Q, int N, double epsDeriv, Numeric
 	// ll_d2: the second derivative
 	// dx_dother: the vector of dx_dother
 
-	int iter, iterMax = 100;
+	int iter, iterMax = 1000;
 
 	int i, q, c;
 	int index;
@@ -322,7 +326,7 @@ NumericVector RcppPartialDerivative_other(int Q, int N, double epsDeriv, Numeric
 
 	// Rprintf("other, nb iter=%i\n", iter);
 	if(iter == iterMax){
-		Rprintf("[Getting cluster deriv. other] Max iterations reached (100)\n");
+		Rprintf("[Getting cluster deriv. other] Max iterations reached (%i)\n", iterMax);
 	}
 
 	return(S);
@@ -616,15 +620,17 @@ double cpp_NB_dum_fx(double theta, NumericVector lhs, NumericVector mu, double x
 
 	double res=0;
 	int i, obs;
-	double exp_mu;
+	// double exp_mu;
 
 	for(i=start ; i<end ; i++){
 
 		obs = obsCluster(i); // obscluster must be in cpp index
 
-		exp_mu = exp(x1 + mu(obs));
+		// exp_mu = exp(x1 + mu(obs));
+		// res += lhs(obs) - (theta + lhs(obs)) * exp_mu / (exp_mu + theta);
 
-		res += lhs(obs) - (theta + lhs(obs)) * exp_mu / (exp_mu + theta);
+		// I rewrite it to avoid problems of identification
+		res += lhs(obs) - (theta + lhs(obs)) / (1 + theta*exp(-x1 - mu(obs)));
 	}
 
 	return(res);
@@ -635,15 +641,17 @@ double cpp_LOGIT_dum_fx(NumericVector lhs, NumericVector mu, double x1, IntegerV
 
 	double res=0;
 	int i, obs;
-	double exp_mu;
+	// double exp_mu;
 
 	for(i=start ; i<end ; i++){
 
 		obs = obsCluster(i); // obscluster must be in cpp index
 
-		exp_mu = exp(x1 + mu(obs));
+		// exp_mu = exp(x1 + mu(obs));
+		// res += lhs(obs) - exp_mu / (1 + exp_mu);
 
-		res += lhs(obs) - exp_mu / (1 + exp_mu);
+		// I rewrite it to avoid problems of identification
+		res += lhs(obs) - 1 / (1 + exp(-x1 - mu(obs)));
 	}
 
 	return(res);
@@ -673,14 +681,18 @@ double cpp_NB_dum_dfx(double theta, NumericVector lhs, NumericVector mu, double 
 	double res=0;
 	int i, obs;
 	double exp_mu;
+	// double new_mu;
 
 	for(i=start ; i<end ; i++){
 
 		obs = obsCluster(i); // obscluster must be in cpp index
 
-		exp_mu = exp(x1 + mu(obs));
+		// exp_mu = exp(x1 + mu(obs));
+		// res += - theta * (theta + lhs(obs)) * exp_mu / (theta + exp_mu) / (theta + exp_mu);
 
-		res += - theta * (theta + lhs(obs)) * exp_mu / (theta + exp_mu) / (theta + exp_mu);
+		// I rewrite it to avoid problems of identification
+		exp_mu = exp(x1 + mu(obs));
+		res += - theta * (theta + lhs(obs)) / ( (theta/exp_mu + 1) * (theta + exp_mu) );
 	}
 
 	return(res);
@@ -697,9 +709,12 @@ double cpp_LOGIT_dum_dfx(NumericVector lhs, NumericVector mu, double x1, Integer
 
 		obs = obsCluster(i); // obscluster must be in cpp index
 
-		exp_mu = exp(x1 + mu(obs));
+		// exp_mu = exp(x1 + mu(obs));
+		// res += - exp_mu / (1 + exp_mu) / (1 + exp_mu);
 
-		res += - exp_mu / (1 + exp_mu) / (1 + exp_mu);
+		// I rewrite it to avoid problems of identification
+		exp_mu = exp(x1 + mu(obs));
+		res += - 1 / ( (1/exp_mu + 1) * (1 + exp_mu) );
 	}
 
 	return(res);
@@ -765,9 +780,10 @@ NumericVector RcppDichotomyNR(int N, int K, int family, double theta, double eps
 	// INFO:
 	// this algorithm applies dichotomy to find out the cluster coefficients
 	// this is for the logit and for the negative binomial
+	// after 10 iterations: full dichotomy
 
-	int itermax = 100, iter;
-	double value, x0, derivee;; // evaluation of the dummy
+	int itermax = 100, iter, iterFullDicho = 10;
+	double value, x0, derivee = 0; // evaluation of the dummy
 	int k; // classical index
 	int start, end; // the indices used to compute sums wrt clusters
 	NumericVector res(K);
@@ -821,27 +837,35 @@ NumericVector RcppDichotomyNR(int N, int K, int family, double theta, double eps
 				upper_bound = x1;
 			}
 
-			// 2nd step: NR iteration
+			// 2nd step: NR iteration or Dichotomy
 			x0 = x1;
-			derivee = cpp_dum_dfx(family, theta, lhs, mu, x1, obsCluster, start, end);
-			x1 = x0 - value / derivee;
-			// Rprintf("x1: %5.2f\n", x1);
+			if(value == 0){
+				ok = false;
+			} else if(iter <= iterFullDicho){
+				derivee = cpp_dum_dfx(family, theta, lhs, mu, x1, obsCluster, start, end);
+				x1 = x0 - value / derivee;
+				// Rprintf("x1: %5.2f\n", x1);
 
-			// 3rd step: dichotomy (if necessary)
-			// Update of the value if it goes out of the boundaries
-			if(x1 >= upper_bound || x1 <= lower_bound){
+				// 3rd step: dichotomy (if necessary)
+				// Update of the value if it goes out of the boundaries
+				if(x1 >= upper_bound || x1 <= lower_bound){
+					x1 = (lower_bound + upper_bound)/2;
+				}
+			} else {
 				x1 = (lower_bound + upper_bound)/2;
 			}
 
 			// the stopping criteria
 			if(iter == itermax){
 				ok = false;
-				Rprintf("[Getting cluster coefficients] max iterations reached (100).\n");
-				Rprintf("Value Sum Deriv = %f.\n", value);
+				Rprintf("[Getting cluster coefficients nber %i] max iterations reached (%i).\n", k, itermax);
+				Rprintf("Value Sum Deriv (NR) = %f. Difference = %f.\n", value, cpp_abs(x0-x1));
 			}
+
 			if(cpp_abs(x0-x1) < epsDicho){
 				ok = false;
 			}
+
 		}
 		// Rprintf("iter=%i.\n", iter);
 		res[k] = x1;
@@ -868,7 +892,7 @@ NumericVector cpp_DichotomyNR(int family, int K, int start, double theta, double
 	// this algorithm applies dichotomy to find out the cluster coefficients
 	// this is for the logit and for the negative binomial
 
-	int itermax = 100, iter;
+	int itermax = 1000, iter;
 	double value, x0, derivee;; // evaluation of the dummy
 	int k; // classical index
 	int start_cluster, end_cluster; // the indices used to compute sums wrt clusters
@@ -924,7 +948,7 @@ NumericVector cpp_DichotomyNR(int family, int K, int start, double theta, double
 			// the stopping criteria
 			if(iter == itermax){
 				ok = false;
-				Rprintf("[Getting cluster coefficients] max iterations reached (100).\n");
+				Rprintf("[Getting cluster coefficients] max iterations reached (%i).\n", itermax);
 				Rprintf("Value Sum Deriv = %f.\n", value);
 			}
 			if(cpp_abs(x0 - x1) < epsDicho){
@@ -1143,8 +1167,9 @@ NumericVector cpp_poisson_closedForm(int q, int start, int K, NumericVector mu_i
 	return(cluster_coef);
 }
 
-NumericVector cpp_gaussian_closedForm(int q, int start, int K, NumericVector mu_in, NumericVector sum_y, IntegerVector dum_vect, IntegerVector tableCluster_vect){
+NumericVector cpp_gaussian_closedForm(int q, int start, int K, NumericVector mu_in, NumericVector sum_y, IntegerVector dum_vect, NumericVector tableCluster_vect){
 	// => computes the cluster coefs for the poisson
+	// tableCluster_vec => as NumericVector to avoid problems with the olog function
 
 	int N = mu_in.size();
 
@@ -1167,9 +1192,9 @@ NumericVector cpp_gaussian_closedForm(int q, int start, int K, NumericVector mu_
 	return(cluster_coef);
 }
 
-NumericVector cpp_negbin_guessDummy(int K, int start, NumericVector sum_y, IntegerVector tableCluster_vect, NumericVector mu_clust){
+NumericVector cpp_negbin_guessDummy(int K, int start, NumericVector sum_y, NumericVector tableCluster_vect, NumericVector mu_clust){
 	// sum_y: sum of the lhs per cluster
-	// tableCluster: nber of observation per cluster case
+	// tableCluster: nber of observation per cluster case => I put it as numeric and not integer to avoid overloading
 	// mu_clust: value of mu for each cluster (usually min or max)
 
 	NumericVector res(K);
@@ -1181,7 +1206,9 @@ NumericVector cpp_negbin_guessDummy(int K, int start, NumericVector sum_y, Integ
 	return(res);
 }
 
-NumericVector cpp_negbin_clusterCoef(int family, int q, int K, int start, double theta, double epsDicho, NumericVector lhs, NumericVector sum_y, NumericVector mu, IntegerVector obsCluster_vect, IntegerVector start_vector, IntegerVector end_vector, IntegerVector dum_vect, IntegerVector tableCluster_vect){
+NumericVector cpp_negbin_clusterCoef(int family, int q, int K, int start, double theta, double epsDicho, NumericVector lhs, NumericVector sum_y, NumericVector mu, IntegerVector obsCluster_vect, IntegerVector start_vector, IntegerVector end_vector, IntegerVector dum_vect, NumericVector tableCluster_vect){
+
+	// tablecluster_vec => put to numeric to avoid later problems
 
 	int N = lhs.size();
 	NumericVector cluster_coef(K);
@@ -1227,9 +1254,9 @@ NumericVector cpp_negbin_clusterCoef(int family, int q, int K, int start, double
 	return(clusterCoef);
 }
 
-NumericVector cpp_logit_guessDummy(int K, int start, NumericVector sum_y, IntegerVector tableCluster_vect, NumericVector mu_clust){
+NumericVector cpp_logit_guessDummy(int K, int start, NumericVector sum_y, NumericVector tableCluster_vect, NumericVector mu_clust){
 	// sum_y: sum of the lhs per cluster
-	// tableCluster: nber of observation per cluster case
+	// tableCluster: nber of observation per cluster case => numeric to avoid overloading
 	// mu_clust: value of mu for each cluster (usually min or max)
 	// log(sum_y) - log(n_group-sum_y) - mu
 
@@ -1242,7 +1269,9 @@ NumericVector cpp_logit_guessDummy(int K, int start, NumericVector sum_y, Intege
 	return(res);
 }
 
-NumericVector cpp_logit_clusterCoef(int family, int q, int K, int start, double theta, double epsDicho, NumericVector lhs, NumericVector sum_y, NumericVector mu, IntegerVector obsCluster_vect, IntegerVector start_vector, IntegerVector end_vector, IntegerVector dum_vect, IntegerVector tableCluster_vect){
+NumericVector cpp_logit_clusterCoef(int family, int q, int K, int start, double theta, double epsDicho, NumericVector lhs, NumericVector sum_y, NumericVector mu, IntegerVector obsCluster_vect, IntegerVector start_vector, IntegerVector end_vector, IntegerVector dum_vect, NumericVector tableCluster_vect){
+
+	// tableCluster_vec => put to NumericVector to avaoid later overloading problem with function log
 
 	int N = lhs.size();
 	NumericVector cluster_coef(K);
@@ -1289,7 +1318,8 @@ NumericVector cpp_logit_clusterCoef(int family, int q, int K, int start, double 
 }
 
 // function that computes the clusters coefficents for a given cluster
-NumericVector cpp_compute_single_cluster(int family, double theta, double epsDicho, int q, int start, int K, NumericVector mu_in, NumericVector lhs, NumericVector sum_y, IntegerVector tableCluster_vect, IntegerVector dum_vect, IntegerVector obsCluster_vect, IntegerVector start_cluster_vect, IntegerVector end_cluster_vect){
+NumericVector cpp_compute_single_cluster(int family, double theta, double epsDicho, int q, int start, int K, NumericVector mu_in, NumericVector lhs, NumericVector sum_y, NumericVector tableCluster_vect, IntegerVector dum_vect, IntegerVector obsCluster_vect, IntegerVector start_cluster_vect, IntegerVector end_cluster_vect){
+	// tableCluster_vec put to NumericVector to avoid later overloading problem with the function log
 
 	int N = lhs.size();
 	NumericVector res(N), cluster_coef(K);
@@ -1313,11 +1343,11 @@ NumericVector cpp_compute_single_cluster(int family, double theta, double epsDic
 
 
 // [[Rcpp::export]]
-NumericVector Rcpp_compute_sum_clusters(int N, int Q, int family, double theta, double epsMu, NumericVector init, NumericVector lhs, NumericVector sum_y, NumericVector mu, IntegerVector dum_vect, IntegerVector nbCluster, IntegerVector tableCluster_vect, IntegerVector obsCluster_vect, IntegerVector start_cluster_vect, IntegerVector end_cluster_vect){
+NumericVector Rcpp_compute_sum_clusters(int N, int Q, int family, double theta, double epsMu, NumericVector init, NumericVector lhs, NumericVector sum_y, NumericVector mu, IntegerVector dum_vect, IntegerVector nbCluster, NumericVector tableCluster_vect, IntegerVector obsCluster_vect, IntegerVector start_cluster_vect, IntegerVector end_cluster_vect){
 	// computes the sum of clusters iteratively
 	// sum_y: vector of length sum_cases
 	// dum_vect: N*Q stacked vector of the clusters ID, is c(dum[[1]], ..., dum[[q]], ..., dum[[Q]])
-	// tableCluster_vect: sum_cases stacked vector of the number of obs per cluster category
+	// tableCluster_vect: sum_cases stacked vector of the number of obs per cluster category // as numeric vector to avoid later problem with overloading in the function log
 	// obsCluster_vect: N*Q stacked vector of c(order(dum[[1]]), ..., order(dum[[q]]), ..., order(dum[[Q]]))
 	// start_cluster_vect (end_cluster_vect): the IDs of the observation of obsCluster_vect for each cluster case (used only in dichotomy, and obtained using function RcppCreate_start_end_indexes)
 

@@ -18,13 +18,29 @@
 #	- negative binomial
 # - gaussian
 
+# 25/01/2018:
+# I introduced the argument exp_mu => only for logit/poisson/negbin/gaussian
+# If I add the new families, i need to add the argument exp_mu to them too
+
+#*****************************#
+#### ===== UTILITIES ===== ####
+#*****************************#
+
+log_a_exp <- function(a, mu, exp_mu){
+	# This fonction gives proper values to stg that might be NaN
+	qui = which(mu < 200)
+	res = mu
+	res[qui] = log(a + exp_mu[qui])
+	res
+}
+
 #***************************#
 #### ===== POISSON ===== ####
 #***************************#
 
 ml_poisson = function(){
 	#Cette fonction renvoie une famille de fonctions
-	ll = function(y, exp_mu, env, ...){
+	ll = function(y, mu, exp_mu, env, ...){
 		# browser()
 		# computing the lfactorial is costly
 		if(".lfactorial" %in% names(env)){
@@ -35,18 +51,19 @@ ml_poisson = function(){
 		}
 
 		# sum(y*mu - exp(mu)) - lfact
+		# sum(y*log(exp_mu) - exp_mu) - lfact
 
-		sum(y*log(exp_mu) - exp_mu) - lfact
+		sum(y*mu - exp_mu) - lfact
 	}
 
 	# Derivee
-	ll_dl = function(y, exp_mu, ...){
+	ll_dl = function(y, mu, exp_mu, ...){
 		# c(y - exp(mu))
 		c(y - exp_mu)
 	}
 
 	# Derivee seconde
-	ll_d2 = function(y, exp_mu, ...){
+	ll_d2 = function(y, mu, exp_mu, ...){
 		# -c(exp(mu))
 		-c(exp_mu)
 	}
@@ -57,7 +74,7 @@ ml_poisson = function(){
 		c(y*mu - exp(mu) - lfactorial(y))
 	}
 
-	expected.predictor = function(exp_mu, env, ...){
+	expected.predictor = function(mu, exp_mu, env, ...){
 		# exp(mu)
 		exp_mu
 	}
@@ -98,21 +115,27 @@ ml_poisson = function(){
 
 ml_logit = function(){
 
-	ll = function(y, exp_mu, env, ...){
+	ll = function(y, mu, exp_mu, env, ...){
 		# sum(y*mu - log(1+exp(mu)))
-		sum(y*log(exp_mu) - log(1+exp_mu))
+		# sum(y*log(exp_mu) - log(1+exp_mu))
+
+		sum(y*mu - log_a_exp(1, mu, exp_mu))
 	}
 
 	# Derivee
-	ll_dl = function(y, exp_mu, ...){
+	ll_dl = function(y, mu, exp_mu, ...){
 		# c(y - exp(mu)/(1+exp(mu)))
-		c(y - exp_mu/(1+exp_mu))
+		# c(y - exp_mu/(1+exp_mu))
+
+		c(y - 1/(1+1/exp_mu))
 	}
 
 	# Derivee seconde
-	ll_d2 = function(y, exp_mu, ...){
+	ll_d2 = function(y, mu, exp_mu, ...){
 		# - c(exp(mu)/(1+exp(mu))^2)
-		- c(exp_mu/(1+exp_mu)^2)
+		# - c(exp_mu/(1+exp_mu)^2)
+
+		- c(1/ ( (1+exp_mu) * (1+1/exp_mu) ))
 	}
 
 	ll_TEST_score = function(y, mu, env, ...){
@@ -121,9 +144,11 @@ ml_logit = function(){
 		c(y*mu - log(1+exp(mu)))
 	}
 
-	expected.predictor = function(exp_mu, env, ...){
+	expected.predictor = function(mu, exp_mu, env, ...){
 		# exp(mu)/(1+exp(mu))
-		exp_mu/(1+exp_mu)
+		# exp_mu/(1+exp_mu)
+
+		1/(1+1/exp_mu)
 	}
 
 	initDummy = function(S, y, mu, env, ...){
@@ -188,7 +213,7 @@ ml_logit = function(){
 
 ml_negbin = function(){
 	# Cette fonction renvoie une famille de fonctions
-	ll = function(y, exp_mu, env, coef, ...){
+	ll = function(y, mu, exp_mu, env, coef, ...){
 		# computing the lgamma is costly
 		if(".lgamma" %in% names(env)){
 			lgamm = get(".lgamma", env)
@@ -201,32 +226,41 @@ ml_negbin = function(){
 		N = length(y)
 
 		# sum(lgamma(theta+y) + y*mu - (theta+y)*log(theta+exp(mu))) - lgamm + N*(- lgamma(theta) + theta*log(theta))
-		sum(lgamma(theta+y) + y*log(exp_mu) - (theta+y)*log(theta+exp_mu)) - lgamm + N*(- lgamma(theta) + theta*log(theta))
+		# sum(lgamma(theta+y) + y*log(exp_mu) - (theta+y)*log(theta+exp_mu)) - lgamm + N*(- lgamma(theta) + theta*log(theta))
+
+		sum(lgamma(theta+y) + y*mu - (theta+y)*log_a_exp(theta, mu, exp_mu)) - lgamm + N*(- lgamma(theta) + theta*log(theta))
 	}
 
 	# Derivee
-	ll_dl = function(y, exp_mu, coef, env, ...){
+	ll_dl = function(y, mu, exp_mu, coef, env, ...){
 		theta = coef[".theta"]
 
 		# c(y - (theta+y)*exp(mu)/(theta+exp(mu)))
-		c(y - (theta+y)*exp_mu/(theta+exp_mu))
+		# c(y - (theta+y)*exp_mu/(theta+exp_mu))
+
+		c(y - (theta+y) / (theta/exp_mu + 1))
 	}
 
 	# Derivee croisee
-	ll_dx_dother = function(y, exp_mu, coef, env, ...){
+	ll_dx_dother = function(y, mu, exp_mu, coef, env, ...){
 		#Means the second derivative of the LL wrt to the linear part and theta
 		theta = coef[".theta"]
 
 		# c(-exp(mu)*(exp(mu)-y)/(theta+exp(mu))^2)
-		c(-exp_mu*(exp_mu-y)/(theta+exp_mu)^2)
+		# c(-exp_mu*(exp_mu-y)/(theta+exp_mu)^2)
+
+		# c( -exp_mu*exp_mu/(theta+exp_mu)^2 + exp_mu*y/(theta+exp_mu)^2)
+		c( -1/(theta/exp_mu + 1)^2 + y/( (theta/exp_mu + 1) * (theta + exp_mu) ) )
 	}
 
 	# Derivee seconde:
-	ll_d2 = function(y, exp_mu, coef, env, ...){
+	ll_d2 = function(y, mu, exp_mu, coef, env, ...){
 		theta = coef[".theta"]
 
 		# - theta * (theta+y) * c(exp(mu)/(theta+exp(mu))^2)
-		- theta * (theta+y) * c(exp_mu/(theta+exp_mu)^2)
+		# - theta * (theta+y) * c(exp_mu/(theta+exp_mu)^2)
+
+		- theta * (theta+y) / ( (theta/exp_mu + 1) * (theta + exp_mu) )
 	}
 
 	ll_TEST_score = function(y, exp_mu, env, coef, ...){
@@ -238,19 +272,26 @@ ml_negbin = function(){
 		c(lgamma(theta+y) - lgamma(theta) - lgamma(y+1) + theta*log(theta) + y*log(exp_mu) - (theta+y)*log(theta+exp_mu))
 	}
 
-	grad.theta = function(theta, y, exp_mu, ...){
+	grad.theta = function(theta, y, mu, exp_mu, ...){
 		# sum( psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp(mu)) - (theta+y)/(theta+exp(mu)) )
-		sum( psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp_mu) - (theta+y)/(theta+exp_mu) )
+		# sum( psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp_mu) - (theta+y)/(theta+exp_mu) )
+
+		sum( psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log_a_exp(theta, mu, exp_mu) - (theta+y)/(theta+exp_mu) )
 	}
 
-	scores.theta = function(theta, y, exp_mu){
+	scores.theta = function(theta, y, mu, exp_mu){
 		# psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp(mu)) - (theta+y)/(theta+exp(mu))
-		psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp_mu) - (theta+y)/(theta+exp_mu)
+		# psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp_mu) - (theta+y)/(theta+exp_mu)
+
+		psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log_a_exp(theta, mu, exp_mu) - (theta+y)/(theta+exp_mu)
 	}
 
-	hess.theta = function(theta, y, exp_mu){
+	hess.theta = function(theta, y, mu, exp_mu){
 		# sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp(mu)) + (y-exp(mu))/(theta+exp(mu))^2 )
-		sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp_mu) + (y-exp_mu)/(theta+exp_mu)^2 )
+		# sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp_mu) + (y-exp_mu)/(theta+exp_mu)^2 )
+
+		# sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp_mu) + y/(theta+exp_mu)^2 - exp_mu/(theta+exp_mu)^2 )
+		sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp_mu) + y/(theta+exp_mu)^2 - 1/( (theta/exp_mu + 1) * (theta + exp_mu) ) )
 	}
 
 	hess.thetaL = function(theta, jacob.mat, y, dxi_dbeta, dxi_dother, ll_d2, ll_dx_dother){
@@ -267,14 +308,15 @@ ml_negbin = function(){
 # 		return(as.matrix(H))
 	}
 
-	hess_theta_part = function(theta, y, exp_mu, dxi_dother, ll_dx_dother, ll_d2){
+	hess_theta_part = function(theta, y, mu, exp_mu, dxi_dother, ll_dx_dother, ll_d2){
 		# La derivee vav de theta en prenant en compte les dummies
-		d2ll_d2theta = hess.theta(theta, y, exp_mu)
+		d2ll_d2theta = hess.theta(theta, y, mu, exp_mu)
 		res = sum(dxi_dother^2*ll_d2 + 2*dxi_dother*ll_dx_dother) + d2ll_d2theta
 		return(res)
 	}
 
 	scores_theta_part = function(theta, jacob.mat, y, mu){
+		# DEPRECATED (not used any more in the main code)
 		# We add the part of the score due to the profiled theta
 		e_mu = exp(mu)
 		n = length(y)
@@ -293,7 +335,7 @@ ml_negbin = function(){
 		tcrossprod(dl_dt, dt_db)
 	}
 
-	expected.predictor = function(exp_mu, env, ...){
+	expected.predictor = function(mu, exp_mu, env, ...){
 		# exp(mu)
 		exp_mu
 	}
@@ -622,20 +664,20 @@ ml_probit = function(){
 
 ml_gaussian = function(){
 
-	ll = function(y, mu, env, ...){
+	ll = function(y, mu, exp_mu, env, ...){
 		sigma = sqrt(mean((y-mu)^2))
 		n = length(y)
 		-1/2/sigma^2*sum((y-mu)^2) - n*log(sigma) - n*log(2*pi)/2
 	}
 
 	# Derivee
-	ll_dl = function(y, mu, env, ...){
+	ll_dl = function(y, mu, exp_mu, env, ...){
 		sigma = sqrt(mean((y-mu)^2))
 		(y-mu)/sigma^2
 	}
 
 	# Derivee seconde
-	ll_d2 = function(y, mu, env, ...){
+	ll_d2 = function(y, mu, exp_mu, env, ...){
 		sigma = sqrt(mean((y-mu)^2))
 		rep(-1/sigma^2, length(y))
 	}
@@ -647,7 +689,7 @@ ml_gaussian = function(){
 		c(-1/2/sigma^2*(y-mu)^2 - log(sigma) - log(2*pi)/2)
 	}
 
-	expected.predictor = function(mu, env, ...){
+	expected.predictor = function(mu, exp_mu, env, ...){
 		mu
 	}
 

@@ -223,7 +223,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // Rcpp_compute_sum_clusters
-NumericVector Rcpp_compute_sum_clusters(int N, int Q, int family, double theta, double epsMu, NumericVector init, NumericVector lhs, NumericVector sum_y, NumericVector mu, IntegerVector dum_vect, IntegerVector nbCluster, IntegerVector tableCluster_vect, IntegerVector obsCluster_vect, IntegerVector start_cluster_vect, IntegerVector end_cluster_vect);
+NumericVector Rcpp_compute_sum_clusters(int N, int Q, int family, double theta, double epsMu, NumericVector init, NumericVector lhs, NumericVector sum_y, NumericVector mu, IntegerVector dum_vect, IntegerVector nbCluster, NumericVector tableCluster_vect, IntegerVector obsCluster_vect, IntegerVector start_cluster_vect, IntegerVector end_cluster_vect);
 RcppExport SEXP _FENmlm_Rcpp_compute_sum_clusters(SEXP NSEXP, SEXP QSEXP, SEXP familySEXP, SEXP thetaSEXP, SEXP epsMuSEXP, SEXP initSEXP, SEXP lhsSEXP, SEXP sum_ySEXP, SEXP muSEXP, SEXP dum_vectSEXP, SEXP nbClusterSEXP, SEXP tableCluster_vectSEXP, SEXP obsCluster_vectSEXP, SEXP start_cluster_vectSEXP, SEXP end_cluster_vectSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -239,7 +239,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< NumericVector >::type mu(muSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type dum_vect(dum_vectSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type nbCluster(nbClusterSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type tableCluster_vect(tableCluster_vectSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type tableCluster_vect(tableCluster_vectSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type obsCluster_vect(obsCluster_vectSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type start_cluster_vect(start_cluster_vectSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type end_cluster_vect(end_cluster_vectSEXP);

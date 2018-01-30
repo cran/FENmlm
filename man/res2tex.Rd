@@ -26,9 +26,9 @@ res2tex(..., se = c("standard", "white", "cluster", "twoway", "threeway",
 
 \item{sdBelow}{Logical, default is \code{TRUE}. Should the standard-errors be displayed below the coefficients?}
 
-\item{drop}{Character vector. This element is used if some variables are not to be displayed. This should be a regular expression (see \code{\link[base]{regexp}} help for more info). There can be more than one regular expression. Each variable satisfying the regular expression will be discarded.}
+\item{drop}{Character vector. This element is used if some variables are not to be displayed. This should be a regular expression (see \code{\link[base]{regex}} help for more info). There can be more than one regular expression. Each variable satisfying the regular expression will be discarded.}
 
-\item{order}{Character vector. This element is used if the user wants the variables to be ordered in a certain way. This should be a regular expression (see \code{\link[base]{regexp}} help for more info). There can be more than one regular expression. The variables satisfying the first regular expression will be placed first, then the order follows the sequence of regular expressions.}
+\item{order}{Character vector. This element is used if the user wants the variables to be ordered in a certain way. This should be a regular expression (see \code{\link[base]{regex}} help for more info). There can be more than one regular expression. The variables satisfying the first regular expression will be placed first, then the order follows the sequence of regular expressions.}
 
 \item{dict}{A named character vector. If provided, it changes the original variable names to the ones contained in the \code{dict}. Example: I want to change my variable named "a" to "$log(a)$" and "b3" to "$bonus^3$", then I used \code{dict=c(a="$log(a)$",b3="$bonus^3$")}.}
 
