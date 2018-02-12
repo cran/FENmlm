@@ -663,7 +663,7 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 
 	# Factors (if needed)
 	if(length(factorNames)>0){
-		dumIntro = paste0("\\hline\n\\emph{Clusters}& ", paste(rep(" ", n_models), collapse="&"), "\\\\\n")
+		dumIntro = paste0("\\hline\n\\emph{Fixed-Effects}& ", paste(rep(" ", n_models), collapse="&"), "\\\\\n")
 
 		for(m in 1:n_models) {
 			quoi = isFactor[[m]][factorNames]
@@ -893,7 +893,7 @@ res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "three
 
 		myLine = "-------------------------------"
 		# res = rbind(res, theLine)
-		res = rbind(res, c("Clusters:", sprintf("%.*s", longueur[-1], myLine)))
+		res = rbind(res, c("Fixed-Effects:", sprintf("%.*s", longueur[-1], myLine)))
 		factmat = matrix(c(strsplit(strsplit(factor_lines, "\n")[[1]], "&"), recursive = TRUE), ncol=n_models+1, byrow=TRUE)
 		factmat[, ncol(factmat)]=gsub("\\", "", factmat[, ncol(factmat)], fixed = TRUE)
 		res = rbind(res, factmat)
@@ -1587,6 +1587,119 @@ extractCluster = function(fml){
 	}
 
 	list(fml=fml_new, cluster=cluster_vec)
+}
+
+prepare_matrix = function(fml, base){
+	# This function is faster than model.matrix when there is no factor, otherwise model.matrix is faster
+
+	rhs = fml[c(1,3)]
+	t = terms(rhs, data = base)
+
+	isIntercept = attr(t, "intercept") == 1
+
+	if(length(all.vars(rhs)) == 0){
+		if(isIntercept){
+			tmp = matrix(1, nrow(base), 1)
+			colnames(tmp) = "(Intercept)"
+			return(tmp)
+		} else {
+			stop("[prepare_matrix] There is no variable, the linear matrix cannot be constructed.")
+		}
+	}
+
+	# Creation of the DF with the variable names
+	vars = attr(t, "variables")
+	varnames <- sapply(vars, function(x) paste(deparse(x, width.cutoff = 500), collapse = " "))[-1L]
+	data_list <- eval(vars, base)
+	names(data_list) = varnames
+	data <- do.call("data.frame", data_list)
+	names(data) = varnames
+
+	#
+	# FACTORS
+	#
+
+	# now we add the factors if necessary
+	isChar = sapply(data, is.character)
+	if(any(isChar)){
+		for(i in which(isChar)){
+			data[[i]] = as.factor(data[[i]])
+		}
+	}
+
+	isFact = sapply(data, is.factor)
+
+	# We keep all the information into this big matrix
+	if(isIntercept){
+		data_intercept = data.frame("Intercept" = rep(1, nrow(data)))
+		data_all_list = list(data_intercept, data[!isFact])
+	} else {
+		data_all_list = list(data[!isFact])
+	}
+
+	# now we create the factor matrix
+	if(any(isFact)){
+		cpt = length(data_all_list)
+		nb_contrast = 1
+		for(i in which(isFact)){
+
+			if(!isIntercept && nb_contrast == 1){
+				# we add no reference only to the first contrast
+				addRef = FALSE
+			} else {
+				addRef = TRUE
+			}
+
+			cpt = cpt + 1
+			nb_contrast = nb_contrast + 1
+			data_all_list[[cpt]] = make_contrast(data[[i]], prefix = varnames[i], addRef)
+		}
+	}
+
+	#
+	# Other vars
+	#
+
+	# Now we add the other variables (i.e. if ~ a*b => we compute a:b, etc)
+	other_vars = setdiff(attr(t, "term.labels"), varnames)
+	if(length(other_vars) > 0){
+		other_vars_call = parse(text = paste0("list(", paste0(gsub(":", "*", other_vars), collapse = ", "), ")"))
+		data_other_list = eval(other_vars_call, base)
+		# data_other <- as.matrix(do.call("data.frame", data_other_list))
+		data_other <- do.call("data.frame", data_other_list)
+		names(data_other) = other_vars
+
+		cpt = length(data_all_list) + 1
+		data_all_list[[cpt]] = data_other
+	}
+
+	# final big cbind
+	if(isIntercept){
+		tmp = as.matrix(do.call("cbind", data_all_list))
+		colnames(tmp)[1] = "(Intercept)"
+		return(tmp)
+	} else {
+		return(as.matrix(do.call("cbind", data_all_list)))
+	}
+
+}
+
+make_contrast = function(my_fact, prefix = "", addRef = TRUE){
+	# we create a matrix of constrast
+	fact_num = quickUnclassFactor(my_fact)
+
+	K = max(fact_num)
+	N = length(fact_num)
+
+	mat = cpp_make_contrast(N, K, fact_num, addRef)
+
+	if(addRef){
+		colnames(mat) = paste0(prefix, getItems(my_fact)[-1])
+	} else {
+		colnames(mat) = paste0(prefix, getItems(my_fact))
+	}
+
+	mat
 }
 
 

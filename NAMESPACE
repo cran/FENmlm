@@ -17,6 +17,8 @@ importFrom(utils, combn)
 
 importFrom(Rcpp, evalCpp)
 
+importFrom(parallel, detectCores)
+
 import(Matrix)
 
 # Graphics

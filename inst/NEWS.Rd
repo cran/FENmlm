@@ -3,6 +3,28 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
+\section{Changes in version 2.1.0}{
+	\subsection{New Features}{
+		\itemize{
+			\item New argument 'cores' => added multi cores with openMP. Particularly efficient for the Negative Binomial and the Logit models.
+			\item Added a fixed-point acceleration algorithm for 3+ clusters and also to obtain the derivatives.
+			\item Cluster coefficient precision is dynnamically adjusted for complex problems.
+			\item  Faster matrix creation.
+		}
+	}
+  \subsection{Other}{
+		\itemize{
+			\item [Design] Argument noWarning is dropped.
+			\item [Design] clearer message when clusters are removed.
+			\item [Bug] corrected undue information reporting.
+			\item [Bug] corrected important bug that made some estimations fail.
+			\item [Help] Added more accurate information on the returned objects.
+		}
+	}
+
+}
+
+
 \section{Changes in version 2.0.1}{
 	\itemize{
 	  \item [c++ code] Fixed overloading problem.

@@ -15,8 +15,8 @@ Efficient estimation of multiple fixed-effects maximum likelihood models
 \tabular{ll}{
 Package: \tab FENmlm\cr
 Type: \tab Package\cr
-Version: \tab 2.0.1\cr
-Date: \tab 2018-01-30\cr
+Version: \tab 2.1.0\cr
+Date: \tab 2018-02-12\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }

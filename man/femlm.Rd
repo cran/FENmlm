@@ -7,8 +7,8 @@
 femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"), NL.fml,
   cluster, useAcc = TRUE, start, lower, upper, env, start.init, offset,
   nl.gradient, linear.start = 0, jacobian.method = c("simple",
-  "Richardson"), useHessian = TRUE, opt.control = list(), debug = FALSE,
-  theta.init, noWarning = FALSE, ...)
+  "Richardson"), useHessian = TRUE, opt.control = list(), cores = 1,
+  debug = FALSE, theta.init, ...)
 }
 \arguments{
 \item{fml}{A formula. This formula gives the linear formula to be estimated (it is similar to a \code{lm} formula), for example: \code{fml = z~x+y}. To include cluster variables, you can 1) either insert them in this formula using a pipe (e.g. \code{fml = z~x+y|cluster1+cluster2}), or 2) either use the argment \code{cluster}. You can add a non-linear element in this formula by using the argment \code{NL.fml}. If you want to estimate only a non-linear formula without even the intercept, you can use \code{fml = z~0} in combination with \code{NL.fml}.}
@@ -45,11 +45,11 @@ femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"), NL.fml,
 
 \item{opt.control}{List of elements to be passed to the optimization method \code{\link[stats]{nlminb}}.}
 
+\item{cores}{Integer, default is 1. Number of threads to be used (accelerates the algorithm via the use of openMP routines). This is particularly efficient for the negative binomial and logit models, less so for Gaussian and Poisson likelihoods (unless for large datasets).}
+
 \item{debug}{Logical. If \code{TRUE} then the log-likelihood as well as all parameters are printed at each iteration. Default is \code{FALSE}.}
 
 \item{theta.init}{Positive numeric scalar. The starting value of the dispersion parameter if \code{family="negbin"}. By default, the algorithm uses as a starting value the theta obtained from the model with only the intercept.}
-
-\item{noWarning}{Logical, default is \code{FALSE}. Should the warnings be displayed?}
 
 \item{...}{Not currently used.}
 }
@@ -62,16 +62,29 @@ An \code{femlm} object.
 \item{n}{The number of observations.}
 \item{k}{The number of parameters of the model.}
 \item{call}{The call.}
-\item{nonlinear.fml}{The nonlinear formula of the call. It also contains the dependent variable.}
+\item{NL.fml}{The nonlinear formula of the call.}
 \item{linear.formula}{The linear formula of the call.}
 \item{ll_null}{Log-likelihood of the null model (i.e. with the intercept only).}
 \item{pseudo_r2}{The adjusted pseudo R2.}
 \item{naive.r2}{The R2 as if the expected predictor was the linear predictor in OLS.}
 \item{message}{The convergence message from the optimization procedures.}
 \item{sq.cor}{Squared correlation between the dependent variable and its expected value as given by the optimization.}
+\item{hessian}{The Hessian of the parameters.}
 \item{expected.predictor}{The expected predictor is the expected value of the dependent variable.}
-\item{cov.unscaled}{The variance covariance matrix of the parameters.}
+\item{cov.unscaled}{The variance-covariance matrix of the parameters.}
+\item{bounds}{Whether the coefficients were upper or lower bounded. -- This can only be the case when a non-linear formula is included and the arguments 'lower' or 'upper' are provided.}
+\item{isBounded}{The logical vector that gives for each coefficient whether it was bounded or not. This can only be the case when a non-linear formula is included and the arguments 'lower' or 'upper' are provided.}
 \item{se}{The standard-error of the parameters.}
+\item{scores}{The matrix of the scores (first derivative for each observation).}
+\item{family}{The ML family that was used for the estimation.}
+\item{resids}{The difference between the dependent variable and the expected predictor.}
+\item{dummies}{The sum of the cluster coefficients for each observation.}
+\item{clusterNames}{The names of each cluster.}
+\item{id_dummies}{The list (of length the number of clusters) of the cluser identifiers for each observation.}
+\item{clusterSize}{The size of each cluster.}
+\item{obsRemoved}{In the case there were clusters and some observations were removed because of only 0/1 outcome wirhin a cluster, it gives the row numbers of the observations that were removed.}
+\item{clusterRemoved}{In the case there were clusters and some observations were removed because of only 0/1 outcome wirhin a cluster, it gives the list (for each cluster) of the clustr identifiers that were removed.}
+\item{theta}{In the case of a negative binomial estimation: the overdispersion parameter.}
 }
 \description{
 This function estimates maximum likelihood models (e.g., Poisson or Logit) and is efficient to handle any number of fixed effects (i.e. cluster variables). It further allows for nonlinear in parameters right hand sides.

@@ -6,7 +6,6 @@
 
 # TODO:
 # Add only cluster with negbin (needs to create the functions to maximize it)
-# update res2table and res2tex for models with onlyCluster
 # change name: id_dummies and dummies to id_clusters and sumClusterCoefs (or a better name)
 
 
@@ -31,9 +30,9 @@
 #' @param jacobian.method Character scalar. Provides the method used to numerically compute the jacobian of the non-linear part. Can be either \code{"simple"} or \code{"Richardson"}. Default is \code{"simple"}. See the help of \code{\link[numDeriv]{jacobian}} for more information.
 #' @param useHessian Logical. Should the Hessian be computed in the optimization stage? Default is \code{TRUE}.
 #' @param opt.control List of elements to be passed to the optimization method \code{\link[stats]{nlminb}}.
+#' @param cores Integer, default is 1. Number of threads to be used (accelerates the algorithm via the use of openMP routines). This is particularly efficient for the negative binomial and logit models, less so for Gaussian and Poisson likelihoods (unless for large datasets).
 #' @param debug Logical. If \code{TRUE} then the log-likelihood as well as all parameters are printed at each iteration. Default is \code{FALSE}.
 #' @param theta.init Positive numeric scalar. The starting value of the dispersion parameter if \code{family="negbin"}. By default, the algorithm uses as a starting value the theta obtained from the model with only the intercept.
-#' @param noWarning Logical, default is \code{FALSE}. Should the warnings be displayed?
 #' @param ... Not currently used.
 #'
 #' @details
@@ -64,16 +63,29 @@
 #' \item{n}{The number of observations.}
 #' \item{k}{The number of parameters of the model.}
 #' \item{call}{The call.}
-#' \item{nonlinear.fml}{The nonlinear formula of the call. It also contains the dependent variable.}
+#' \item{NL.fml}{The nonlinear formula of the call.}
 #' \item{linear.formula}{The linear formula of the call.}
 #' \item{ll_null}{Log-likelihood of the null model (i.e. with the intercept only).}
 #' \item{pseudo_r2}{The adjusted pseudo R2.}
 #' \item{naive.r2}{The R2 as if the expected predictor was the linear predictor in OLS.}
 #' \item{message}{The convergence message from the optimization procedures.}
 #' \item{sq.cor}{Squared correlation between the dependent variable and its expected value as given by the optimization.}
+#' \item{hessian}{The Hessian of the parameters.}
 #' \item{expected.predictor}{The expected predictor is the expected value of the dependent variable.}
-#' \item{cov.unscaled}{The variance covariance matrix of the parameters.}
+#' \item{cov.unscaled}{The variance-covariance matrix of the parameters.}
+#' \item{bounds}{Whether the coefficients were upper or lower bounded. -- This can only be the case when a non-linear formula is included and the arguments 'lower' or 'upper' are provided.}
+#' \item{isBounded}{The logical vector that gives for each coefficient whether it was bounded or not. This can only be the case when a non-linear formula is included and the arguments 'lower' or 'upper' are provided.}
 #' \item{se}{The standard-error of the parameters.}
+#' \item{scores}{The matrix of the scores (first derivative for each observation).}
+#' \item{family}{The ML family that was used for the estimation.}
+#' \item{resids}{The difference between the dependent variable and the expected predictor.}
+#' \item{dummies}{The sum of the cluster coefficients for each observation.}
+#' \item{clusterNames}{The names of each cluster.}
+#' \item{id_dummies}{The list (of length the number of clusters) of the cluser identifiers for each observation.}
+#' \item{clusterSize}{The size of each cluster.}
+#' \item{obsRemoved}{In the case there were clusters and some observations were removed because of only 0/1 outcome wirhin a cluster, it gives the row numbers of the observations that were removed.}
+#' \item{clusterRemoved}{In the case there were clusters and some observations were removed because of only 0/1 outcome wirhin a cluster, it gives the list (for each cluster) of the clustr identifiers that were removed.}
+#' \item{theta}{In the case of a negative binomial estimation: the overdispersion parameter.}
 #'
 #' @seealso
 #' See also \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
@@ -167,11 +179,12 @@
 #'                      nl.gradient = ~myGrad(a,x,b,y))
 #'
 #'
-femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, useAcc=TRUE, start, lower, upper, env, start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), debug=FALSE, theta.init, noWarning = FALSE, ...){
+femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, useAcc=TRUE, start, lower, upper, env, start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), cores = 1, debug=FALSE, theta.init, ...){
 
 	# use of the conjugate gradient in the gaussian case to get
 	# the cluster coefficients
 	useCG = FALSE
+	accDeriv = TRUE
 
 	# opt_method = c("nlminb", "optim")
 	# opt_method <- match.arg(opt_method)
@@ -215,8 +228,20 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# if it is null => OK
 	d.hessian = dots$d.hessian
 
-	# Acceleration
-	# useAcc = ifelse(is.null(dots$useAcc), FALSE, dots$useAcc)
+	#
+	# cores argument
+	if(!length(cores) == 1 || !is.numeric(cores) || !(cores%%1) == 0 || cores < 0){
+		stop("The argument 'cores' must be an integer greater than 0 and lower than the number of threads of the computer.")
+	} else if(cores > parallel::detectCores()){
+		stop("The argument 'cores' must be lower or equal to the number of possible threads (equal to ", parallel::detectCores(), ") in this computer.")
+	} else {
+		if(cores > 1){
+			set_omp(cores)
+			isMulticore = TRUE
+		} else {
+			isMulticore = FALSE
+		}
+	}
 
 	famFuns = switch(family,
 						 poisson = ml_poisson(),
@@ -256,6 +281,9 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	}
 
 	# The conversion of the data (due to data.table)
+	if(!"data.frame" %in% class(data)){
+		stop("The argument 'data' must be a data.frame.")
+	}
 	if("data.table" %in% class(data)){
 		class(data) = "data.frame"
 	}
@@ -301,7 +329,16 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			#intercept so that factors can be handled properly
 			linear.fml = update(linear.fml, ~.+1)
 		}
-		linear.mat = stats::model.matrix(linear.fml, data)
+
+		# We construct the linear matrix
+		# if there is factors => model.matrix
+		types = sapply(data[, dataNames %in% linear.varnames, FALSE], class)
+		if(grepl("factor", deparse(linear.fml)) || any(types %in% c("character", "factor"))){
+			linear.mat = stats::model.matrix(linear.fml, data)
+		} else {
+			linear.mat = prepare_matrix(linear.fml, data)
+		}
+
 		linear.params <- colnames(linear.mat)
 		N_linear <- length(linear.params)
 		if(anyNA(linear.mat)){
@@ -338,32 +375,21 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	if(!missing(cluster) && length(cluster)!=0){
 		# TODO:
 		# - mettre un meilleur controle des classes pures (mettre un while, ici ne suffit pas)
-		# - ajouter la possibilite de mettre une "reference" (ie oter une dummy)
 
 		isDummy = TRUE
 		if(class(cluster)!="character" | any(!cluster%in%names(data))){
 			var_problem = cluster[!cluster%in%names(data)]
 			stop("The argument 'cluster' must be a variable name!\nCluster(s) not in the data: ", paste0(var_problem, collapse = ", "), ".")
 		}
- 		#qui = which(sapply(cluster, function(x) is.factor(class(data[[x]]))))
- 		#if(length(qui)>0) stop("The variable(s) defining the cluster(s) must be a factor!\nIt concerns:", paste(cluster[qui], collapse=", "))
 
 		Q = length(cluster)
 		dum_all = dum_names = list()
 		sum_y_all = obs_per_cluster_all = list()
 		obs2remove = c()
+		dummyOmises = list()
 		for(i in 1:Q){
 			dum_raw = data[[cluster[i]]]
 			# in order to avoid "unclassed" values > real nber of classes: we re-factor the cluster
-
-			# DEPREC
-			# dum_names[[i]] = thisNames = sort(unique(dum_raw))
-			# if(class(dum_raw) == "factor"){
-			# 	dum = unclass(as.factor(unclass(dum_raw)))
-			# } else {
-			# 	dum = unclass(as.factor(dum_raw))
-			# }
-			# END DEPREC
 
 			dum_names[[i]] = thisNames = getItems(dum_raw)
 			dum = quickUnclassFactor(dum_raw)
@@ -385,8 +411,10 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 			if(length(qui>0)){
 				# We first delete the data:
-				dummyOmises = thisNames[qui] # not currently used
+				dummyOmises[[i]] = thisNames[qui]
 				obs2remove = unique(c(obs2remove, which(dum %in% qui)))
+			} else {
+				dummyOmises[[i]] = character(0)
 			}
 		}
 
@@ -402,15 +430,6 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			for(i in 1:Q){
 				dum_raw = data[[cluster[i]]]
 
-				# DEPREC
-				# dum_names[[i]] = sort(unique(dum_raw))
-				# if(class(dum_raw) == "factor"){
-				# 	dum = unclass(as.factor(unclass(dum_raw)))
-				# } else {
-				# 	dum = unclass(as.factor(dum_raw))
-				# }
-				# END DEPREC
-
 				dum_names[[i]] = getItems(dum_raw)
 				dum = quickUnclassFactor(dum_raw)
 
@@ -424,7 +443,8 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			}
 
 			# Then the warning message
-			if(!noWarning) warning(length(dummyOmises), " clusters (", length(obs2remove), " observations) removed because of only ", ifelse(family=="logit", "zero/one", "zero"), " outcomes.", call. = FALSE, immediate. = TRUE)
+			warning(paste0(sapply(dummyOmises, length), collapse = "/"), " clusters (", length(obs2remove), " observations) removed because of only ", ifelse(family=="logit", "zero/one", "zero"), " outcomes.")
+			names(dummyOmises) = cluster
 		}
 
 		# We compute two values that will be useful to compute the derivative wrt clusters
@@ -435,7 +455,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 		# If there is a linear intercept, we withdraw it
 		# We drop the intercept:
-		if(isLinear && "(Intercept)" %in% colnames(linear.mat)){
+		if(isLinear && "(Intercept)" == colnames(linear.mat)){
 			var2remove = which(colnames(linear.mat) == "(Intercept)")
 			if(ncol(linear.mat) == length(var2remove)){
 				isLinear = FALSE
@@ -614,6 +634,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	assign(".family", family, env)
 	assign("nobs", length(lhs), env)
 	assign(".lhs", lhs, env)
+	assign(".isMulticore", isMulticore, env)
 
 	if(missing(theta.init)){
 		theta.init = NULL
@@ -651,7 +672,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	#### Dummy Special cases ####
 	####
 
-	if( (family == "poisson" && Q==2) || (useCG && family == "gaussian" && Q>=2) ){
+	if( (family == "poisson" && Q==2) ){
 		# Creation of the matrices
 
 		n = length(lhs)
@@ -664,36 +685,6 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		}
 
 		assign(".mat_all", mat_all, env)
-	}
-
-	# This is specific to the Gaussian case (for multi clusters)
-	if(useCG && family == "gaussian" && Q>=2){
-
-		n = length(lhs)
-
-		# 2) Creation of the main (big) matrix A
-
-		A1 = Matrix(0, sum(nbCluster), sum(nbCluster), sparse = TRUE)
-
-		adj_nb =  c(0, cumsum(nbCluster))
-
-		for(q1 in 1:(Q-1)){
-			for(q2 in (q1+1):Q){
-
-				mat1 = mat_all[[q1]]
-				mat2 = mat_all[[q2]]
-
-				nb = tcrossprod(mat1, mat2)
-				qui = which(nb>0, arr.ind = TRUE)
-				A1[cbind(adj_nb[q1] + qui[,1], adj_nb[q2] + qui[, 2])] = nb[qui]
-			}
-		}
-
-		A2 = (A1 + t(A1))
-		A = Diagonal(sum(nbCluster), x=unlist(obs_per_cluster_all)) + A2
-
-		# Save
-		assign(".A", A, env)
 	}
 
 
@@ -719,14 +710,14 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			assign(".savedDummy", rep(0, length(lhs)), env)
 		}
 
-
 		assign(".orderCluster", NULL, env)
-		if(family %in% c("negbin", "logit")){
+		if(isMulticore || family %in% c("negbin", "logit")){
 			# we also add this variable used in cpp
 			orderCluster_all = list()
 			for(i in 1:Q){
 				orderCluster_all[[i]] = order(dum_all[[i]]) - 1
 			}
+			# orderCluster_mat = do.call("cbind", orderCluster_all)
 			assign(".orderCluster", orderCluster_all, env)
 		}
 
@@ -746,7 +737,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	assign("jacobian.method", jacobian.method, env)
 	assign(".famFuns", famFuns, env)
 	assign(".family", family, env)
-	assign("iter", 0, env)
+	assign(".iter", 0, env)
 	# Pour gerer les valeurs de mu:
 	assign(".coefMu", list(), env)
 	assign(".valueMu", list(), env)
@@ -764,6 +755,15 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# OTHER
 	assign(".useAcc", useAcc, env)
 	assign(".warn_0_Hessian", FALSE, env)
+
+	# To monitor how the clusters are computed (if the problem is difficult or not)
+	assign(".firstIterCluster", 1e10, env)
+	assign(".iterCluster", 1e10, env)
+	assign(".iterDeriv", 1e10, env)
+	assign(".accDeriv", accDeriv, env)
+	assign(".evolutionLL", Inf, env)
+	assign(".pastLL", 0, env)
+	assign(".iterLastPrecisionIncrease", 0, env)
 
 	#
 	# if there is only the intercept and cluster => we estimate only the clusters
@@ -964,7 +964,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	attr(se, "type") = attr(coeftable, "type") = "Standard"
 
-	mu_both = get_mu(coef, env)
+	mu_both = get_mu(coef, env, final = TRUE)
 	mu = mu_both$mu
 	exp_mu = mu_both$exp_mu
 
@@ -1009,10 +1009,9 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	# Dummies
 	if(isDummy){
-		# NOT YET IMPLEMENTED FOR VARIOUS CLUSTERS
 		dummies = attr(mu, "mu_dummies")
 		if(useExp_clusterCoef){
-			dummies = log(dummies)
+			dummies = rpar_log(dummies, env)
 		}
 
 		res$dummies = dummies
@@ -1042,6 +1041,10 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	}
 
 	class(res) <- "femlm"
+
+	if(debug){
+		cat("\n")
+	}
 
 	return(res)
 }
@@ -1074,7 +1077,7 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 	# we create the exp of mu => used for later functions
 	exp_mu_noDum = NULL
 	if(useExp_clusterCoef){
-		exp_mu_noDum = exp(mu_noDum)
+		exp_mu_noDum = rpar_exp(mu_noDum, env)
 	}
 
 	dummies = getDummies(mu_noDum, exp_mu_noDum, env, coef)
@@ -1083,11 +1086,11 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 	if(useExp_clusterCoef){
 		# despite being called mu, it is in fact exp(mu)!!!
 		exp_mu = exp_mu_noDum*dummies
-		mu = log(exp_mu)
+		mu = rpar_log(exp_mu, env)
 	} else {
 		mu = mu_noDum + dummies
 		if(useExp){
-			exp_mu = exp(mu)
+			exp_mu = rpar_exp(mu, env)
 		}
 	}
 
@@ -1126,7 +1129,7 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 	# Information on the dummies
 
 	if(useExp_clusterCoef){
-		dummies = log(dummies)
+		dummies = rpar_log(dummies, env)
 	}
 
 	res$dummies = dummies
@@ -1209,7 +1212,7 @@ ll_glm_hessian <- function(coef, env){
 		# calcul des derivees secondes vav de theta
 		h.theta.L = famFuns$hess.thetaL(theta, jacob.mat, y, dxi_dbeta, dxi_dother, ll_d2, ll_dx_dother)
 		hessVar = cbind(hessVar, h.theta.L)
-		h.theta = famFuns$hess_theta_part(theta, y, mu, exp_mu, dxi_dother, ll_dx_dother, ll_d2)
+		h.theta = famFuns$hess_theta_part(theta, y, mu, exp_mu, dxi_dother, ll_dx_dother, ll_d2, env)
 		hessVar = rbind(hessVar, c(h.theta.L, h.theta))
 
 # 		theta = attr(mu, ".theta")
@@ -1222,7 +1225,6 @@ ll_glm_hessian <- function(coef, env){
 		hessVar = cbind(hessVar, h.sigma.L)
 		h.sigma = famFuns$hess.sigma(sigma, y, mu)
 		hessVar = rbind(hessVar, c(h.sigma.L, h.sigma))
-		print(hessVar)
 	}
 
 	# iter = get("iter", env)
@@ -1276,7 +1278,7 @@ ll_glm_gradient <- function(coef, env){
 
 	if(family=="negbin"){
 		theta = coef[".theta"]
-		res[".theta"] = famFuns$grad.theta(theta, y, mu, exp_mu)
+		res[".theta"] = famFuns$grad.theta(theta, y, mu, exp_mu, env)
 	}
 
 	return(-unlist(res[params]))
@@ -1298,7 +1300,7 @@ ll_glm_scores <- function(coef, env){
 
 	if(family=="negbin"){
 		theta = coef[".theta"]
-		score.theta = famFuns$scores.theta(theta, y, mu, exp_mu)
+		score.theta = famFuns$scores.theta(theta, y, mu, exp_mu, env)
 		scores = cbind(scores, score.theta)
 		# DEPREC (theta-conditionned)
 # 		isDummy = get("isDummy", env)
@@ -1318,11 +1320,12 @@ ll_glm <- function(coef, env){
 	# Log likelihood
 	# cat("LL:\n") ; print(coef)
 	# misc funs
-	iter = get("iter", env) + 1
-	assign("iter", iter, env)
+	iter = get(".iter", env) + 1
+	assign(".iter", iter, env)
+	pastLL = get(".pastLL", env)
 	debug = get("debug", env)
 	ptm = proc.time()
-	if(debug) cat("\nIter", iter, "- Evaluation LL:", sprintf("%1.1e", as.vector(coef)), "\n")
+	if(debug) cat("\nIter", iter, "- coef:", sprintf("%1.1e", as.vector(coef)), "\n")
 
 	# computing the LL
 	famFuns = get(".famFuns", env)
@@ -1338,7 +1341,11 @@ ll_glm <- function(coef, env){
 	# for the NEGBIN, we add the coef
 	ll = famFuns$ll(y, mu, exp_mu, env, coef)
 
-	if(debug) cat("LL =", ll, " (", (proc.time()-ptm)[3], " s)", sep = "")
+	evolutionLL = ll - pastLL
+	assign(".evolutionLL", evolutionLL, env)
+	assign(".pastLL", ll, env)
+
+	if(debug) cat("LL =", ll, " (", (proc.time()-ptm)[3], " s)\tevol = ", evolutionLL, sep = "")
 	if(ll==(-Inf)) return(1e308)
 	return(-ll) # je retourne -ll car la fonction d'optimisation minimise
 }
@@ -1424,7 +1431,7 @@ evalNLpart = function(coef, env){
 	return(y_nl)
 }
 
-get_mu = function(coef, env){
+get_mu = function(coef, env, final = FALSE){
 	# This function computes the RHS of the equation
 	# mu_L => to save one matrix multiplication
 	isNL = get("isNL", env)
@@ -1454,7 +1461,13 @@ get_mu = function(coef, env){
 		assign(".wasUsed", FALSE, env)
 	}
 
-	if(length(coefMu)>0) for(i in 1:length(coefMu)) if(all(coef==coefMu[[i]])) return(valueMu[[i]])
+	if(length(coefMu)>0){
+		for(i in 1:length(coefMu)){
+			if(all(coef==coefMu[[i]])){
+				return(list(mu = valueMu[[i]], exp_mu = valueExpMu[[i]]))
+			}
+		}
+	}
 
 	if(isNL){
 		muNL = evalNLpart(coef, env)
@@ -1471,12 +1484,12 @@ get_mu = function(coef, env){
 	# we create the exp of mu => used for later functions
 	exp_mu_noDum = NULL
 	if(useExp_clusterCoef){
-		exp_mu_noDum = exp(mu_noDum)
+		exp_mu_noDum = rpar_exp(mu_noDum, env)
 	}
 
 	if(isDummy){
 		# we get back the last dummy
-		mu_dummies = getDummies(mu_noDum, exp_mu_noDum, env, coef)
+		mu_dummies = getDummies(mu_noDum, exp_mu_noDum, env, coef, final)
 	} else {
 		if(useExp_clusterCoef){
 			mu_dummies = 1
@@ -1490,11 +1503,11 @@ get_mu = function(coef, env){
 	if(useExp_clusterCoef){
 		# despite being called mu_dummies, it is in fact exp(mu_dummies)!!!
 		exp_mu = exp_mu_noDum*mu_dummies
-		mu = log(exp_mu)
+		mu = rpar_log(exp_mu, env)
 	} else {
 		mu = mu_noDum + mu_dummies
 		if(useExp){
-			exp_mu = exp(mu)
+			exp_mu = rpar_exp(mu, env)
 		}
 	}
 
@@ -1547,7 +1560,11 @@ get_Jacobian = function(coef, env){
 
 		if(isLinear){
 			linear.mat = get("linear.mat", env)
-			jacob.mat = cbind(jacob.mat, linear.mat)
+			if(is.null(dim(jacob.mat))){
+				jacob.mat = linear.mat
+			} else {
+				jacob.mat = cbind(jacob.mat, linear.mat)
+			}
 		}
 
 		return(jacob.mat)
@@ -1624,31 +1641,14 @@ get_NL_Jacobian = function(coef, env){
 	return(jacob.mat)
 }
 
-ll0_nlglm <- function(lhs, env){
-	#I have the closed form of the ll0
-	famFuns = get(".famFuns", env)
-	family = get(".family", env)
-	y = get(".lhs", env)
-
-	if(family=="negbin"){
-		start = c(0, 1)
-		lower = c(-Inf, 1e-4)
-	} else {
-		start = 0
-		lower = NULL
-	}
-
-	opt <- nlminb(start=start, objective=famFuns$ll0, y=y, gradient=famFuns$grad0, lower=lower)
-
-	return(list(loglik=-opt$objective, constant=opt$par[1]))
-}
-
 get_model_null <- function(env, theta.init){
 	# I have the closed form of the ll0
 	famFuns = get(".famFuns", env)
 	family = get(".family", env)
 	N = get("nobs", env)
 	y = get(".lhs", env)
+	debug = get("debug", env)
+	ptm = proc.time()
 
 	# one of the elements to be returned
 	theta = NULL
@@ -1659,7 +1659,9 @@ get_model_null <- function(env, theta.init){
 		if(".lfactorial" %in% names(env)){
 			lfact = get(".lfactorial", env)
 		} else {
-			lfact = sum(lfactorial(y))
+			# lfactorial(x) == lgamma(x+1)
+			# lfact = sum(lfactorial(y))
+			lfact = sum(rpar_lgamma(y + 1, env))
 			assign(".lfactorial", lfact, env)
 		}
 
@@ -1683,7 +1685,8 @@ get_model_null <- function(env, theta.init){
 		if(".lgamma" %in% names(env)){
 			lgamm = get(".lgamma", env)
 		} else {
-			lgamm = sum(lgamma(y + 1))
+			# lgamm = sum(lgamma(y + 1))
+			lgamm = sum(rpar_lgamma(y + 1, env))
 			assign(".lgamma", lgamm, env)
 		}
 
@@ -1701,10 +1704,12 @@ get_model_null <- function(env, theta.init){
 
 		# I set up a limit of 0.05, because when it is too close to 0, convergence isnt great
 
-		opt <- nlminb(start=theta.guess, objective=famFuns$ll0_theta, y=y, gradient=famFuns$grad0_theta, lower=1e-3, mean_y=mean_y, invariant=invariant, hessian = famFuns$hess0_theta)
+		opt <- nlminb(start=theta.guess, objective=famFuns$ll0_theta, y=y, gradient=famFuns$grad0_theta, lower=1e-3, mean_y=mean_y, invariant=invariant, hessian = famFuns$hess0_theta, env=env)
 
 		loglik = -opt$objective
 		theta = opt$par
+
+		if(debug) cat("Null model in", (proc.time()-ptm)[3], "s.\n")
 	}
 
 	return(list(loglik=loglik, constant=constant, theta = theta))
@@ -1732,7 +1737,7 @@ getScores = function(jacob.mat, y, mu, exp_mu, env, coef, ...){
 	return(as.matrix(scores))
 }
 
-getDummies = function(mu, exp_mu, env, coef){
+getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 	# function built to get all the dummy variables
 	# We retrieve past dummies (that are likely to be good
 	# starting values)
@@ -1742,10 +1747,28 @@ getDummies = function(mu, exp_mu, env, coef){
 	debug = get("debug", env)
 	if(debug) ptm = proc.time()
 
-	# Acceleration
+	# Handling Acceleration
 	useAcc = get(".useAcc", env)
+	firstIterCluster = get(".firstIterCluster", env)
+	if(useAcc && (final || firstIterCluster < 5)){
+		useAcc = FALSE
+		# we stop the acceleration in the case of "simple situations"
+	}
 
-	iterMax = 10000
+	# Handling precision
+	iterCluster = get(".iterCluster", env)
+	evolutionLL = get(".evolutionLL", env)
+	iter = get(".iter", env)
+	iterLastPrecisionIncrease = get(".iterLastPrecisionIncrease", env)
+	nobs = get("nobs", env)
+	if(!final && eps.cluster > .Machine$double.eps*1000 && iterCluster==1 && evolutionLL/nobs < 1e-10 && (iter - iterLastPrecisionIncrease) >= 2){
+		if(debug) cat("\nPrecision increased")
+		eps.cluster = eps.cluster/10
+		assign(".eps.cluster", eps.cluster, env)
+		assign(".iterLastPrecisionIncrease", iter, env)
+	}
+
+	iterMax = 10000 ; iter = 0
 	dum_all = get(".dummy", env)
 	sum_y_all = get(".sum_y", env)
 	tableCluster_all = get(".tableCluster", env)
@@ -1764,7 +1787,25 @@ getDummies = function(mu, exp_mu, env, coef){
 
 	useCG = get(".useCG", env)
 
-	if(!useAcc && family == "poisson" && Q==2){
+	#
+	# Lexique:
+	# General == families other than poisson
+	# simple == method without the acceleration
+
+	if(Q == 1) {
+		#### Case Q=1 ####
+
+		if(family == "poisson"){
+			exp_cluster_coef = sum_y_all[[1]] / rpar_tapply_vsum(nbCluster[1], exp_mu_in, dum_all[[1]], orderCluster_all[[1]], tableCluster_all[[1]], env)
+			# remind mu_dummies is in fact the exp of the clusterCoefficients for useExp_clusterCoef
+			mu_dummies = mu_dummies * exp_cluster_coef[dum_all[[1]]]
+		} else {
+			cluster_coef = computeDummies(dum_all[[1]], mu_in, env, coef, sum_y_all[[1]], orderCluster_all[[1]], tableCluster_all[[1]])
+			mu_dummies = mu_dummies + cluster_coef[dum_all[[1]]]
+		}
+
+	} else if(!useAcc && family == "poisson" && Q==2){
+		#### Simple + Q2 + Poisson ####
 		# This method is usually faster, however, in simple cases it might be not efficient because of the
 		# setup of the matrices
 		# for complicated cases, it is much more efficient
@@ -1805,141 +1846,109 @@ getDummies = function(mu, exp_mu, env, coef){
 		beta = cb / Bt%*%alpha
 		mu_dummies = mu_dummies * alpha[dum_all[[i]]] * beta[dum_all[[j]]]
 
-	} else if(useAcc && family == "poisson" && Q == 2) {
+	} else if(useAcc && family == "poisson") {
+		#### Acceleration + Poisson ####
 		# Here we apply the Iron and Tuck Algorithm
-		# We deal with the Poisson case that is special
+		# The general case
+
 
 		# We select the cluster with the lowest nber of cases
-		if(nbCluster[1] < nbCluster[2]){
-			i = 1
-			j = 2
-		} else {
-			i = 2
-			j = 1
-		}
-
-		# Variables used in function G:
-		dum_1 = dum_all[[i]]
-		dum_2 = dum_all[[j]]
-
-		sum_y_1 = sum_y_all[[i]]
-		sum_y_2 = sum_y_all[[j]]
-
-		tableCluster_1 = tableCluster_all[[i]]
-		tableCluster_2 = tableCluster_all[[j]]
-
-		n_1 = length(tableCluster_1)
-		n_2 = length(tableCluster_2)
+		new_order = order(nbCluster)
+		# new_order = order(nbCluster, decreasing = TRUE)
+		nbCluster_new = nbCluster[new_order]
+		start_cluster = 1 + c(0, cumsum(nbCluster_new))
+		end_cluster = cumsum(nbCluster_new)
 
 		# Function defined with some variables local to getDummies function
 		G = function(X){
+			# We compute the first item from the other items
 
-			# X_2 is deduced from X_1
-			X_2 = sum_y_2 / cpp_tapply_vsum(n_2, exp_mu_in * X[dum_1], dum_2)
+			# Note that the order of the data in X_list is different from the real order of the clusters
+			# we need to take special care of this specificity
 
-			# We compute the new values
-			X_new = sum_y_1 / cpp_tapply_vsum(n_1, exp_mu_in * X_2[dum_2], dum_1)
+			X_list = list()
+			for(q_raw in 1:(Q-1)){
+				X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
+			}
+
+			# We start from Q because at the moment there is only Q-1 values in X_list
+			# starting with it will create its value
+
+			for(q_raw in Q:1){
+				# the real ordered q:
+				q = new_order[q_raw]
+
+				# getting the value of mu
+				exp_mu_current = exp_mu_in
+				for(q_other_raw in (1:Q)[-q_raw]){
+					# We sum the cluster coefficients of the other clusters
+					q_other = new_order[q_other_raw]
+					exp_mu_current = exp_mu_current * X_list[[q_other_raw]][dum_all[[q_other]]]
+				}
+
+				# We update the value of X_list
+				X_list[[q_raw]] = sum_y_all[[q]] / rpar_tapply_vsum(nbCluster[q], exp_mu_current, dum_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]], env)
+			}
+
+			X_new = unlist(X_list[1:(Q-1)])
 
 			# we return them
 			X_new
 		}
 
+		#
 		# The main loop
-		X = rep(1, n_1)
+		#
+
+		X = rep(1, sum(nbCluster[new_order[1:(Q-1)]]))
 		GX = G(X)
-		GGX = G(GX)
-		for(iter in 1:iterMax){
-			X_new = irons_tuck_iteration(X, GX, GGX)
-			GX = G(X_new)
-			GGX = G(GX)
 
-			# Stopping criterion:
-			diff = max(abs(X_new - GX))
-			if(diff < eps.cluster) break
-
-			# update
-			X = X_new
-		}
-
-		print(iter)
-		if(iter==iterMax) warning("[getting dummies] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
-
-		# getting the value of the dummies
-		X_2 = sum_y_2 / cpp_tapply_vsum(n_2, exp_mu_in * X[dum_1], dum_2)
-
-		mu_dummies = exp_mu_in / exp_mu * X[dum_1] * X_2[dum_2]
-
-	} else if(useAcc && Q == 2) {
-		# Here we apply the Iron and Tuck Algorithm
-
-		# Poisson case:
-		if(family == "poisson") mu_in = mu + log(mu_dummies)
-
-		# We select the cluster with the lowest nber of cases
-		if(nbCluster[1] < nbCluster[2]){
-			i = 1
-			j = 2
+		diff = max(abs(X - GX))
+		if(diff < eps.cluster){
+			iter = 1
+			X = GX
 		} else {
-			i = 2
-			j = 1
+			for(iter in 1:iterMax){
+				GGX = G(GX)
+				X_new = irons_tuck_iteration(X, GX, GGX)
+				GX = G(X_new)
+
+				# Stopping criterion:
+				diff = max(abs(X_new - GX))
+
+				# update
+				X = X_new
+
+				if(diff < eps.cluster) break
+			}
 		}
 
-		# Variables used in function G:
-		dum_1 = dum_all[[i]]
-		dum_2 = dum_all[[j]]
-
-		sum_y_1 = sum_y_all[[i]]
-		sum_y_2 = sum_y_all[[j]]
-
-		orderCluster_1 = orderCluster_all[[i]]
-		orderCluster_2 = orderCluster_all[[j]]
-
-		tableCluster_1 = tableCluster_all[[i]]
-		tableCluster_2 = tableCluster_all[[j]]
-
-		n_1 = length(tableCluster_1)
-		n_2 = length(tableCluster_2)
-
-		# Function defined with some variables local to getDummies function
-		G = function(X){
-
-			# X_2 is deduced from X_1
-			X_2 = computeDummies(dum_2, mu_in + X[dum_1], env, coef, sum_y_2, orderCluster_2, tableCluster_2)
-
-			# We compute the new values
-			X_new = computeDummies(dum_1, mu_in + X_2[dum_2], env, coef, sum_y_1, orderCluster_1, tableCluster_1)
-
-			# we return them
-			X_new
-		}
-
-		# The main loop
-		X = rep(0, n_1)
-		GX = G(X)
-		GGX = G(GX)
-		for(iter in 1:iterMax){
-			X_new = irons_tuck_iteration(X, GX, GGX)
-			GX = G(X_new)
-			GGX = G(GX)
-
-			# Stopping criterion:
-			diff = max(abs(X_new - GX))
-			if(diff < eps.cluster) break
-
-			# update
-			X = X_new
-		}
-
-		print(iter)
-		if(iter==iterMax) warning("[getting dummies] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
-
+		#
 		# getting the value of the dummies
-		X_2 = computeDummies(dum_2, mu_in + X[dum_1], env, coef, sum_y_2, orderCluster_2, tableCluster_2)
+		#
 
-		mu_dummies = mu_in - mu + X[dum_1] + X_2[dum_2]
+		X_list = list()
+		for(q_raw in 1:(Q-1)){
+			X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
+		}
+
+		Q_original = new_order[Q]
+
+		# getting the value of mu
+		exp_mu_current = exp_mu_in
+		for(q_other_raw in 1:(Q-1)){
+			# We sum the cluster coefficients of the other clusters
+			q_other = new_order[q_other_raw]
+			exp_mu_current = exp_mu_current * X_list[[q_other_raw]][dum_all[[q_other]]]
+		}
+
+		# We update the value of X_list
+		X_Q = sum_y_all[[Q_original]] / rpar_tapply_vsum(nbCluster[Q_original], exp_mu_current, dum_all[[Q_original]], orderCluster_all[[Q_original]], tableCluster_all[[Q_original]], env)
+
+		mu_dummies = exp_mu_current / exp_mu * X_Q[dum_all[[Q_original]]]
 
 	} else if (family == "poisson"){
-		# Quicker than before, 100% sure
+		#### Simple + Poisson ####
 
 		# We loop directly without using logs
 
@@ -1951,23 +1960,117 @@ getDummies = function(mu, exp_mu, env, coef){
 				dum = dum_all[[q]]
 
 				# get the dummies
-				exp_mu_dum = sum_y_all[[q]] / cpp_tapply_vsum(nbCluster[q], exp_mu_in, dum)
+				exp_mu_dum = sum_y_all[[q]] / rpar_tapply_vsum(nbCluster[q], exp_mu_in, dum, orderCluster_all[[q]], tableCluster_all[[q]], env)
 				# add them to the stack
 				exp_mu_in = exp_mu_in*exp_mu_dum[dum]
 			}
-
-			if(Q == 1) break
 
 			diff <- max(abs(log(range(exp_mu0/exp_mu_in)))) # max error
 			if(diff < eps.cluster) break
 		}
 
-		# print(iter)
-		if(iter==iterMax) warning("[getting dummies] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
-
 		mu_dummies = exp_mu_in / exp_mu
 
+	}  else if(useAcc) {
+		#### Acceleration + General ####
+		# Here we apply the Iron and Tuck Algorithm
+		# The general case
+
+		# We select the cluster with the lowest nber of cases
+		new_order = order(nbCluster)
+		nbCluster_new = nbCluster[new_order]
+		start_cluster = 1 + c(0, cumsum(nbCluster_new))
+		end_cluster = cumsum(nbCluster_new)
+
+		# Function defined with some variables local to getDummies function
+		G = function(X){
+			# We compute the first item from the other items
+
+			# Note that the order of the data in X_list is different from the real order of the clusters
+			# we need to take special care of this specificity
+
+			X_list = list()
+			for(q_raw in 1:(Q-1)){
+				X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
+			}
+
+			# We start from Q because at the moment there is only Q-1 values in X_list
+			# starting with it will create its value
+
+			for(q_raw in Q:1){
+				# the real ordered q:
+				q = new_order[q_raw]
+
+				# getting the value of mu
+				mu_current = mu_in
+				for(q_other_raw in (1:Q)[-q_raw]){
+					# We sum the cluster coefficients of the other clusters
+					q_other = new_order[q_other_raw]
+					mu_current = mu_current + X_list[[q_other_raw]][dum_all[[q_other]]]
+				}
+
+				# We update the value of X_list
+				X_list[[q_raw]] = computeDummies(dum_all[[q]], mu_current, env, coef, sum_y_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]])
+			}
+
+			X_new = unlist(X_list[1:(Q-1)])
+
+			# we return them
+			X_new
+		}
+
+		#
+		# The main loop
+		#
+
+		X = rep(0, sum(nbCluster[new_order[1:(Q-1)]]))
+		GX = G(X)
+
+		diff = max(abs(X - GX))
+		if(diff < eps.cluster){
+			iter = 1 # => there is convergence
+			X = GX
+		} else {
+			for(iter in 1:iterMax){
+				GGX = G(GX)
+				X_new = irons_tuck_iteration(X, GX, GGX)
+				GX = G(X_new)
+
+				# Stopping criterion:
+				diff = max(abs(X_new - GX))
+
+				# update
+				X = X_new
+
+				if(diff < eps.cluster) break
+			}
+		}
+
+		#
+		# getting the value of the dummies
+		#
+
+		X_list = list()
+		for(q_raw in 1:(Q-1)){
+			X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
+		}
+
+		Q_original = new_order[Q]
+
+		# getting the value of mu
+		mu_current = mu_in
+		for(q_other_raw in 1:(Q-1)){
+			# We sum the cluster coefficients of the other clusters
+			q_other = new_order[q_other_raw]
+			mu_current = mu_current + X_list[[q_other_raw]][dum_all[[q_other]]]
+		}
+
+		# We update the value of X_list
+		X_Q = computeDummies(dum_all[[Q_original]], mu_current, env, coef, sum_y_all[[Q_original]], orderCluster_all[[Q_original]], tableCluster_all[[Q_original]])
+
+		mu_dummies = mu_current - mu + X_Q[dum_all[[Q_original]]]
 	} else {
+		#### Simple + General ####
 		# in the case we are in the useExp case, we need to make some changes for consistency
 
 		for(iter in 1:iterMax){
@@ -1987,32 +2090,34 @@ getDummies = function(mu, exp_mu, env, coef){
 
 			if(anyNA(mu_in)) stop("Dummies could not be computed. Unknown error.")
 
-			if(Q==1) break
-
 			diff <- max(abs(mu0-mu_in)) # max error
 			# cat("iter =", iter, " Diff =", diff, " sum =", sum(abs(mu0-mu_in)), "\n")
 			if(diff < eps.cluster) break
 		}
 
-		# print(iter)
-		if(iter==iterMax) warning("[getting dummies] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
-
 		mu_dummies = mu_in - mu
 	}
+
+	# Warning messages if necessary:
+	if(iter==iterMax) warning("[Getting cluster coefficients] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
+	# print(iter)
+	assign(".iterCluster", iter, env)
+	if(firstIterCluster == 1e10){
+		# this means the number has never been set
+		assign(".firstIterCluster", iter, env)
+	}
+
 
 	# we save the dummy:
 	assign(".savedDummy", mu_dummies, env)
 
-	if(debug) cat("\nDummies: ", (proc.time()-ptm)[3], "s\t")
+	if(debug) cat("\nDummies:  ", (proc.time()-ptm)[3], "s (iter:", iter, ")\t", sep = "")
 
 	mu_dummies
 }
 
 irons_tuck_iteration = function(X, GX, GGX){
 	# We compute one iteration
-
-	# GX = G(X)
-	# GGX = G(GX)
 
 	delta_X = GX - X
 	delta_GX = GGX - GX
@@ -2029,7 +2134,7 @@ computeDummies = function(dum, mu, env, coef, sum_y, orderCluster, tableCluster)
 
 	# if family is poisson or gaussian, there is a closed form
 	if(family%in%c("poisson", "gaussian")){
-		return(famFuns$closedFormDummies(dum, y, mu, env, sum_y, tableCluster))
+		return(famFuns$closedFormDummies(dum, y, mu, env, sum_y, orderCluster, tableCluster))
 	}
 
 	#
@@ -2124,18 +2229,27 @@ dichoNR_Cpp = function(dum, mu, env, coef, sum_y, orderCluster, tableCluster){
 	family = get(".family", env)
 	family_nb = switch(family, poisson=1, negbin=2, logit=3, gaussian=4, probit=5)
 
-	# iter = get("iter", env)
-	# if(iter == 18) browser()
-
 	theta = coef[".theta"]
 	# in the case there are no params to estimate
 	if(!is.numeric(theta)) theta = as.numeric(NA)
-	# ptm <- proc.time()
-	res = RcppDichotomyNR(N = N, K = nb_cases, family = family_nb, theta,
-							  epsDicho=eps.NR, lhs=y, mu, borne_inf,
-							  borne_sup, orderCluster, tableCluster)
 
-	# print(proc.time() - ptm)
+
+	#
+	# We apply multi cluster if necessary
+	#
+
+	isMulticore = get(".isMulticore", env)
+
+	if(!isMulticore){
+		res = cpp_DichotomyNR(N = N, K = nb_cases, family = family_nb, theta,
+									 epsDicho=eps.NR, lhs=y, mu, borne_inf,
+									 borne_sup, orderCluster, tableCluster)
+	} else {
+		res = cpppar_DichotomyNR(K = nb_cases, family = family_nb, theta,
+												  epsDicho=eps.NR, lhs=y, mu, borne_inf,
+												  borne_sup, orderCluster, tableCluster)
+	}
+
 	res
 }
 
@@ -2146,23 +2260,34 @@ deriv_xi = function(jacob.mat, ll_d2, env, coef){
 	nbCluster = get(".nbCluster", env)
 	family = get(".family", env)
 	eps.deriv = get(".eps.deriv", env)
+	tableCluster_all = get(".tableCluster", env)
+	orderCluster_all = get(".orderCluster", env)
 	Q = length(dum_all)
 
 	# Controls (for clusters >= 2)
 	nobs = get("nobs", env)
-	iterMax = 100
+	iterMax = 5000
+
+	# Handling Acceleration
+	accDeriv = get(".accDeriv", env)
+	iterDeriv = get(".iterDeriv", env)
+	firstIterCluster = get(".firstIterCluster", env)
+	if(accDeriv && (firstIterCluster <= 30 || iterDeriv <= 10)){
+		# if the number of cluster iteration is low => easy problem
+		accDeriv = FALSE
+	}
+
+	N = length(ll_d2)
+	K = length(coef) - (family=="negbin") # to avoid theta
 
 	if(Q == 1){
 		dum = dum_all[[1]]
 		k = max(dum)
 		S_Jmu = cpp_tapply_sum(k, jacob.mat*ll_d2, dum)
-		S_mu = cpp_tapply_vsum(k, ll_d2, dum)
+		S_mu = rpar_tapply_vsum(k, ll_d2, dum, orderCluster_all[[1]], tableCluster_all[[1]], env)
 		dxi_dbeta = - S_Jmu[dum, ] / S_mu[dum]
-	} else {
-		# The cpp way:
-
-		N = length(ll_d2)
-		K = length(coef) - (family=="negbin") # to avoid theta
+	} else if(!accDeriv) {
+		# The cpp way
 
 		# We set the initial values for the first run
 		if(!".sum_deriv" %in% names(env)){
@@ -2172,15 +2297,141 @@ deriv_xi = function(jacob.mat, ll_d2, env, coef){
 			init = get(".sum_deriv", env)
 		}
 
-		if(family == "gaussian"){
-			dxi_dbeta <- RcppPartialDerivative_gaussian(Q, N, K, epsDeriv = eps.deriv, jacob.mat, init, dumMat_cpp, nbCluster)
+		# Deriv with or without multicore
+
+		isMulticore = get(".isMulticore", env)
+
+		if(FALSE && isMulticore && K>1){
+			# is not faster, I don't know why
+			tableCluster_vect = unlist(get(".tableCluster", env))
+			orderCluster_mat = do.call("cbind", get(".orderCluster", env))
+
+			dxi_dbeta <- cpppar_PartialDerivative(Q, N, K, eps.deriv, ll_d2, jacob.mat, init, orderCluster_mat, tableCluster_vect, nbCluster)
 		} else {
-			dxi_dbeta <- RcppPartialDerivative(Q, N, K, epsDeriv = eps.deriv, ll_d2, jacob.mat, init, dumMat_cpp, nbCluster)
+			if(family == "gaussian"){
+				dxi_dbeta <- RcppPartialDerivative_gaussian(Q, N, K, epsDeriv = eps.deriv, jacob.mat, init, dumMat_cpp, nbCluster)
+			} else {
+				dxi_dbeta <- RcppPartialDerivative(Q, N, K, epsDeriv = eps.deriv, ll_d2, jacob.mat, init, dumMat_cpp, nbCluster)
+			}
 		}
 
 		# we save the values
 		assign(".sum_deriv", dxi_dbeta, env)
 
+	} else {
+		#### Derivatives with acceleration ####
+
+		# We set the initial values for the first run
+		if(!".sum_deriv" %in% names(env)){
+			# init of the sum of the derivatives => 0
+			deriv_init = matrix(0, N, K)
+		} else {
+			deriv_init = get(".sum_deriv", env)
+		}
+
+		weight_all = list()
+
+		for(q in 1:Q){
+			sum_lld2 = -1/rpar_tapply_vsum(nbCluster[q], ll_d2, dum_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]], env)
+			weight_all[[q]] = ll_d2 * sum_lld2[dum_all[[q]]]
+		}
+
+		start_cluster = 1 + c(0, cumsum(nbCluster))
+		end_cluster = cumsum(nbCluster)
+
+		G = function(X){
+			# Jk doit etre egal a la valeur de "Jk" + "sum deriv init"
+
+			X_list = list()
+			for(q in 1:(Q-1)){
+				X_list[[q]] = X[start_cluster[q]:end_cluster[q]]
+			}
+
+			# We start from Q because at the moment there is only Q-1 values in X_list
+			# starting with it will create its value
+
+			for(q in Q:1){
+
+				# getting the value of the sum of derivatives
+				Jk_sum_deriv = Jk
+				for(q_other in (1:Q)[-q]){
+					# We sum the cluster derivatives of the other clusters
+					Jk_sum_deriv = Jk_sum_deriv + X_list[[q_other]][dum_all[[q_other]]]
+				}
+
+				# We update the value of X_list
+				X_list[[q]] = rpar_tapply_vsum(nbCluster[q], weight_all[[q]]*Jk_sum_deriv, dum_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]], env)
+			}
+
+			X_new = unlist(X_list[1:(Q-1)])
+
+			# we return them
+			X_new
+		}
+
+		# saving the number of iterations
+		max_iter = 1
+		iterDeriv = get(".iterDeriv", env)
+
+		dxi_dbeta_list = list()
+		for(k in 1:K){
+			Jk = jacob.mat[, k] + deriv_init[, k]
+			X = rep(0, sum(nbCluster[1:(Q-1)]))
+			GX = G(X)
+
+			diff <- max(abs(X-GX))
+			if(diff < eps.deriv){
+				iter = 1
+				X = GX
+			} else {
+				for(iter in 1:iterMax){
+					GGX = G(GX)
+					X_new = irons_tuck_iteration(X, GX, GGX)
+					GX = G(X_new)
+
+					diff <- max(abs(X_new-GX))
+
+					# update
+					X = X_new
+
+					if(diff < eps.deriv) break
+				}
+			}
+
+			if(iter == iterMax) warning("[Getting cluster derivatives] Maximum iterations reached (", iterMax, "), max(abs(diff)) = ", diff)
+			if(iter > max_iter){
+				max_iter = iter
+			}
+
+			# Reconstruction de la derivee
+			sum_deriv = deriv_init[, k]
+			for(q in 1:(Q-1)){
+				X_current = X[start_cluster[q]:end_cluster[q]]
+				sum_deriv = sum_deriv + X_current[dum_all[[q]]]
+			}
+
+			X_Q = rpar_tapply_vsum(nbCluster[Q], weight_all[[Q]]*(jacob.mat[, k] + sum_deriv), dum_all[[Q]], orderCluster_all[[Q]], tableCluster_all[[Q]], env)
+
+			dxi_dbeta_list[[k]] = sum_deriv + X_Q[dum_all[[Q]]]
+		}
+		dxi_dbeta = do.call("cbind", dxi_dbeta_list)
+
+		# browser()
+
+		# for(k in 1:K){
+		# 	cat("\nK =", k, " ")
+		# 	Jk_sum_deriv = jacob.mat[, k] + dxi_dbeta[, k]
+		# 	for(q in 1:Q){
+		# 		cat("\n   - q =", q, " sum(abs(deriv)) = ")
+		# 		deriv = cpp_tapply_vsum(nbCluster[q], weight_all[[q]]*Jk_sum_deriv, dum_all[[q]])
+		# 		deriv_abs = abs(deriv)
+		# 		cat(sum(deriv_abs), ", max(abs(deriv)) = ", max(deriv_abs), ", mean(abs(deriv)) = ", mean(deriv_abs))
+		# 	}
+		# }
+
+		# we save the values
+		assign(".sum_deriv", dxi_dbeta, env)
+		assign(".iterDeriv", max_iter, env)
 	}
 
 	as.matrix(dxi_dbeta)
@@ -2192,13 +2443,15 @@ deriv_xi_other = function(ll_dx_dother, ll_d2, env, coef){
 	nbCluster = get(".nbCluster", env)
 	dum_all = get(".dummy", env)
 	eps.deriv = get(".eps.deriv", env)
+	tableCluster_all = get(".tableCluster", env)
+	orderCluster_all = get(".orderCluster", env)
 	Q = length(dum_all)
 
 	if(Q==1){
 		dum = dum_all[[1]]
 		k = max(dum)
-		S_Jmu = cpp_tapply_vsum(k, ll_dx_dother, dum)
-		S_mu = cpp_tapply_vsum(k, ll_d2, dum)
+		S_Jmu = rpar_tapply_vsum(k, ll_dx_dother, dum, orderCluster_all[[1]], tableCluster_all[[1]], env)
+		S_mu = rpar_tapply_vsum(k, ll_d2, dum, orderCluster_all[[1]], tableCluster_all[[1]], env)
 		dxi_dother = - S_Jmu[dum] / S_mu[dum]
 	} else {
 		# The cpp way:
@@ -2221,54 +2474,6 @@ deriv_xi_other = function(ll_dx_dother, ll_d2, env, coef){
 
 	as.matrix(dxi_dother)
 }
-
-simple_CG = function(A, b, eps.CG = 1e-6){
-	# Simple algorithm to solve a linear system of equation (conjugate gradient)
-	# The matrix A is always symmetric & positive definite by definition
-
-	iterMax = 2000
-
-	# Initialisations
-	x_old = rep(0, ncol(A))
-	r_old = as.numeric(b - A%*%x_old)
-	p_old = r_old
-
-	cp_r_old = crossprod(r_old)
-
-	for(i in 1:iterMax){
-		# some values
-		g = as.numeric(A%*%p_old)
-
-		alpha = as.numeric(cp_r_old / t(p_old)%*%g)
-		x = x_old + alpha*p_old
-		r = r_old - alpha*g
-
-		cp_r_new = crossprod(r)
-		beta = cp_r_new / cp_r_old
-		p = r + beta*p_old
-
-		# exit condition
-		if(max(abs(r)) < eps.CG) break
-		# print(max(abs(r)))
-
-		# MAJ
-		r_old = r
-		p_old = p
-		x_old = x
-
-		cp_r_old = cp_r_new
-	}
-
-	if(i == iterMax){
-		warning("[Conjugate gradient] Max. iterations reached (", iterMax, ") maxDiff = ", max(abs(r)))
-	}
-
-	x
-}
-
-
-gt = function(ptm) (proc.time() - ptm)[[3]]
-
 
 show_vars_limited_width = function(charVect, nbChars = 60){
 	# There are different cases
@@ -2302,5 +2507,90 @@ show_vars_limited_width = function(charVect, nbChars = 60){
 }
 
 
+####
+#### Parallel Functions ####
+####
 
+# In this section, we create all the functions that will be parallelized
+
+rpar_exp = function(x, env){
+	# fast exponentiation
+	isMulticore = get(".isMulticore", env)
+
+	if(!isMulticore){
+		# simple exponentiation
+		return(exp(x))
+	} else {
+		# parallelized one
+		return(cpppar_exp(x))
+	}
+
+}
+
+rpar_log = function(x, env){
+	# fast log
+	isMulticore = get(".isMulticore", env)
+
+	if(!isMulticore){
+		# simple log
+		return(log(x))
+	} else {
+		# parallelized one
+		return(cpppar_log(x))
+	}
+
+}
+
+rpar_lgamma = function(x, env){
+	# fast lgamma
+	isMulticore = get(".isMulticore", env)
+
+	if(!isMulticore){
+		# lgamma via cpp is faster
+		return(cpp_lgamma(x))
+	} else {
+		# parallelized one
+		return(cpppar_lgamma(x))
+	}
+
+}
+
+rpar_digamma = function(x, env){
+	isMulticore = get(".isMulticore", env)
+
+	if(!isMulticore){
+		# digamma via cpp is as fast => no need
+		return(digamma(x))
+	} else {
+		# parallelized one
+		return(cpppar_digamma(x))
+	}
+
+}
+
+rpar_trigamma = function(x, env){
+	isMulticore = get(".isMulticore", env)
+
+	if(!isMulticore){
+		# trigamma via cpp is as fast => no need
+		return(trigamma(x))
+	} else {
+		# parallelized one
+		return(cpppar_trigamma(x))
+	}
+
+}
+
+
+rpar_tapply_vsum = function(K, x, dum, obsCluster, tableCluster, env){
+	isMulticore = get(".isMulticore", env)
+
+	if(isMulticore){
+		res <- cpppar_tapply_vsum(K, x, obsCluster, tableCluster)
+	} else {
+		res <- cpp_tapply_vsum(K, x, dum)
+	}
+
+	res
+}
 

@@ -26,13 +26,26 @@
 #### ===== UTILITIES ===== ####
 #*****************************#
 
-log_a_exp <- function(a, mu, exp_mu){
-	# This fonction gives proper values to stg that might be NaN
-	qui = which(mu < 200)
-	res = mu
-	res[qui] = log(a + exp_mu[qui])
-	res
+rpar_log_a_exp = function(a, mu, exp_mu, env){
+	# compute log_a_exp in a fast way
+	isMulticore = get(".isMulticore", env)
+
+	if(!isMulticore){
+		# cpp is faster
+		return(cpp_log_a_exp(a, mu, exp_mu))
+	} else {
+		# parallelized one
+		return(cpppar_log_a_exp(a, mu, exp_mu))
+	}
 }
+
+# log_a_exp <- function(a, mu, exp_mu){
+# 	# This fonction gives proper values to stg that might be NaN
+# 	qui = which(mu < 200)
+# 	res = mu
+# 	res[qui] = log(a + exp_mu[qui])
+# 	res
+# }
 
 #***************************#
 #### ===== POISSON ===== ####
@@ -46,7 +59,9 @@ ml_poisson = function(){
 		if(".lfactorial" %in% names(env)){
 			lfact = get(".lfactorial", env)
 		} else {
-			lfact = sum(lfactorial(y))
+			# lfactorial(x) == lgamma(x+1)
+			# lfact = sum(lfactorial(y))
+			lfact = sum(rpar_lgamma(y + 1, env))
 			assign(".lfactorial", lfact, env)
 		}
 
@@ -79,11 +94,11 @@ ml_poisson = function(){
 		exp_mu
 	}
 
-	closedFormDummies = function(dum, y, mu, env, sum_y, tableCluster, ...){
+	closedFormDummies = function(dum, y, mu, env, sum_y, orderCluster, tableCluster, ...){
 		# We send only the dummies (not the vector of dummies)
 		# sum_y = as.vector(S%*%y)
 		# mu_dum = as.vector(S%*%c(exp(mu)))
-		mu_dum = cpp_tapply_vsum(length(tableCluster), c(exp(mu)), dum)
+		mu_dum = rpar_tapply_vsum(length(tableCluster), c(exp(mu)), dum, orderCluster, tableCluster, env)
 		log(sum_y) - log(mu_dum)
 	}
 
@@ -119,7 +134,7 @@ ml_logit = function(){
 		# sum(y*mu - log(1+exp(mu)))
 		# sum(y*log(exp_mu) - log(1+exp_mu))
 
-		sum(y*mu - log_a_exp(1, mu, exp_mu))
+		sum(y*mu - rpar_log_a_exp(1, mu, exp_mu, env))
 	}
 
 	# Derivee
@@ -218,7 +233,8 @@ ml_negbin = function(){
 		if(".lgamma" %in% names(env)){
 			lgamm = get(".lgamma", env)
 		} else {
-			lgamm = sum(lgamma(y + 1))
+			# lgamm = sum(lgamma(y + 1))
+			lgamm = sum(rpar_lgamma(y + 1, env))
 			assign(".lgamma", lgamm, env)
 		}
 
@@ -227,8 +243,9 @@ ml_negbin = function(){
 
 		# sum(lgamma(theta+y) + y*mu - (theta+y)*log(theta+exp(mu))) - lgamm + N*(- lgamma(theta) + theta*log(theta))
 		# sum(lgamma(theta+y) + y*log(exp_mu) - (theta+y)*log(theta+exp_mu)) - lgamm + N*(- lgamma(theta) + theta*log(theta))
+		# sum(lgamma(theta+y) + y*mu - (theta+y)*log_a_exp(theta, mu, exp_mu)) - lgamm + N*(- lgamma(theta) + theta*log(theta))
 
-		sum(lgamma(theta+y) + y*mu - (theta+y)*log_a_exp(theta, mu, exp_mu)) - lgamm + N*(- lgamma(theta) + theta*log(theta))
+		sum(rpar_lgamma(theta+y, env) + y*mu - (theta+y)*rpar_log_a_exp(theta, mu, exp_mu, env)) - lgamm + N*(- lgamma(theta) + theta*log(theta))
 	}
 
 	# Derivee
@@ -272,26 +289,35 @@ ml_negbin = function(){
 		c(lgamma(theta+y) - lgamma(theta) - lgamma(y+1) + theta*log(theta) + y*log(exp_mu) - (theta+y)*log(theta+exp_mu))
 	}
 
-	grad.theta = function(theta, y, mu, exp_mu, ...){
+	grad.theta = function(theta, y, mu, exp_mu, env, ...){
 		# sum( psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp(mu)) - (theta+y)/(theta+exp(mu)) )
 		# sum( psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp_mu) - (theta+y)/(theta+exp_mu) )
+		N = length(y)
 
-		sum( psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log_a_exp(theta, mu, exp_mu) - (theta+y)/(theta+exp_mu) )
+		# sum( psigamma(theta+y) - rpar_log_a_exp(theta, mu, exp_mu, env) - (theta+y)/(theta+exp_mu) ) + N*(- psigamma(theta) + log(theta) + 1 )
+
+		sum( rpar_digamma(theta+y, env) - rpar_log_a_exp(theta, mu, exp_mu, env) - (theta+y)/(theta+exp_mu) ) + N*(- psigamma(theta) + log(theta) + 1 )
 	}
 
-	scores.theta = function(theta, y, mu, exp_mu){
+	scores.theta = function(theta, y, mu, exp_mu, env){
 		# psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp(mu)) - (theta+y)/(theta+exp(mu))
 		# psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log(theta+exp_mu) - (theta+y)/(theta+exp_mu)
 
-		psigamma(theta+y) - psigamma(theta) + log(theta) + 1 - log_a_exp(theta, mu, exp_mu) - (theta+y)/(theta+exp_mu)
+		# psigamma(theta+y) - rpar_log_a_exp(theta, mu, exp_mu, env) - (theta+y)/(theta+exp_mu) + (- psigamma(theta) + log(theta) + 1)
+
+		rpar_digamma(theta+y, env) - rpar_log_a_exp(theta, mu, exp_mu, env) - (theta+y)/(theta+exp_mu) + (- psigamma(theta) + log(theta) + 1)
 	}
 
-	hess.theta = function(theta, y, mu, exp_mu){
+	hess.theta = function(theta, y, mu, exp_mu, env){
 		# sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp(mu)) + (y-exp(mu))/(theta+exp(mu))^2 )
 		# sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp_mu) + (y-exp_mu)/(theta+exp_mu)^2 )
 
 		# sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp_mu) + y/(theta+exp_mu)^2 - exp_mu/(theta+exp_mu)^2 )
-		sum( psigamma(theta+y, 1) - psigamma(theta, 1) + 1/theta - 1/(theta+exp_mu) + y/(theta+exp_mu)^2 - 1/( (theta/exp_mu + 1) * (theta + exp_mu) ) )
+		N = length(y)
+
+		# sum( psigamma(theta+y, 1) - 1/(theta+exp_mu) + y/(theta+exp_mu)^2 - 1/( (theta/exp_mu + 1) * (theta + exp_mu) ) ) + N*(- psigamma(theta, 1) + 1/theta)
+
+		sum( rpar_trigamma(theta+y, env) - 1/(theta+exp_mu) + y/(theta+exp_mu)^2 - 1/( (theta/exp_mu + 1) * (theta + exp_mu) ) ) + N*(- psigamma(theta, 1) + 1/theta)
 	}
 
 	hess.thetaL = function(theta, jacob.mat, y, dxi_dbeta, dxi_dother, ll_d2, ll_dx_dother){
@@ -308,9 +334,9 @@ ml_negbin = function(){
 # 		return(as.matrix(H))
 	}
 
-	hess_theta_part = function(theta, y, mu, exp_mu, dxi_dother, ll_dx_dother, ll_d2){
+	hess_theta_part = function(theta, y, mu, exp_mu, dxi_dother, ll_dx_dother, ll_d2, env){
 		# La derivee vav de theta en prenant en compte les dummies
-		d2ll_d2theta = hess.theta(theta, y, mu, exp_mu)
+		d2ll_d2theta = hess.theta(theta, y, mu, exp_mu, env)
 		res = sum(dxi_dother^2*ll_d2 + 2*dxi_dother*ll_dx_dother) + d2ll_d2theta
 		return(res)
 	}
@@ -398,31 +424,38 @@ ml_negbin = function(){
 		- c(grad.cste, grad.theta)
 	}
 
-	ll0_theta = function(theta, y, mean_y, invariant){
+	ll0_theta = function(theta, y, mean_y, invariant, env){
 		# La fonction minimise, on renvoie "-"
 		# print("ll")
 		N = length(y)
 
-		ll = sum(lgamma(theta+y)) + invariant + N*(- mean_y*log(theta+mean_y) - lgamma(theta) + theta*log(theta) - theta*log(theta+mean_y))
+		# ll = sum(lgamma(theta+y)) + invariant + N*(- mean_y*log(theta+mean_y) - lgamma(theta) + theta*log(theta) - theta*log(theta+mean_y))
+
+		ll = sum(rpar_lgamma(theta+y, env)) + invariant + N*(- mean_y*log(theta+mean_y) - lgamma(theta) + theta*log(theta) - theta*log(theta+mean_y))
+
 		-ll
 	}
 
-	grad0_theta = function(theta, y, mean_y, ...){
+	grad0_theta = function(theta, y, mean_y, env, ...){
 		# La fonction minimise, on renvoie "-"
 		# print("grad")
 		N = length(y)
 
-		grad.theta = sum(psigamma(theta+y)) + N*(- mean_y/(theta+mean_y) - psigamma(theta) + log(theta) + 1 - log(theta+mean_y) - theta/(theta+mean_y))
+		# grad.theta = sum(psigamma(theta+y)) + N*(- mean_y/(theta+mean_y) - psigamma(theta) + log(theta) + 1 - log(theta+mean_y) - theta/(theta+mean_y))
+
+		grad.theta = sum(rpar_digamma(theta+y, env)) + N*(- mean_y/(theta+mean_y) - psigamma(theta) + log(theta) + 1 - log(theta+mean_y) - theta/(theta+mean_y))
 
 		- grad.theta
 	}
 
-	hess0_theta = function(theta, y, mean_y, ...){
+	hess0_theta = function(theta, y, mean_y, env, ...){
 		# La fonction minimise, on renvoie "-"
 		# print("hess")
 		N = length(y)
 
-		hess.theta = sum(psigamma(theta+y, 1)) + N*(- psigamma(theta, 1) + 1/theta - 1/(theta+mean_y))
+		# hess.theta = sum(psigamma(theta+y, 1)) + N*(- psigamma(theta, 1) + 1/theta - 1/(theta+mean_y))
+
+		hess.theta = sum(rpar_trigamma(theta+y, env)) + N*(- psigamma(theta, 1) + 1/theta - 1/(theta+mean_y))
 
 		- as.matrix(hess.theta)
 	}
@@ -693,11 +726,11 @@ ml_gaussian = function(){
 		mu
 	}
 
-	closedFormDummies = function(dum, y, mu, env, sum_y, tableCluster, ...){
+	closedFormDummies = function(dum, y, mu, env, sum_y, orderCluster, tableCluster, ...){
 		# We send only the dummies (not the vector of dummies)
 		# as.vector(S%*%(y-mu)) / as.vector(rowSums(S))
 		# (sum_y - as.vector(S%*%mu)) / tableCluster
-		(sum_y - cpp_tapply_vsum(length(tableCluster), mu, dum)) / tableCluster
+		(sum_y - rpar_tapply_vsum(length(tableCluster), mu, dum, orderCluster, tableCluster, env)) / tableCluster
 	}
 
 	ll0 = function(cste, y){

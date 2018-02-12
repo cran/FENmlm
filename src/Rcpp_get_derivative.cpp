@@ -25,6 +25,38 @@ double cpp_abs(double x){
 	}
 }
 
+// [[Rcpp::export]]
+NumericVector cpp_lgamma(NumericVector x){
+	// simple function to compute lgamma of a vector
+
+	int n = x.length();
+	NumericVector res(n);
+
+	for(int i=0 ; i<n ; i++){
+		res[i] = lgamma(x[i]);
+	}
+
+	return(res);
+}
+
+// [[Rcpp::export]]
+NumericVector cpp_log_a_exp(double a, NumericVector mu, NumericVector exp_mu){
+	// faster this way
+
+	int n = mu.length();
+	NumericVector res(n);
+
+	for(int i=0 ; i<n ; i++){
+		if(mu[i] < 200){
+			res[i] = log(a + exp_mu[i]);
+		} else {
+			res[i] = mu[i];
+		}
+	}
+
+	return(res);
+}
+
 
 // [[Rcpp::export]]
 NumericMatrix RcppPartialDerivative(int Q, int N, int K, double epsDeriv, NumericVector ll_d2,	NumericMatrix F, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster){
@@ -141,7 +173,7 @@ NumericMatrix RcppPartialDerivative_gaussian(int Q, int N, int K, double epsDeri
 	// ll_d2: the second derivative
 	// F: the jacobian matrix
 
-	int iter, iterMax = 1000;
+	int iter, iterMax = 2000;
 
 	int i, q, k, c;
 	int index;
@@ -208,7 +240,7 @@ NumericMatrix RcppPartialDerivative_gaussian(int Q, int N, int K, double epsDeri
 				for(c=start[q] ; c<end[q] ; c++){
 					new_value = -clusterDeriv(c, k)/n_group[c];
 					clusterDeriv(c, k) = new_value;
-					if(cpp_abs(new_value) > epsDeriv){
+					if(cpp_abs(new_value) > epsDeriv/Q){
 						ok = true;
 					}
 				}
@@ -762,7 +794,7 @@ NumericMatrix RcppCreate_start_end_indexes(IntegerVector nbCluster, IntegerVecto
 }
 
 // [[Rcpp::export]]
-NumericVector RcppDichotomyNR(int N, int K, int family, double theta, double epsDicho, NumericVector lhs, NumericVector mu, NumericVector borne_inf, NumericVector borne_sup, IntegerVector obsCluster, IntegerVector tableCluster){
+NumericVector cpp_DichotomyNR(int N, int K, int family, double theta, double epsDicho, NumericVector lhs, NumericVector mu, NumericVector borne_inf, NumericVector borne_sup, IntegerVector obsCluster, IntegerVector tableCluster){
 	// ARGUMENTS:
 	// N: number of observations
 	// K: number of clusters classes
@@ -868,13 +900,15 @@ NumericVector RcppDichotomyNR(int N, int K, int family, double theta, double eps
 
 		}
 		// Rprintf("iter=%i.\n", iter);
+		// res[k] = iter;
+		// res[k] = value;
 		res[k] = x1;
 	}
 
 	return(res);
 }
 
-NumericVector cpp_DichotomyNR(int family, int K, int start, double theta, double epsDicho, NumericVector lhs, NumericVector mu, NumericVector borne_inf, NumericVector borne_sup, IntegerVector obsCluster_vect, IntegerVector start_vector, IntegerVector end_vector){
+NumericVector DichotomyNR_internal(int family, int K, int start, double theta, double epsDicho, NumericVector lhs, NumericVector mu, NumericVector borne_inf, NumericVector borne_sup, IntegerVector obsCluster_vect, IntegerVector start_vector, IntegerVector end_vector){
 	// ARGUMENTS:
 	// N: number of observations
 	// K: number of clusters classes
@@ -1109,6 +1143,34 @@ NumericVector cpp_table(int Q, IntegerVector dum){
 	return(res);
 }
 
+// [[Rcpp::export]]
+IntegerMatrix cpp_make_contrast(int N, int K, IntegerVector fact_num, bool addRef){
+	// This function creates a NxK-1 matrix of contrasts
+	// we take the first level as a reference
+
+	if(addRef){
+		IntegerMatrix res(N, K-1);
+
+		for(int i=0 ; i<N ; i++){
+			if(fact_num(i) != 1){
+				res(i, fact_num(i) - 2) = 1;
+			}
+		}
+
+		return(res);
+	} else {
+		IntegerMatrix res(N, K);
+
+		for(int i=0 ; i<N ; i++){
+			res(i, fact_num(i) - 1) = 1;
+		}
+		return(res);
+	}
+
+	// for the compiler to be happy
+	IntegerMatrix res(1,1);
+	return(res);
+}
 
 // [[Rcpp::export]]
 NumericVector cpp_unik_id(IntegerVector x_sorted){
@@ -1249,7 +1311,7 @@ NumericVector cpp_negbin_clusterCoef(int family, int q, int K, int start, double
 	// Computing the cluster coefficients
 	//
 
-	NumericVector clusterCoef = cpp_DichotomyNR(family, K, start, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster_vect, start_vector, end_vector);
+	NumericVector clusterCoef = DichotomyNR_internal(family, K, start, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster_vect, start_vector, end_vector);
 
 	return(clusterCoef);
 }
@@ -1312,7 +1374,7 @@ NumericVector cpp_logit_clusterCoef(int family, int q, int K, int start, double 
 	// Computing the cluster coefficients
 	//
 
-	NumericVector clusterCoef = cpp_DichotomyNR(family, K, start, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster_vect, start_vector, end_vector);
+	NumericVector clusterCoef = DichotomyNR_internal(family, K, start, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster_vect, start_vector, end_vector);
 
 	return(clusterCoef);
 }
