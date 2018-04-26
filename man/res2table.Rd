@@ -14,7 +14,7 @@ res2table(..., se = c("standard", "white", "cluster", "twoway", "threeway",
 
 \item{se}{Character scalar. Which kind of standard error should be prompted: \dQuote{standard} (default), \dQuote{White}, \dQuote{cluster}, \dQuote{twoway}, \dQuote{threeway} or \dQuote{fourway}?}
 
-\item{cluster}{A list of vectors. Used only if \code{se="cluster"}, \dQuote{se=twoway}, \dQuote{se=threeway} or \dQuote{se=fourway}. The vectors should give the cluster of each observation. Note that if the estimation was run using \code{cluster}, the standard error is automatically clustered along the cluster given in \code{\link[FENmlm]{femlm}}.}
+\item{cluster}{A list of vectors. Used only if \code{se="cluster"}, \dQuote{se=twoway}, \dQuote{se=threeway} or \dQuote{se=fourway}. The vectors should give the cluster of each observation. Note that if the estimation was run using \code{cluster}, the standard error is automatically clustered along the cluster given in \code{\link[FENmlm]{femlm}}. For one-way clustering, this argument can directly be a vector (instead of a list).}
 
 \item{digits}{Integer. The number of digits to be displayed.}
 

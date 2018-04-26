@@ -4,6 +4,7 @@ export(femlm, res2tex, res2table, getFE)
 
 S3method(print, femlm)
 S3method(print, feNmlm)
+S3method(print, femlm.allClusters)
 S3method(summary, femlm)
 S3method(summary, feNmlm)
 S3method(plot, femlm.cluster)

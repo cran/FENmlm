@@ -8,7 +8,7 @@ femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"), NL.fml,
   cluster, useAcc = TRUE, start, lower, upper, env, start.init, offset,
   nl.gradient, linear.start = 0, jacobian.method = c("simple",
   "Richardson"), useHessian = TRUE, opt.control = list(), cores = 1,
-  debug = FALSE, theta.init, ...)
+  debug = FALSE, theta.init, precision.cluster, ...)
 }
 \arguments{
 \item{fml}{A formula. This formula gives the linear formula to be estimated (it is similar to a \code{lm} formula), for example: \code{fml = z~x+y}. To include cluster variables, you can 1) either insert them in this formula using a pipe (e.g. \code{fml = z~x+y|cluster1+cluster2}), or 2) either use the argment \code{cluster}. You can add a non-linear element in this formula by using the argment \code{NL.fml}. If you want to estimate only a non-linear formula without even the intercept, you can use \code{fml = z~0} in combination with \code{NL.fml}.}
@@ -50,6 +50,8 @@ femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"), NL.fml,
 \item{debug}{Logical. If \code{TRUE} then the log-likelihood as well as all parameters are printed at each iteration. Default is \code{FALSE}.}
 
 \item{theta.init}{Positive numeric scalar. The starting value of the dispersion parameter if \code{family="negbin"}. By default, the algorithm uses as a starting value the theta obtained from the model with only the intercept.}
+
+\item{precision.cluster}{Precision used to obtain the fixed-effects (ie cluster coefficients). Defaults to \code{1e-5}. It corresponds to the maximum absolute difference allowed between two iterations.}
 
 \item{...}{Not currently used.}
 }

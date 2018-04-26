@@ -79,7 +79,7 @@ print.femlm <- print.feNmlm <- function(x, ...){
 	family_format = c(poisson="Poisson", negbin="Negative Binomial", logit="Logit", gaussian="Gaussian")
 
 	msg = ifelse(is.null(x$call$NL.fml), "", "Non-linear ")
-	cat(msg, "ML esimation, family = ", family_format[x$family], "\n", sep="")
+	cat(msg, "ML estimation, family = ", family_format[x$family], "\n", sep="")
 	cat("Observations:", addCommas(x$n), "\n")
 	if(!is.null(x$clusterSize)) cat("Cluster sizes: ", paste0(x$clusterNames, ": ", x$clusterSize, collapse=",  "), "\n", sep="")
 
@@ -128,8 +128,8 @@ print.femlm <- print.feNmlm <- function(x, ...){
 	bic <- -2*x$loglik+x$k*log(x$n)
 	# aic <- -2*x$loglik+2*x$k
 	# cat("Log-likelihood:", x$loglik, "\nBIC:", bic, "\nAIC:", aic, "\n")
-	bic_format = ifelse(log10(abs(bic))<=9, addCommas(bic), bic)
-	LL_format = ifelse(log10(abs(x$loglik))<=9, addCommas(x$loglik), x$loglik)
+	bic_format = numberFormatNormal(bic)
+	LL_format = numberFormatNormal(x$loglik)
 
 	cat("Log-likelihood:", LL_format, "\nBIC:", bic_format, "\n")
 	cat("Pseudo-R2:", x$pseudo_r2, "\n")
@@ -146,7 +146,7 @@ print.femlm <- print.feNmlm <- function(x, ...){
 #' @method summary femlm
 #'
 #' @param se Character scalar. Which kind of standard error should be prompted: \dQuote{standard} (default), \dQuote{White}, \dQuote{cluster}, \dQuote{twoway}, \dQuote{threeway} or \dQuote{fourway}?
-#' @param cluster A list of vectors. Used only if \code{se="cluster"}, \dQuote{se=twoway}, \dQuote{se=threeway} or \dQuote{se=fourway}. The vectors should give the cluster of each observation. Note that if the estimation was run using \code{cluster}, the standard error is automatically clustered along the cluster given in \code{\link[FENmlm]{femlm}}.
+#' @param cluster A list of vectors. Used only if \code{se="cluster"}, \dQuote{se=twoway}, \dQuote{se=threeway} or \dQuote{se=fourway}. The vectors should give the cluster of each observation. Note that if the estimation was run using \code{cluster}, the standard error is automatically clustered along the cluster given in \code{\link[FENmlm]{femlm}}. For one-way clustering, this argument can directly be a vector (instead of a list).
 #' @param object A femlm object. Obtained using \code{\link[FENmlm]{femlm}}.
 #' @param dof_correction Logical, default is \code{TRUE}. Should there be a degree of freedom correction to the standard errors of the coefficients?
 #' @param forceCovariance Logical, default is \code{FALSE}. In the peculiar case where the obtained Hessian is not invertible (usually because of collinearity of some variables), use this option force the covariance matrix, by using a generalized inverse of the Hessian. This can be useful to spot where possible problems come from.
@@ -217,7 +217,7 @@ summary.femlm <- summary.feNmlm <- function(object, se=c("standard", "white", "c
 			myScore = x$score
 			x$cov.unscaled = solve(x$hessian)
 		} else {
-			myScore = x$score[, -which(isBounded)]
+			myScore = x$score[, -which(isBounded), drop = FALSE]
 		}
 	} else {
 		myScore = x$score
@@ -255,7 +255,7 @@ summary.femlm <- summary.feNmlm <- function(object, se=c("standard", "white", "c
 
 		# Controlling the clusters
 		do.unclass = TRUE
-		if(missing(cluster)){
+		if(missing(cluster) || is.null(cluster)){
 			if(is.null(x$id_dummies)){
 				stop("To display clustered standard errors, you must provide the argument 'cluster'.")
 			} else if(length(x$id_dummies) < nway) {
@@ -269,7 +269,16 @@ summary.femlm <- summary.feNmlm <- function(object, se=c("standard", "white", "c
 		} else {
 
 			isS = ifelse(nway>1, "s, each", "")
-			if(! (is.list(cluster) && length(cluster)==nway) ) stop("The 'cluster' must be a list containing ", nway, " element", isS, " being the vector of IDs of each observation.")
+			if(nway == 1){
+				if(!is.list(cluster) && (is.vector(cluster) || is.factor(cluster))){
+					cluster = list(cluster)
+				} else if(! (is.list(cluster) && length(cluster) == 1)){
+					stop("For one way clustering, the argument 'cluster' must be either the vector of cluster ids, or a list containing the vector of cluster ids.")
+				}
+			} else if(! (is.list(cluster) && length(cluster)==nway) ){
+				stop("The 'cluster' must be a list containing ", nway, " element", isS, " being the vector of IDs of each observation.")
+			}
+
 			cluster = as.list(cluster)
 		}
 
@@ -399,14 +408,17 @@ summary.femlm <- summary.feNmlm <- function(object, se=c("standard", "white", "c
 	pvalue <- 2*pnorm(-abs(zvalue))
 
 	# update of se if bounded
+	se_format = se
 	if(any(isBounded) & !keepBounded){
-		se[!isBounded] = decimalFormat(se[!isBounded])
-		boundText = attr(isBounded, "type")
-		se[isBounded] = boundText
+		# se[!isBounded] = decimalFormat(se[!isBounded])
+		# boundText = attr(isBounded, "type")
+		# se[isBounded] = boundText
+		se_format[!isBounded] = decimalFormat(se_format[!isBounded])
+		se_format[isBounded] = attr(isBounded, "type")
 	}
 
 	# modifs of the table
-	coeftable[, 2] = se
+	coeftable[, 2] = se_format
 	coeftable[, 3] = zvalue
 	coeftable[, 4] = pvalue
 
@@ -1164,6 +1176,90 @@ myPrintCoefTable = function(coeftable){
 }
 
 
+#' Print method for cluster coefficients
+#'
+#' This function summarizes the main characteristics of the cluster coefficients. It shows the number of fixed-effects that have been set as references and the first elements of the fixed-effects.
+#'
+#' @method print femlm.allClusters
+#'
+#' @param x An object returned by the function \code{\link[FENmlm]{getFE}}.
+#' @param n Positive integer, defaults to 5. The \code{n} first fixed-effects for each cluster are reported.
+#' @param ... Not currently used.
+#'
+#' @return
+#' It prints the number of fixed-effect coefficients per cluster, as well as the number of fixed-effects used as references for each cluster, and the mean and variance of the cluster coefficients. Finally it reports the first 5 elements of each cluster.
+#'
+#' @examples
+#'
+#' data(trade)
+#'
+#' # We estimate the effect of distance on trade
+#' # => we account for 3 cluster effects
+#' est_pois = femlm(Euros ~ log(dist_km)|Origin+Destination+Product, trade)
+#'
+#' # obtaining the cluster coefficients
+#' fe_trade = getFE(est_pois)
+#'
+#' # printing some summary information on the cluster coefficients:
+#' fe_trade
+#'
+#'
+print.femlm.allClusters = function(x, n=5, ...){
+	# This function shows some generic information on the clusters
+
+	Q = length(x)
+	clustNames = names(x)
+
+	isRegular = TRUE
+	if(Q > 1){
+		nb_ref = attr(x, "References")
+		nb_per_cluster = sapply(x, length)
+		mean_per_cluster = var_per_cluster = c()
+		for(i in 1:Q){
+			mean_per_cluster[i] = as.character(signif(mean(x[[i]]), 3))
+			var_per_cluster[i] = as.character(signif(var(x[[i]]), 3))
+		}
+		res = as.data.frame(rbind(nb_per_cluster, nb_ref, mean_per_cluster, var_per_cluster))
+		rownames(res) = c("Number of fixed-effects", "Number of references", "Mean", "Variance")
+
+		if(sum(nb_ref) > Q-1){
+			isRegular = FALSE
+		}
+	}
+
+	# The message
+	cat("Fixed-effects coefficients.\n")
+	if(Q == 1){
+		x1 = x[[1]]
+		cat("Number of fixed-effects for variable ", clustNames, " is ", length(x1), ".\n", sep = "")
+		cat("\tMean = ", signif(mean(x1), 3), "\tVariance = ", signif(var(x1), 3), "\n", sep = "")
+	} else {
+		print(res)
+		if(!isRegular){
+			cat("NOTE: The clusters are NOT regular, so cannot be straighforwardly interpreted.\n")
+		}
+	}
+
+	# We print the first 5 elements of each cluster
+	cat("\nCOEFFICIENTS:\n")
+	for(i in 1:Q){
+		m = head(x[[i]], n)
+
+		m_char = as.data.frame(t(as.data.frame(c("", as.character(signif(m, 4))))))
+		names(m_char) = c(paste0(clustNames[i], ":"), names(m))
+		rownames(m_char) = " "
+
+		n_cluster = length(x[[i]])
+		if(n_cluster > n){
+			m_char[["   "]] = paste0("... ", addCommas(n_cluster - n), " remaining")
+		}
+
+		print(m_char)
+		if(i != Q) cat("-----\n")
+	}
+
+}
+
 print.femlm.cluster = function(x, ...){
 	# just to hide the information on the class and on the attributes
 	print.default(x[1:length(x)], ...)
@@ -1174,10 +1270,14 @@ print.femlm.cluster = function(x, ...){
 #'
 #' This function retrives the fixed effects from a femlm estimation. It is useful only when there are more than one cluster.
 #'
-#' @param x A femlm object.
+#' @param x A \code{\link[FENmlm]{femlm}} object.
+#'
+#' If the cluster coefficients not regular, then several reference points need to be set, leading to the coefficients to be NOT interpretable. If this is the case, then a warning is raised.
 #'
 #' @return
 #' A list containig the vectors of the fixed effects.
+#'
+#' If there is more than 1 cluster, then the attribute \dQuote{References} is created. This is a vector of length the number of clusters, each element contains the number of fixed-effects set as references. By construction, the elements of the first clusters are never set as references. In the presence of regular clusters, there should be Q-1 references (with Q the number of clusters).
 #'
 #' @seealso
 #' See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
@@ -1185,33 +1285,42 @@ print.femlm.cluster = function(x, ...){
 #' @author
 #' Laurent Berge
 #'
+#'
 #' @examples
 #'
-#' # Bilateral network
-#' nb = 20
-#' n = nb**2
-#' k = nb
-#' id1 = factor(rep(1:k, each=n/k))
-#' id2 = factor(rep(1:(n/k), times=k))
-#' d = rep(rnorm(k)**2, each=n/k)
-#' x = rnorm(n, 1, 5)**2
-#' y = rnorm(n, -1, 5)**2
-#' z = rpois(n, x*y+rnorm(n, sd = 3)**2) + rpois(n, 2)
-#' base = data.frame(x, y, z, id1, id2)
+#' data(trade)
 #'
-#' # We want to use the ID's of each observation as a variable: we use the option cluster
-#' est_poisson = femlm(z~log(x)+log(y), base, family="poisson", cluster=c("id1", "id2"))
+#' # We estimate the effect of distance on trade => we account for 3 cluster effects
+#' est_pois = femlm(Euros ~ log(dist_km)|Origin+Destination+Product, trade)
 #'
-#' # To get the FE:
-#' myFE = getFE(est_poisson)
+#' # obtaining the cluster coefficients
+#' fe_trade = getFE(est_pois)
+#'
+#' # plotting them
+#' plot(fe_trade)
+#'
+#' # plotting only the Products fixed-effects & showing more of them
+#' plot(fe_trade$Product, n=8)
 #'
 getFE = function(x){
 	# x is a femlm object
 	# This function retrieves the dummies
 
+	if(class(x) != "femlm"){
+		stop("Argument 'x' mus be a femlm object.")
+	}
+
 	# Preliminary stuff
-	S = x$dummies
-	if(is.null(S)) stop("There is no cluster to be retrieved.")
+	if("dummies" %in% names(x)){
+		# for retro-compatibility
+		S = x$dummies
+	} else {
+		S = x$sumFE
+	}
+
+	if(is.null(S)){
+		stop("There is no cluster to be retrieved.")
+	}
 
 	family = x$family
 	clustNames = x$clusterNames
@@ -1236,6 +1345,7 @@ getFE = function(x){
 
 		cluster_values = list(S[select])
 
+		# There are no references => no need to set nb_ref
 	} else {
 		# We apply a Rcpp script to handle complicated cases (and we don't know beforehand if there are some)
 
@@ -1245,6 +1355,10 @@ getFE = function(x){
 		nbCluster = sapply(id_dummies, max)
 
 		cluster_values <- RcppGetFE(Q, N, S, dumMat, nbCluster, orderCluster)
+
+		# the information on the references
+		nb_ref = cluster_values[[Q+1]]
+		cluster_values[[Q+1]] = NULL
 	}
 
 	# now saving & adding information
@@ -1260,17 +1374,62 @@ getFE = function(x){
 
 	class(all_clust) = "femlm.allClusters"
 
-	# # Construction de S et calcul de la diff maximale
-	# S_new = S*0
-	# for(i in 1:Q) S_new = S_new + all_clust[[i]][id_dummies[[i]]]
-	#
-	# print(sprintf("Max diff(S, S_new) = %0.6f", sum(abs(S - S_new))))
+	# Dealing with the references
+	if(Q > 1){
+		names(nb_ref) = clustNames
+		attr(all_clust, "References") = nb_ref
+
+		# warning if unbalanced
+		if(sum(nb_ref) > Q-1){
+			warning("The fixed-effects are not regular, they cannot be straightforwardly interpreted.", call. = FALSE)
+		}
+	}
 
 	return(all_clust)
 }
 
 
 
+#' Plots the most notable fixed-effects
+#'
+#' This method plots the most notable fixed effects of a cluster obtained from function \code{\link[FENmlm]{getFE}}.
+#'
+#' @method plot femlm.cluster
+#'
+#' @param x An object obtained from the function \code{\link{getFE}}.
+#' @param n The number of fixed-effects to be drawn. Defaults to 5.
+#' @param ... Not currently used.
+#'
+#' @details
+#' Note that the fixed-effect coefficients might NOT be interpretable. This function is useful only for fully regular panels.
+#'
+#' If the data are not regular in the cluster coefficients, this means that several \sQuote{reference points} are set to obtain the fixed-effects, thereby impeding their interpretation. In this case a warning is raised.
+#'
+#' @seealso
+#' To plot all the fixed-effects of all clusters, use function \code{\link[FENmlm]{plot.femlm.allClusters}}.
+#'  See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @examples
+#'
+#' data(trade)
+#'
+#' # We estimate the effect of distance on trade
+#' # => we account for 3 cluster effects
+#' est_pois = femlm(Euros ~ log(dist_km)|Origin+Destination+Product, trade)
+#'
+#' # obtaining the cluster coefficients
+#' fe_trade = getFE(est_pois)
+#'
+#' # plotting them
+#' plot(fe_trade)
+#'
+#' # plotting only the Products fixed-effects & showing more of them
+#' plot(fe_trade$Product, n=8)
+#'
+#'
 plot.femlm.cluster = function(x, n=5, ...){
 	# It plots the n first and last most notable FEs
 
@@ -1310,7 +1469,7 @@ plot.femlm.cluster = function(x, n=5, ...){
 
 	# display
 	box()
-	y =axis(2)
+	y = axis(2)
 	abline(h = y, lty = 4, col = "lightgrey")
 
 	# name information & points
@@ -1322,7 +1481,7 @@ plot.femlm.cluster = function(x, n=5, ...){
 
 	# browser()
 	title(main = clusterName)
-	title(xlab = "Centered Cluster Coefficients", line = 1)
+	title(xlab = "Centered Fixed-Effects", line = 1)
 
 	if(isSplit){
 		abline(v = c(n+0.75, n+1.25), lty = 2)
@@ -1332,21 +1491,63 @@ plot.femlm.cluster = function(x, n=5, ...){
 	}
 
 	coord = par("usr")
-	axis(1, at = coord[1:2], labels = c("coef", "exp(coef)"))
+	axis(1, at = coord[1:2], labels = c("coef", "exp(coef)"), lwd = 0, lwd.ticks = 1)
 
 }
 
 
-plot.femlm.allClusters = function(x, ...){
+#' Displaying the most notable fixed-effects
+#'
+#' This function plots the 5 fixed-effects with the highest and lowest values, for each of the clusters. It takes as an argument the fixed-effects obtained from the function \code{\link{getFE}} after and estimation using \code{\link{femlm}}.
+#'
+#' @method plot femlm.allClusters
+#'
+#' @param x An object obtained from the function \code{\link{getFE}}.
+#' @param n The number of fixed-effects to be drawn. Defaults to 5.
+#' @param ... Not currently used.
+#'
+#' Note that the fixed-effect coefficients might NOT be interpretable. This function is useful only for fully regular panels.
+#'
+#' If the data are not regular in the cluster coefficients, this means that several \sQuote{reference points} are set to obtain the fixed-effects, thereby impeding their interpretation. In this case a warning is raised.
+#'
+#' @seealso
+#' See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @examples
+#'
+#' data(trade)
+#'
+#' # We estimate the effect of distance on trade
+#' # => we account for 3 cluster effects
+#' est_pois = femlm(Euros ~ log(dist_km)|Origin+Destination+Product, trade)
+#'
+#' # obtaining the cluster coefficients
+#' fe_trade = getFE(est_pois)
+#'
+#' # plotting them
+#' plot(fe_trade)
+#'
+#' # plotting only the Products fixed-effects & showing more of them
+#' plot(fe_trade$Product, n=8)
+#'
+#'
+plot.femlm.allClusters = function(x, n=5, ...){
 
-	n = length(x)
+	Q = length(x)
 
 	mfrow = as.character(c(11, 12, 22, 22, 32, 32, 33, 33))
 
-	op = par(mfrow = as.numeric(strsplit(mfrow[n], "")[[1]]), mar = c(3, 3, 2.5, 3))
+	if(Q > 1 && sum(attr(x, "References")) > Q-1){
+		warning("The fixed-effects are not regular, they cannot be straightforwardly interpreted.", call. = FALSE)
+	}
 
-	for(i in 1:n){
-		plot(x[[i]])
+	op = par(mfrow = as.numeric(strsplit(mfrow[Q], "")[[1]]), mar = c(3, 3, 2.5, 3))
+
+	for(i in 1:Q){
+		plot(x[[i]], n=n)
 	}
 
 	par(op)
@@ -1702,6 +1903,11 @@ make_contrast = function(my_fact, prefix = "", addRef = TRUE){
 	mat
 }
 
+####
+#### DOCUMENTATION DATA ####
+####
+
+
 
 #' Trade data sample
 #'
@@ -1714,12 +1920,12 @@ make_contrast = function(my_fact, prefix = "", addRef = TRUE){
 #' \code{trade} is a data frame with 38,325 observations and 6 variables named \code{Destination}, \code{Origin}, \code{Product}, \code{Year}, \code{dist_km} and \code{Euros}.
 #'
 #' \itemize{
-#' \item{Origin}{2-digits codes of the countries of origin of the trade flow.}
-#' \item{Destination}{2-digits codes of the countries of destination of the trade flow.}
-#' \item{Products}{Number representing the product categories (from 1 to 20).}
-#' \item{Year}{Years from 2007 to 2016}
-#' \item{dist_km}{Geographic distance in km between the centers of the countries of origin and destination.}
-#' \item{Euros}{The total amount in euros of the trade flow for the specific year/product category/origin-destination country pair.}
+#' \item{Origin: 2-digits codes of the countries of origin of the trade flow.}
+#' \item{Destination: 2-digits codes of the countries of destination of the trade flow.}
+#' \item{Products: Number representing the product categories (from 1 to 20).}
+#' \item{Year: Years from 2007 to 2016}
+#' \item{dist_km: Geographic distance in km between the centers of the countries of origin and destination.}
+#' \item{Euros: The total amount in euros of the trade flow for the specific year/product category/origin-destination country pair.}
 #'
 #' }
 #'

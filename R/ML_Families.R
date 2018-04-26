@@ -47,6 +47,23 @@ rpar_log_a_exp = function(a, mu, exp_mu, env){
 # 	res
 # }
 
+IHR = function(x){
+	#Actually it's the inverse hazard rate
+	#I have to create such a function to compute
+	#properly the hazard rate that is not numerically
+	#computable for large values of x
+	#yet it tends to x
+	high_x = x>30
+	res = dnorm(x)/pnorm(-x)
+
+	if(any(high_x)){
+		x_high = x[high_x]
+		res[high_x] = 1 / (1/x_high - 1/x_high**3 + 3/x_high**5)
+	}
+
+	res
+}
+
 #***************************#
 #### ===== POISSON ===== ####
 #***************************#
@@ -592,18 +609,6 @@ ml_negbin = function(){
 
 ml_probit = function(){
 
-	IHR = function(x){
-		# Actually it's the inverse hazard rate
-		# I have to create such a function to compute
-		# properly the hazard rate that is not numerically
-		# computable for large values of x
-		# yet it tends to x
-		v = dnorm(x)/pnorm(-x)
-		qui = which(is.na(v) | !is.finite(v))
-		v[qui] = x[qui]
-		v
-	}
-
 	ll = function(y, mu, env, ...){
 		mu = mu * (2*y-1)
 		sum(pnorm(mu, log.p = TRUE))
@@ -767,18 +772,6 @@ ml_gaussian = function(){
 
 ml_tobit = function(){
 	# we separate each case with U: uncensored and C: censored
-
-	IHR = function(x){
-		#Actually it's the inverse hazard rate
-		#I have to create such a function to compute
-		#properly the hazard rate that is not numerically
-		#computable for large values of x
-		#yet it tends to x
-		v = dnorm(x)/pnorm(-x)
-		qui = which(is.na(v) | !is.finite(v))
-		v[qui] = x[qui]
-		v
-	}
 
 	ll = function(y, mu, env, coef, ...){
 		#sigma = get(".sigma", env)

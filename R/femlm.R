@@ -33,6 +33,7 @@
 #' @param cores Integer, default is 1. Number of threads to be used (accelerates the algorithm via the use of openMP routines). This is particularly efficient for the negative binomial and logit models, less so for Gaussian and Poisson likelihoods (unless for large datasets).
 #' @param debug Logical. If \code{TRUE} then the log-likelihood as well as all parameters are printed at each iteration. Default is \code{FALSE}.
 #' @param theta.init Positive numeric scalar. The starting value of the dispersion parameter if \code{family="negbin"}. By default, the algorithm uses as a starting value the theta obtained from the model with only the intercept.
+#' @param precision.cluster Precision used to obtain the fixed-effects (ie cluster coefficients). Defaults to \code{1e-5}. It corresponds to the maximum absolute difference allowed between two iterations.
 #' @param ... Not currently used.
 #'
 #' @details
@@ -79,12 +80,12 @@
 #' \item{scores}{The matrix of the scores (first derivative for each observation).}
 #' \item{family}{The ML family that was used for the estimation.}
 #' \item{resids}{The difference between the dependent variable and the expected predictor.}
-#' \item{dummies}{The sum of the cluster coefficients for each observation.}
+#' \item{sumFE}{The sum of the fixed-effects for each observation.}
 #' \item{clusterNames}{The names of each cluster.}
 #' \item{id_dummies}{The list (of length the number of clusters) of the cluser identifiers for each observation.}
 #' \item{clusterSize}{The size of each cluster.}
-#' \item{obsRemoved}{In the case there were clusters and some observations were removed because of only 0/1 outcome wirhin a cluster, it gives the row numbers of the observations that were removed.}
-#' \item{clusterRemoved}{In the case there were clusters and some observations were removed because of only 0/1 outcome wirhin a cluster, it gives the list (for each cluster) of the clustr identifiers that were removed.}
+#' \item{obsRemoved}{In the case there were clusters and some observations were removed because of only 0/1 outcome within a cluster, it gives the row numbers of the observations that were removed.}
+#' \item{clusterRemoved}{In the case there were clusters and some observations were removed because of only 0/1 outcome within a cluster, it gives the list (for each cluster) of the clustr identifiers that were removed.}
 #' \item{theta}{In the case of a negative binomial estimation: the overdispersion parameter.}
 #'
 #' @seealso
@@ -179,7 +180,7 @@
 #'                      nl.gradient = ~myGrad(a,x,b,y))
 #'
 #'
-femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, useAcc=TRUE, start, lower, upper, env, start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), cores = 1, debug=FALSE, theta.init, ...){
+femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, useAcc=TRUE, start, lower, upper, env, start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), cores = 1, debug=FALSE, theta.init, precision.cluster, ...){
 
 	# use of the conjugate gradient in the gaussian case to get
 	# the cluster coefficients
@@ -199,7 +200,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# Default keeps the two last evaluations
 	NLsave = 2
 
-	# PRECISION
+	# DOTS
 	dots = list(...)
 
 	# I initially called the cluster dummies... I keep it for compatibility
@@ -221,26 +222,24 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		}
 	}
 
-	# Other custom parameters
-	eps.cluster = ifelse(is.null(dots$eps.cluster), 1e-5, dots$eps.cluster)
-	eps.NR = ifelse(is.null(dots$eps.NR), eps.cluster/100, dots$eps.NR)
-	eps.deriv = ifelse(is.null(dots$eps.deriv), 1e-4, dots$eps.deriv)
-	# if it is null => OK
+	# Other paramaters
 	d.hessian = dots$d.hessian
 
 	#
 	# cores argument
 	if(!length(cores) == 1 || !is.numeric(cores) || !(cores%%1) == 0 || cores < 0){
 		stop("The argument 'cores' must be an integer greater than 0 and lower than the number of threads of the computer.")
+	} else if(cores == 1){
+		isMulticore = FALSE
+	} else if(is.na(parallel::detectCores())){
+		# This can happen...
+		isMulticore = FALSE
+		warning("The number of cores has been set to 1 because the function detectCores() could not evaluate the maximum number of nodes.")
 	} else if(cores > parallel::detectCores()){
 		stop("The argument 'cores' must be lower or equal to the number of possible threads (equal to ", parallel::detectCores(), ") in this computer.")
 	} else {
-		if(cores > 1){
-			set_omp(cores)
-			isMulticore = TRUE
-		} else {
-			isMulticore = FALSE
-		}
+		set_omp(cores)
+		isMulticore = TRUE
 	}
 
 	famFuns = switch(family,
@@ -290,6 +289,11 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	# The dependent variable: lhs==left_hand_side
 	lhs = as.vector(eval(fml[[2]], data))
+
+	# We check that the dep var is not a constant
+	if(var(lhs) == 0){
+		stop("The dependent variable is a constant, the regression cannot be done.")
+	}
 
 	# creation de l'environnement
 	if(missing(env)) env <- new.env()
@@ -423,7 +427,15 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			data = data[-obs2remove, ]
 
 			# We recreate the linear matrix and the LHS
-			if(isLinear) linear.mat = stats::model.matrix(linear.fml, data)
+			if(isLinear) {
+				types = sapply(data[, dataNames %in% linear.varnames, FALSE], class)
+				if(grepl("factor", deparse(linear.fml)) || any(types %in% c("character", "factor"))){
+					linear.mat = stats::model.matrix(linear.fml, data)
+				} else {
+					linear.mat = prepare_matrix(linear.fml, data)
+				}
+			}
+
 			lhs = eval(fml[[2]], data)
 
 			# Then we recreate the dummies
@@ -602,6 +614,26 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	}
 
 	assign("offset.value", offset.value, env)
+
+	#
+	# PRECISION
+	#
+
+	n = length(lhs)
+	# The main precision
+	if (!missing(precision.cluster) && !is.null(precision.cluster)){
+		if(!length(precision.cluster)==1 || !is.numeric(precision.cluster) || precision.cluster<=0 || precision.cluster >1){
+			stop("If provided, argument 'precision.cluster' must be a strictly positive scalar lower than 1.")
+		}
+		eps.cluster = precision.cluster
+	} else {
+		eps.cluster = 1e-5 # min(10**-(log10(n) + Q/3), 1e-5)
+	}
+
+	# other precisions
+	eps.NR = ifelse(is.null(dots$eps.NR), eps.cluster/100, dots$eps.NR)
+	eps.deriv = ifelse(is.null(dots$eps.deriv), 1e-4, dots$eps.deriv)
+
 
 	# Initial checks are done
 	nonlinear.params <- names(start) #=> in the order the user wants
@@ -796,7 +828,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	assign(".savedValue", list(mu), env)
 	if(isLinear) mu <- mu + c(linear.mat%*%unlist(start[linear.params]))
 
-	if(length(mu)!=nrow(data)) stop("Wow, must be a big problem... length(lhs)!=length(eval(fml))")
+	if(length(mu)!=nrow(data)) stop("Wow, must be a big problem... length(lhs)!=length(eval(NL.fml)): ", nrow(data), "!=", length(mu))
 	if(anyNA(mu)) stop("Hum, must be a problem, evaluating formula returns NA.\nMaybe only these starting values can't be computed, or maybe there's another BIGGER problem.")
 
 	# Check of the user-defined gradient, if given
@@ -896,7 +928,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 		# 3: we update the Hessian (basically, we drop the bounded element)
 		if(any(isBounded)){
-			hessian_noBounded = hessian[-which(isBounded), -which(isBounded)]
+			hessian_noBounded = hessian[-which(isBounded), -which(isBounded), drop = FALSE]
 
 			boundText = ifelse(coef_NL == upper_bound, "Upper bounded", "Lower bounded")[isBounded]
 
@@ -948,9 +980,12 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	pvalue <- 2*pnorm(-abs(zvalue))
 
 	# We add the information on the bound for the se & update the var to drop the bounded vars
+	se_format = se
 	if(any(isBounded)){
-		se[!isBounded] = decimalFormat(se[!isBounded])
-		se[isBounded] = boundText
+		# se[!isBounded] = decimalFormat(se[!isBounded])
+		# se[isBounded] = boundText
+		se_format[!isBounded] = decimalFormat(se_format[!isBounded])
+		se_format[isBounded] = boundText
 	}
 
 	# coeftable <- cbind(coef, se, zvalue, pvalue)
@@ -958,7 +993,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# rownames(coeftable) <- params
 	# class(coeftable) <- "coeftest"
 
-	coeftable <- data.frame("Estimate"=coef, "Std. Error"=se, "z value"=zvalue, "Pr(>|z|)"=pvalue, stringsAsFactors = FALSE)
+	coeftable <- data.frame("Estimate"=coef, "Std. Error"=se_format, "z value"=zvalue, "Pr(>|z|)"=pvalue, stringsAsFactors = FALSE)
 	names(coeftable) <- c("Estimate", "Std. Error", "z value",  "Pr(>|z|)")
 	row.names(coeftable) <- params
 
@@ -1014,7 +1049,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			dummies = rpar_log(dummies, env)
 		}
 
-		res$dummies = dummies
+		res$sumFE = dummies
 		res$clusterNames = cluster
 
 		id_dummies = list()
@@ -1132,7 +1167,7 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 		dummies = rpar_log(dummies, env)
 	}
 
-	res$dummies = dummies
+	res$sumFE = dummies
 	res$clusterNames = cluster
 
 	id_dummies = list()
@@ -1238,7 +1273,7 @@ ll_glm_hessian <- function(coef, env){
 	if(!warn_0_Hessian && any(diag(hessVar) == 0)){
 		# We apply the warning only once
 		var_problem = params[diag(hessVar) == 0]
-		warning("Some elements of the diagonal of the hessian are equal to 0: likely presence of collinearity. \nFYI the problematic variables are:\n", paste0(var_problem, collapse = ", "), ".", immediate. = TRUE)
+		warning("Some elements of the diagonal of the hessian are equal to 0: likely presence of collinearity. FYI the problematic variables are: ", paste0(var_problem, collapse = ", "), ".", immediate. = TRUE)
 		assign(".warn_0_Hessian", TRUE, env)
 	}
 
@@ -1747,14 +1782,6 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 	debug = get("debug", env)
 	if(debug) ptm = proc.time()
 
-	# Handling Acceleration
-	useAcc = get(".useAcc", env)
-	firstIterCluster = get(".firstIterCluster", env)
-	if(useAcc && (final || firstIterCluster < 5)){
-		useAcc = FALSE
-		# we stop the acceleration in the case of "simple situations"
-	}
-
 	# Handling precision
 	iterCluster = get(".iterCluster", env)
 	evolutionLL = get(".evolutionLL", env)
@@ -1766,6 +1793,19 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 		eps.cluster = eps.cluster/10
 		assign(".eps.cluster", eps.cluster, env)
 		assign(".iterLastPrecisionIncrease", iter, env)
+
+		# If the precision increases, we must also increase the precision of the dummies!
+		if(family %in% c("negbin", "logit")){
+			assign(".eps.NR", eps.cluster / 100, env)
+		}
+	}
+
+	# Handling Acceleration
+	useAcc = get(".useAcc", env)
+	firstIterCluster = get(".firstIterCluster", env)
+	if(useAcc && (final || firstIterCluster < 5)){
+		useAcc = FALSE
+		# we stop the acceleration in the case of "simple situations"
 	}
 
 	iterMax = 10000 ; iter = 0

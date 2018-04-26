@@ -3,6 +3,37 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
+\section{Changes in version 2.1.1}{
+	\subsection{New features}{
+		\itemize{
+			\item [femlm] Added argument 'precision.cluster' so that the user can set the level of precision manually (concerns the algorithm to obtain the cluster coefficients).
+			\item [summary.femlm] For one-way clustering, the argument 'cluster' can now be a vector.
+			\item A print method for the fixed-effects obtained with function \code{\link[FENmlm]{getFE}} has been implemented.
+		}
+	}
+	\subsection{Documentation}{
+		\itemize{
+			\item A vignette has been created.
+			\item Documentation has been added for fixed-effects plotting and for a new print method.
+			\item Some examples have been updated.
+		}
+	}
+	\subsection{Bug}{
+		\itemize{
+			\item [getFE] Corrected a small glitch that impeded the algorithm to find the right solution in presence of  complicated cases.
+			\item [femlm] The function could not be evaluated at all when parallel::detectCores() gives NA. This has been corrected. Now when parallel::detectCores() gives NA, the number of cores cannot be set greater than 1.
+		}
+	}
+	\subsection{Miscellaneous}{
+		\itemize{
+			\item [res2tex] In the exported Latex table the word \sQuote{Cluster} is changed to \sQuote{Fixed-Effects}.
+			\item [summary.femlm] Using cluster=NULL does not cause problems any more.
+			\item [print.femlm] Corrected a spelling mistake.
+		}
+	}
+
+}
+
 \section{Changes in version 2.1.0}{
 	\subsection{New Features}{
 		\itemize{

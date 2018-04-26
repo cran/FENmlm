@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<meta name="author" content="Laurent Berge" />
+
+<meta name="date" content="2018-04-26" />
+
+<title>Efficient Maximum Likelihood Estimation with Multiple Fixed-Effects</title>
+
+
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+div.sourceCode { overflow-x: auto; }
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code > span.dt { color: #902000; } /* DataType */
+code > span.dv { color: #40a070; } /* DecVal */
+code > span.bn { color: #40a070; } /* BaseN */
+code > span.fl { color: #40a070; } /* Float */
+code > span.ch { color: #4070a0; } /* Char */
+code > span.st { color: #4070a0; } /* String */
+code > span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code > span.ot { color: #007020; } /* Other */
+code > span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code > span.fu { color: #06287e; } /* Function */
+code > span.er { color: #ff0000; font-weight: bold; } /* Error */
+code > span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+code > span.cn { color: #880000; } /* Constant */
+code > span.sc { color: #4070a0; } /* SpecialChar */
+code > span.vs { color: #4070a0; } /* VerbatimString */
+code > span.ss { color: #bb6688; } /* SpecialString */
+code > span.im { } /* Import */
+code > span.va { color: #19177c; } /* Variable */
+code > span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code > span.op { color: #666666; } /* Operator */
+code > span.bu { } /* BuiltIn */
+code > span.ex { } /* Extension */
+code > span.pp { color: #bc7a00; } /* Preprocessor */
+code > span.at { color: #7d9029; } /* Attribute */
+code > span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code > span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code > span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+</style>
+
+
+
+<link href="data:text/css;charset=utf-8,body%20%7B%0Abackground%2Dcolor%3A%20%23fff%3B%0Amargin%3A%201em%20auto%3B%0Amax%2Dwidth%3A%20700px%3B%0Aoverflow%3A%20visible%3B%0Apadding%2Dleft%3A%202em%3B%0Apadding%2Dright%3A%202em%3B%0Afont%2Dfamily%3A%20%22Open%20Sans%22%2C%20%22Helvetica%20Neue%22%2C%20Helvetica%2C%20Arial%2C%20sans%2Dserif%3B%0Afont%2Dsize%3A%2014px%3B%0Aline%2Dheight%3A%201%2E35%3B%0A%7D%0A%23header%20%7B%0Atext%2Dalign%3A%20center%3B%0A%7D%0A%23TOC%20%7B%0Aclear%3A%20both%3B%0Amargin%3A%200%200%2010px%2010px%3B%0Apadding%3A%204px%3B%0Awidth%3A%20400px%3B%0Aborder%3A%201px%20solid%20%23CCCCCC%3B%0Aborder%2Dradius%3A%205px%3B%0Abackground%2Dcolor%3A%20%23f6f6f6%3B%0Afont%2Dsize%3A%2013px%3B%0Aline%2Dheight%3A%201%2E3%3B%0A%7D%0A%23TOC%20%2Etoctitle%20%7B%0Afont%2Dweight%3A%20bold%3B%0Afont%2Dsize%3A%2015px%3B%0Amargin%2Dleft%3A%205px%3B%0A%7D%0A%23TOC%20ul%20%7B%0Apadding%2Dleft%3A%2040px%3B%0Amargin%2Dleft%3A%20%2D1%2E5em%3B%0Amargin%2Dtop%3A%205px%3B%0Amargin%2Dbottom%3A%205px%3B%0A%7D%0A%23TOC%20ul%20ul%20%7B%0Amargin%2Dleft%3A%20%2D2em%3B%0A%7D%0A%23TOC%20li%20%7B%0Aline%2Dheight%3A%2016px%3B%0A%7D%0Atable%20%7B%0Amargin%3A%201em%20auto%3B%0Aborder%2Dwidth%3A%201px%3B%0Aborder%2Dcolor%3A%20%23DDDDDD%3B%0Aborder%2Dstyle%3A%20outset%3B%0Aborder%2Dcollapse%3A%20collapse%3B%0A%7D%0Atable%20th%20%7B%0Aborder%2Dwidth%3A%202px%3B%0Apadding%3A%205px%3B%0Aborder%2Dstyle%3A%20inset%3B%0A%7D%0Atable%20td%20%7B%0Aborder%2Dwidth%3A%201px%3B%0Aborder%2Dstyle%3A%20inset%3B%0Aline%2Dheight%3A%2018px%3B%0Apadding%3A%205px%205px%3B%0A%7D%0Atable%2C%20table%20th%2C%20table%20td%20%7B%0Aborder%2Dleft%2Dstyle%3A%20none%3B%0Aborder%2Dright%2Dstyle%3A%20none%3B%0A%7D%0Atable%20thead%2C%20table%20tr%2Eeven%20%7B%0Abackground%2Dcolor%3A%20%23f7f7f7%3B%0A%7D%0Ap%20%7B%0Amargin%3A%200%2E5em%200%3B%0A%7D%0Ablockquote%20%7B%0Abackground%2Dcolor%3A%20%23f6f6f6%3B%0Apadding%3A%200%2E25em%200%2E75em%3B%0A%7D%0Ahr%20%7B%0Aborder%2Dstyle%3A%20solid%3B%0Aborder%3A%20none%3B%0Aborder%2Dtop%3A%201px%20solid%20%23777%3B%0Amargin%3A%2028px%200%3B%0A%7D%0Adl%20%7B%0Amargin%2Dleft%3A%200%3B%0A%7D%0Adl%20dd%20%7B%0Amargin%2Dbottom%3A%2013px%3B%0Amargin%2Dleft%3A%2013px%3B%0A%7D%0Adl%20dt%20%7B%0Afont%2Dweight%3A%20bold%3B%0A%7D%0Aul%20%7B%0Amargin%2Dtop%3A%200%3B%0A%7D%0Aul%20li%20%7B%0Alist%2Dstyle%3A%20circle%20outside%3B%0A%7D%0Aul%20ul%20%7B%0Amargin%2Dbottom%3A%200%3B%0A%7D%0Apre%2C%20code%20%7B%0Abackground%2Dcolor%3A%20%23f7f7f7%3B%0Aborder%2Dradius%3A%203px%3B%0Acolor%3A%20%23333%3B%0Awhite%2Dspace%3A%20pre%2Dwrap%3B%20%0A%7D%0Apre%20%7B%0Aborder%2Dradius%3A%203px%3B%0Amargin%3A%205px%200px%2010px%200px%3B%0Apadding%3A%2010px%3B%0A%7D%0Apre%3Anot%28%5Bclass%5D%29%20%7B%0Abackground%2Dcolor%3A%20%23f7f7f7%3B%0A%7D%0Acode%20%7B%0Afont%2Dfamily%3A%20Consolas%2C%20Monaco%2C%20%27Courier%20New%27%2C%20monospace%3B%0Afont%2Dsize%3A%2085%25%3B%0A%7D%0Ap%20%3E%20code%2C%20li%20%3E%20code%20%7B%0Apadding%3A%202px%200px%3B%0A%7D%0Adiv%2Efigure%20%7B%0Atext%2Dalign%3A%20center%3B%0A%7D%0Aimg%20%7B%0Abackground%2Dcolor%3A%20%23FFFFFF%3B%0Apadding%3A%202px%3B%0Aborder%3A%201px%20solid%20%23DDDDDD%3B%0Aborder%2Dradius%3A%203px%3B%0Aborder%3A%201px%20solid%20%23CCCCCC%3B%0Amargin%3A%200%205px%3B%0A%7D%0Ah1%20%7B%0Amargin%2Dtop%3A%200%3B%0Afont%2Dsize%3A%2035px%3B%0Aline%2Dheight%3A%2040px%3B%0A%7D%0Ah2%20%7B%0Aborder%2Dbottom%3A%204px%20solid%20%23f7f7f7%3B%0Apadding%2Dtop%3A%2010px%3B%0Apadding%2Dbottom%3A%202px%3B%0Afont%2Dsize%3A%20145%25%3B%0A%7D%0Ah3%20%7B%0Aborder%2Dbottom%3A%202px%20solid%20%23f7f7f7%3B%0Apadding%2Dtop%3A%2010px%3B%0Afont%2Dsize%3A%20120%25%3B%0A%7D%0Ah4%20%7B%0Aborder%2Dbottom%3A%201px%20solid%20%23f7f7f7%3B%0Amargin%2Dleft%3A%208px%3B%0Afont%2Dsize%3A%20105%25%3B%0A%7D%0Ah5%2C%20h6%20%7B%0Aborder%2Dbottom%3A%201px%20solid%20%23ccc%3B%0Afont%2Dsize%3A%20105%25%3B%0A%7D%0Aa%20%7B%0Acolor%3A%20%230033dd%3B%0Atext%2Ddecoration%3A%20none%3B%0A%7D%0Aa%3Ahover%20%7B%0Acolor%3A%20%236666ff%3B%20%7D%0Aa%3Avisited%20%7B%0Acolor%3A%20%23800080%3B%20%7D%0Aa%3Avisited%3Ahover%20%7B%0Acolor%3A%20%23BB00BB%3B%20%7D%0Aa%5Bhref%5E%3D%22http%3A%22%5D%20%7B%0Atext%2Ddecoration%3A%20underline%3B%20%7D%0Aa%5Bhref%5E%3D%22https%3A%22%5D%20%7B%0Atext%2Ddecoration%3A%20underline%3B%20%7D%0A%0Acode%20%3E%20span%2Ekw%20%7B%20color%3A%20%23555%3B%20font%2Dweight%3A%20bold%3B%20%7D%20%0Acode%20%3E%20span%2Edt%20%7B%20color%3A%20%23902000%3B%20%7D%20%0Acode%20%3E%20span%2Edv%20%7B%20color%3A%20%2340a070%3B%20%7D%20%0Acode%20%3E%20span%2Ebn%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Efl%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Ech%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Est%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Eco%20%7B%20color%3A%20%23888888%3B%20font%2Dstyle%3A%20italic%3B%20%7D%20%0Acode%20%3E%20span%2Eot%20%7B%20color%3A%20%23007020%3B%20%7D%20%0Acode%20%3E%20span%2Eal%20%7B%20color%3A%20%23ff0000%3B%20font%2Dweight%3A%20bold%3B%20%7D%20%0Acode%20%3E%20span%2Efu%20%7B%20color%3A%20%23900%3B%20font%2Dweight%3A%20bold%3B%20%7D%20%20code%20%3E%20span%2Eer%20%7B%20color%3A%20%23a61717%3B%20background%2Dcolor%3A%20%23e3d2d2%3B%20%7D%20%0A" rel="stylesheet" type="text/css" />
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Efficient Maximum Likelihood Estimation with Multiple Fixed-Effects</h1>
+<h4 class="author"><em>Laurent Berge</em></h4>
+<h4 class="date"><em>2018-04-26</em></h4>
+
+
+
+<!-- Help on vignette writing here: http://r-pkgs.had.co.nz/vignettes.html. -->
+<p>The package <code>FENmlm</code> is devoted to the estimation of maximum likelihood (ML) models with fixed-effects. The function <code>femlm</code> is the workhorse of the package: it performs efficient ML estimations with <em>any number</em> of fixed-effects and also allows for non-linear in parameters right-hand-sides. Four likelihood models are supported: Poisson, Negative Binomial, Gaussian and Logit.</p>
+<p>The standard-errors of the estimates can be very easily clustered (up to four-way).</p>
+<p>Two specific functions are implemented to seamlessly export the results of multiple estimations into either a data.frame (function <code>res2table</code>), or a Latex table of “article-like” quality (function <code>res2tex</code>).</p>
+<p>The main feautres of the package are illustrated in this vignette.</p>
+<div id="complete-example-using-trade-data" class="section level1">
+<h1>Complete example using Trade data</h1>
+<p>This example deals with international trade, which is a setup that usually requires performing estimations with many fixed-effects. We estimate a very simple gravity model in which we are interested in finding out the negative effect of geographic distance on trade. The sample data consists of European trade extracted from Eurostat. Let’s load the data contained in the package:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(FENmlm)
+<span class="kw">data</span>(trade)</code></pre></div>
+<p>This data set focuses on the levels of bilateral importations between EU15 countries from 2007 and 2016. The data is further broken down according to 20 product categories.</p>
+<p>The dependent variable of the estimation will be the level of trade between two countries while the independent variable is the geographic distance between the two countries. To obtain the elasticity of geographic distance net of the effects of the four clusters, we estimate the following:</p>
+<p><span class="math inline">\(E\left(Trade_{i,j,p,t}\right)=\gamma_{i}^{Exporter}\times\gamma_{j}^{Importer}\times\gamma_{p}^{Product}\times\gamma_{t}^{Year}\times Distance_{ij}^{\beta}\)</span>,</p>
+<p>where the subscripts <span class="math inline">\(i\)</span>, <span class="math inline">\(j\)</span>, <span class="math inline">\(p\)</span> and <span class="math inline">\(t\)</span> stand respectively for the exporting country, the importing country, the type of product and the year, and the <span class="math inline">\(\gamma_{v}^{c}\)</span> are fixed-effects for these groups. Here <span class="math inline">\(\beta\)</span> is the elasticity of interest.</p>
+<p>Note that when you use the Poisson/Negative Binomial families, this relationship is in fact linear because the right hand side is exponentialized to avoid negative values for the Poisson parameter. This leads to the equivalent relation:</p>
+<p><span class="math inline">\(E\left(Trade_{i,j,p,t}\right)=\exp\left(\gamma_{i}^{Exporter}+\gamma_{j}^{Importer}+\gamma_{p}^{Product}+\gamma_{t}^{Year}+\beta\times \ln Distance_{ij}\right)\)</span>.</p>
+<div id="estimation" class="section level2">
+<h2>Estimation</h2>
+<p>The estimation of this model using a Poisson likelihood is as follows:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">gravity_results &lt;-<span class="st"> </span><span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km), trade, <span class="dt">family =</span> <span class="st">&quot;poisson&quot;</span>, <span class="dt">cluster =</span> <span class="kw">c</span>(<span class="st">&quot;Origin&quot;</span>, <span class="st">&quot;Destination&quot;</span>, <span class="st">&quot;Product&quot;</span>, <span class="st">&quot;Year&quot;</span>))</code></pre></div>
+<p>Note that alternatively you could have done the same estimation without the argument <code>cluster</code>, by inserting the fixed-effects directly in the formula with a pipe. Further, you can avoid the argument <code>family</code> since the Poisson model is the default:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">gravity_results &lt;-<span class="st"> </span><span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km)<span class="op">|</span>Origin<span class="op">+</span>Destination<span class="op">+</span>Product<span class="op">+</span>Year, trade)</code></pre></div>
+<p>The results can be shown directly with the <code>print</code> method:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">print</span>(gravity_results)
+<span class="co">#&gt; ML estimation, family = Poisson</span>
+<span class="co">#&gt; Observations: 38,325 </span>
+<span class="co">#&gt; Cluster sizes: Origin: 15,  Destination: 15,  Product: 20,  Year: 10</span>
+<span class="co">#&gt; Standard-errors type: Standard </span>
+<span class="co">#&gt;              Estimate Std. Error   z value  Pr(&gt;|z|)    </span>
+<span class="co">#&gt; log(dist_km)  -1.5279   1.92e-06 -793704.7 &lt; 2.2e-16 ***</span>
+<span class="co">#&gt; ---</span>
+<span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span>
+<span class="co">#&gt; # Evaluations: 4 </span>
+<span class="co">#&gt; Log-likelihood: -7.025e+11 </span>
+<span class="co">#&gt; BIC: 1.405e+12 </span>
+<span class="co">#&gt; Pseudo-R2: 0.7640319 </span>
+<span class="co">#&gt; Squared Cor.: 0.6120208 </span>
+<span class="co">#&gt; Convergence state: relative convergence (4)</span></code></pre></div>
+<p>The <code>print</code> reports the coefficient estimates and standard-errors as well as some other information. Among the quality of fit information, the squared-correlation corresponds to the correlation between the dependent variable and the expected predictor; it reflects somehow to the idea of R-square in OLS estimations.</p>
+<p>The last line reports the convergence status of the optimization algorithm (the function <code>nlminb</code> from the package <code>stats</code>). In the, rare, event of no convergence, see the troubleshooting section of this Vignette to explore the possible causes and solutions.</p>
+</div>
+<div id="clustering-the-standard-errors" class="section level2">
+<h2>Clustering the standard-errors</h2>
+<p>To cluster the standard-errors, we can simply use the argument <code>se</code> of the <code>summary</code> method. Let’s say we want to cluster the standard-errors according to the first two clusters (i.e. the <em>Origin</em> and <em>Destination</em> variables). Then we just have to do:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summary</span>(gravity_results, <span class="dt">se =</span> <span class="st">&quot;twoway&quot;</span>)
+<span class="co">#&gt; Warning: Standard-errors clustered w.r.t. Origin &amp; Destination</span>
+<span class="co">#&gt; ML estimation, family = Poisson</span>
+<span class="co">#&gt; Observations: 38,325 </span>
+<span class="co">#&gt; Cluster sizes: Origin: 15,  Destination: 15,  Product: 20,  Year: 10</span>
+<span class="co">#&gt; Standard-errors type: Two-way </span>
+<span class="co">#&gt;              Estimate Std. Error z value  Pr(&gt;|z|)    </span>
+<span class="co">#&gt; log(dist_km)  -1.5279   0.126253 -12.102 &lt; 2.2e-16 ***</span>
+<span class="co">#&gt; ---</span>
+<span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span>
+<span class="co">#&gt; # Evaluations: 4 </span>
+<span class="co">#&gt; Log-likelihood: -7.025e+11 </span>
+<span class="co">#&gt; BIC: 1.405e+12 </span>
+<span class="co">#&gt; Pseudo-R2: 0.7640319 </span>
+<span class="co">#&gt; Squared Cor.: 0.6120208 </span>
+<span class="co">#&gt; Convergence state: relative convergence (4)</span></code></pre></div>
+<p>The clustering can be done on one (<code>se=&quot;cluster&quot;</code>), two (<code>se=&quot;twoway&quot;</code>), three (<code>se=&quot;threeway&quot;</code>) or up to four (<code>se=&quot;fourway&quot;</code>) variables. If the estimation includes fixed-effects, then by default the clustering will be done using these fixed-effects, in the original order. This is why the <em>Origin</em> and <em>Destination</em> variables were used for the two-way clustering in the previous example. If, instead, you wanted to perform one-way clustering on the <em>Product</em> variable, you need to use the argument <code>cluster</code>:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summary</span>(gravity_results, <span class="dt">se =</span> <span class="st">&quot;cluster&quot;</span>, <span class="dt">cluster =</span> trade<span class="op">$</span>Product)
+<span class="co">#&gt; ML estimation, family = Poisson</span>
+<span class="co">#&gt; Observations: 38,325 </span>
+<span class="co">#&gt; Cluster sizes: Origin: 15,  Destination: 15,  Product: 20,  Year: 10</span>
+<span class="co">#&gt; Standard-errors type: Clustered </span>
+<span class="co">#&gt;              Estimate Std. Error z value  Pr(&gt;|z|)    </span>
+<span class="co">#&gt; log(dist_km)  -1.5279   0.095758 -15.956 &lt; 2.2e-16 ***</span>
+<span class="co">#&gt; ---</span>
+<span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span>
+<span class="co">#&gt; # Evaluations: 4 </span>
+<span class="co">#&gt; Log-likelihood: -7.025e+11 </span>
+<span class="co">#&gt; BIC: 1.405e+12 </span>
+<span class="co">#&gt; Pseudo-R2: 0.7640319 </span>
+<span class="co">#&gt; Squared Cor.: 0.6120208 </span>
+<span class="co">#&gt; Convergence state: relative convergence (4)</span></code></pre></div>
+<p>Note that you can always cluster the standard-errors, even when not estimating with fixed-effects. Buth then you need to use the argument <code>cluster</code>, as before:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">gravity_simple =<span class="st"> </span><span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km), trade)
+<span class="kw">summary</span>(gravity_simple, <span class="dt">se =</span> <span class="st">&quot;twoway&quot;</span>, <span class="dt">cluster =</span> trade[, <span class="kw">c</span>(<span class="st">&quot;Origin&quot;</span>, <span class="st">&quot;Destination&quot;</span>)])
+<span class="co">#&gt; ML estimation, family = Poisson</span>
+<span class="co">#&gt; Observations: 38,325 </span>
+<span class="co">#&gt; Standard-errors type: Two-way </span>
+<span class="co">#&gt;              Estimate Std. Error z value  Pr(&gt;|z|)    </span>
+<span class="co">#&gt; (Intercept)    24.709   1.086600 22.7390 &lt; 2.2e-16 ***</span>
+<span class="co">#&gt; log(dist_km)   -1.029   0.152666 -6.7399  1.58e-11 ***</span>
+<span class="co">#&gt; ---</span>
+<span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span>
+<span class="co">#&gt; # Evaluations: 14 </span>
+<span class="co">#&gt; Log-likelihood: -2.426e+12 </span>
+<span class="co">#&gt; BIC: 4.852e+12 </span>
+<span class="co">#&gt; Pseudo-R2: 0.1850227 </span>
+<span class="co">#&gt; Squared Cor.: 0.05510685 </span>
+<span class="co">#&gt; Convergence state: both X-convergence and relative convergence (5)</span></code></pre></div>
+</div>
+<div id="using-other-likelihoods" class="section level2">
+<h2>Using other Likelihoods</h2>
+<p>To use other likelihood models, you simply have to use the argument <code>family</code>. The fixed-effects Negative Binomial estimation is:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">gravity_results_negbin &lt;-<span class="st"> </span><span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km)<span class="op">|</span>Origin<span class="op">+</span>Destination<span class="op">+</span>Product<span class="op">+</span>Year, trade, <span class="dt">family =</span> <span class="st">&quot;negbin&quot;</span>)</code></pre></div>
+<p>Now to estimate the same relationship with the Gaussian likelihood, we need to put the left hand side in logarithm (since the right-hand-side is not exponentialized):</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">gravity_results_gaussian &lt;-<span class="st"> </span><span class="kw">femlm</span>(<span class="kw">log</span>(Euros) <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km)<span class="op">|</span>Origin<span class="op">+</span>Destination<span class="op">+</span>Product<span class="op">+</span>Year, trade, <span class="dt">family =</span> <span class="st">&quot;gaussian&quot;</span>)</code></pre></div>
+<p>Note that the estimates with the Gaussian likelihood are equivalent to the estimates with Ordinary Least Squares.</p>
+</div>
+<div id="viewing-the-results-in-r" class="section level2">
+<h2>Viewing the results in R</h2>
+<p>Now let’s say that we want a compact overview of the results of several estimations. The best way is to use the function <code>res2table</code>. This function summarizes the results of several <code>femlm</code> estimations into a data.frame. To see the fixed-effects results with the three different likelihoods, we just have to type:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">res2table</span>(gravity_results, gravity_results_negbin, gravity_results_gaussian, <span class="dt">se =</span> <span class="st">&quot;twoway&quot;</span>, <span class="dt">subtitles =</span> <span class="kw">c</span>(<span class="st">&quot;Poisson&quot;</span>, <span class="st">&quot;Negative Binomial&quot;</span>, <span class="st">&quot;Gaussian&quot;</span>))</code></pre></div>
+<pre><code>#&gt; Warning: Standard-errors clustered w.r.t. Origin &amp; Destination
+
+#&gt; Warning: Standard-errors clustered w.r.t. Origin &amp; Destination
+
+#&gt; Warning: Standard-errors clustered w.r.t. Origin &amp; Destination</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th align="left">Poisson</th>
+<th align="left">Negative Binomial</th>
+<th align="left">Gaussian</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>log(dist_km)</td>
+<td align="left">-1.5279*** (0.1263)</td>
+<td align="left">-1.7108*** (0.1712)</td>
+<td align="left">-2.1699*** (0.1655)</td>
+</tr>
+<tr class="even">
+<td>Dispersion Parameter</td>
+<td align="left"></td>
+<td align="left">0.5488*** (0.0592)</td>
+<td align="left"></td>
+</tr>
+<tr class="odd">
+<td>Fixed-Effects:</td>
+<td align="left">——————-</td>
+<td align="left">——————-</td>
+<td align="left">——————-</td>
+</tr>
+<tr class="even">
+<td>Origin</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+</tr>
+<tr class="odd">
+<td>Destination</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+</tr>
+<tr class="even">
+<td>Product</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+</tr>
+<tr class="odd">
+<td>Year</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+</tr>
+<tr class="even">
+<td>____________</td>
+<td align="left">___________________</td>
+<td align="left">___________________</td>
+<td align="left">___________________</td>
+</tr>
+<tr class="odd">
+<td>Observations</td>
+<td align="left">38,325</td>
+<td align="left">38,325</td>
+<td align="left">38,325</td>
+</tr>
+<tr class="even">
+<td>Squared-Correlation</td>
+<td align="left">0.612</td>
+<td align="left">0.438</td>
+<td align="left">0.706</td>
+</tr>
+<tr class="odd">
+<td>Adj-pseudo R2</td>
+<td align="left">0.76403</td>
+<td align="left">0.03464</td>
+<td align="left">0.23583</td>
+</tr>
+<tr class="even">
+<td>Log-Likelihood</td>
+<td align="left">-7.025e+11</td>
+<td align="left">-646,586.98</td>
+<td align="left">-75,682.54</td>
+</tr>
+<tr class="odd">
+<td>BIC</td>
+<td align="left">1.405e+12</td>
+<td align="left">1,293,796.64</td>
+<td align="left">151,977.21</td>
+</tr>
+</tbody>
+</table>
+<p>We added the argument <code>se=&quot;twoway&quot;</code> to cluster the standard-errors for all estimations. As can be seen this function gives an overview of the estimates and standard-errors, as well as some quality of fit measures. The argument <code>subtitles</code> is used to add information on each estimation column.</p>
+<p>In the previous example, we directly added the estimation results as arguments of the function <code>res2table</code>. But the function also accepts lists of estimations. Let’s give an example. Say you want to see the influence of the introduction of fixed-effects on the estimate of the elasticity of distance. You can do it with the following code:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">gravity_subcluster =<span class="st"> </span><span class="kw">list</span>()
+all_clusters =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;Year&quot;</span>, <span class="st">&quot;Destination&quot;</span>, <span class="st">&quot;Origin&quot;</span>, <span class="st">&quot;Product&quot;</span>)
+<span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">0</span><span class="op">:</span><span class="dv">4</span>){
+    gravity_subcluster[[i<span class="op">+</span><span class="dv">1</span>]] =<span class="st"> </span><span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km), trade, <span class="dt">cluster =</span> all_clusters[<span class="dv">0</span><span class="op">:</span>i])
+}</code></pre></div>
+<p>The previous code performs 5 estimations with an increasing number of fixed-effects and store their results into the list named <code>gravity_subcluster</code>. To show the results of all 5 estimations, it’s easy:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">res2table</span>(gravity_subcluster, <span class="dt">se =</span> <span class="st">&quot;twoway&quot;</span>, <span class="dt">cluster =</span> trade[, <span class="kw">c</span>(<span class="st">&quot;Origin&quot;</span>, <span class="st">&quot;Destination&quot;</span>)])</code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th align="left">model 1</th>
+<th align="left">model 2</th>
+<th align="left">model 3</th>
+<th align="left">model 4</th>
+<th align="left">model 5</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>(Intercept)</td>
+<td align="left">24.7089*** (1.0866)</td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+<td align="left"></td>
+</tr>
+<tr class="even">
+<td>log(dist_km)</td>
+<td align="left">-1.029*** (0.1527)</td>
+<td align="left">-1.0293*** (0.1527)</td>
+<td align="left">-1.2257*** (0.1975)</td>
+<td align="left">-1.5176*** (0.1238)</td>
+<td align="left">-1.5279*** (0.1263)</td>
+</tr>
+<tr class="odd">
+<td>Fixed-Effects:</td>
+<td align="left">——————-</td>
+<td align="left">——————-</td>
+<td align="left">——————-</td>
+<td align="left">——————-</td>
+<td align="left">——————-</td>
+</tr>
+<tr class="even">
+<td>Year</td>
+<td align="left">No</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+</tr>
+<tr class="odd">
+<td>Destination</td>
+<td align="left">No</td>
+<td align="left">No</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+</tr>
+<tr class="even">
+<td>Origin</td>
+<td align="left">No</td>
+<td align="left">No</td>
+<td align="left">No</td>
+<td align="left">Yes</td>
+<td align="left">Yes</td>
+</tr>
+<tr class="odd">
+<td>Product</td>
+<td align="left">No</td>
+<td align="left">No</td>
+<td align="left">No</td>
+<td align="left">No</td>
+<td align="left">Yes</td>
+</tr>
+<tr class="even">
+<td>____________</td>
+<td align="left">___________________</td>
+<td align="left">___________________</td>
+<td align="left">___________________</td>
+<td align="left">___________________</td>
+<td align="left">___________________</td>
+</tr>
+<tr class="odd">
+<td>Observations</td>
+<td align="left">38,325</td>
+<td align="left">38,325</td>
+<td align="left">38,325</td>
+<td align="left">38,325</td>
+<td align="left">38,325</td>
+</tr>
+<tr class="even">
+<td>Squared-Correlation</td>
+<td align="left">0.055</td>
+<td align="left">0.057</td>
+<td align="left">0.164</td>
+<td align="left">0.385</td>
+<td align="left">0.612</td>
+</tr>
+<tr class="odd">
+<td>Adj-pseudo R2</td>
+<td align="left">0.18502</td>
+<td align="left">0.18833</td>
+<td align="left">0.35826</td>
+<td align="left">0.59312</td>
+<td align="left">0.76403</td>
+</tr>
+<tr class="even">
+<td>Log-Likelihood</td>
+<td align="left">-2.426e+12</td>
+<td align="left">-2.416e+12</td>
+<td align="left">-1.91e+12</td>
+<td align="left">-1.211e+12</td>
+<td align="left">-7.025e+11</td>
+</tr>
+<tr class="odd">
+<td>BIC</td>
+<td align="left">4.852e+12</td>
+<td align="left">4.833e+12</td>
+<td align="left">3.821e+12</td>
+<td align="left">2.423e+12</td>
+<td align="left">1.405e+12</td>
+</tr>
+</tbody>
+</table>
+<p>We have a view of the 5 estimations, all reporting two-way clustered standard-errors thanks to the use of the arguments <code>se</code> and <code>cluster</code>.</p>
+</div>
+<div id="exporting-the-results-to-latex" class="section level2">
+<h2>Exporting the results to Latex</h2>
+<p>So far we have seen how to report the results of multiple estimations on the R console. Now, with the function <code>res2tex</code>, we can export the results to high quality Latex tables. The function <code>res2tex</code> works exactly as the function <code>res2table</code>, it takes any number of <code>femlm</code> estimations. By default, it reports Latex code on the R console:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">res2tex</span>(gravity_subcluster, <span class="dt">se =</span> <span class="st">&quot;twoway&quot;</span>, <span class="dt">cluster =</span> trade[, <span class="kw">c</span>(<span class="st">&quot;Origin&quot;</span>, <span class="st">&quot;Destination&quot;</span>)])
+<span class="co">#&gt; \global\long\def\sym#1{\ifmmode^{#1}\else\ensuremath{^{#1}}\fi}</span>
+<span class="co">#&gt; \begin{table}[htbp]\centering</span>
+<span class="co">#&gt; \caption{no title}</span>
+<span class="co">#&gt; \begin{tabular}{lccccc}</span>
+<span class="co">#&gt;  &amp; &amp; &amp; &amp; &amp; \tabularnewline</span>
+<span class="co">#&gt; \hline</span>
+<span class="co">#&gt; \hline</span>
+<span class="co">#&gt; Dependent Variable:&amp;\multicolumn{5}{c}{Euros}\\</span>
+<span class="co">#&gt; Model:&amp;(1)&amp;(2)&amp;(3)&amp;(4)&amp;(5)\\</span>
+<span class="co">#&gt; \hline</span>
+<span class="co">#&gt; \emph{Variables}\tabularnewline</span>
+<span class="co">#&gt; (Intercept)&amp;24.7089\sym{***}&amp;  &amp;  &amp;  &amp;  \\</span>
+<span class="co">#&gt;   &amp;(1.0866)&amp;  &amp;  &amp;  &amp;  \\</span>
+<span class="co">#&gt; log(dist_km)&amp;-1.029\sym{***}&amp;-1.0293\sym{***}&amp;-1.2257\sym{***}&amp;-1.5176\sym{***}&amp;-1.5279\sym{***}\\</span>
+<span class="co">#&gt;   &amp;(0.1527)&amp;(0.1527)&amp;(0.1975)&amp;(0.1238)&amp;(0.1263)\\</span>
+<span class="co">#&gt; \hline</span>
+<span class="co">#&gt; \emph{Fixed-Effects}&amp;  &amp; &amp; &amp; &amp; \\</span>
+<span class="co">#&gt; Year&amp;No&amp;Yes&amp;Yes&amp;Yes&amp;Yes\\</span>
+<span class="co">#&gt; Destination&amp;No&amp;No&amp;Yes&amp;Yes&amp;Yes\\</span>
+<span class="co">#&gt; Origin&amp;No&amp;No&amp;No&amp;Yes&amp;Yes\\</span>
+<span class="co">#&gt; Product&amp;No&amp;No&amp;No&amp;No&amp;Yes\\</span>
+<span class="co">#&gt; \hline</span>
+<span class="co">#&gt; \emph{Fit statistics}&amp;  &amp; &amp; &amp; &amp; \\</span>
+<span class="co">#&gt; Observations&amp; 38,325&amp;38,325&amp;38,325&amp;38,325&amp;38,325\\</span>
+<span class="co">#&gt; Adj-pseudo $R^2$ &amp;0.18502&amp;0.18833&amp;0.35826&amp;0.59312&amp;0.76403\\</span>
+<span class="co">#&gt; Log-Likelihood &amp; $-2.426\times 10^{12}$&amp;$-2.416\times 10^{12}$&amp;$-1.91\times 10^{12}$&amp;$-1.211\times 10^{12}$&amp;$-7.025\times 10^{11}$\\</span>
+<span class="co">#&gt; BIC &amp; $4.852\times 10^{12}$&amp;$4.833\times 10^{12}$&amp;$3.821\times 10^{12}$&amp;$2.423\times 10^{12}$&amp;$1.405\times 10^{12}$\\</span>
+<span class="co">#&gt; \hline</span>
+<span class="co">#&gt; \hline</span>
+<span class="co">#&gt; \multicolumn{6}{l}{\emph{Two-way clustered standard-errors in parenthesis. Signif Codes: ***: 0.01, **: 0.05, *: 0.1}}\\</span>
+<span class="co">#&gt; \end{tabular}</span>
+<span class="co">#&gt; \end{table}</span></code></pre></div>
+<p>This function has many optional arguments. The user can export the Latex table directly into a file (argument <code>file</code>), add a title (arg. <code>title</code>) and a label to the table (arg. <code>label</code>).</p>
+<p>The coefficients can be renamed easily (arg. <code>dict</code>), some can be dropped (arg. <code>drop</code>) and they can be easily reordered with regular expressions (arg. <code>order</code>).</p>
+<p>The significance codes can easily be changed (arg. <code>signifCode</code>) and all quality of fit information can be customized. Among others, the number of fixed-effect per cluster can also be displayed using the argument <code>showClusterSize</code>.</p>
+<div id="an-elaborate-example" class="section level3">
+<h3>An elaborate example</h3>
+<p>Consider the following example of the exportation of two tables:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># we set the dictionary once and for all</span>
+myDict =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;log(dist_km)&quot;</span> =<span class="st"> &quot;$</span><span class="ch">\\</span><span class="st">ln (Distance)$&quot;</span>, <span class="st">&quot;(Intercept)&quot;</span> =<span class="st"> &quot;Constant&quot;</span>)
+<span class="co"># 1st export: we change the signif code and drop the intercept</span>
+<span class="kw">res2tex</span>(gravity_subcluster, <span class="dt">signifCode =</span> <span class="kw">c</span>(<span class="st">&quot;a&quot;</span> =<span class="st"> </span><span class="fl">0.01</span>, <span class="st">&quot;b&quot;</span> =<span class="st"> </span><span class="fl">0.05</span>), <span class="dt">drop =</span> <span class="st">&quot;Int&quot;</span>, <span class="dt">dict =</span> myDict, <span class="dt">file =</span> <span class="st">&quot;Estimation Table.tex&quot;</span>, <span class="dt">append =</span> <span class="ot">FALSE</span>, <span class="dt">title =</span> <span class="st">&quot;First export -- normal Standard-errors&quot;</span>)
+<span class="co"># 2nd export: clustered S-E + distance as the first coefficient</span>
+<span class="kw">res2tex</span>(gravity_subcluster, <span class="dt">se =</span> <span class="st">&quot;cluster&quot;</span>, <span class="dt">cluster =</span> trade<span class="op">$</span>Product, <span class="dt">order =</span> <span class="st">&quot;dist&quot;</span>, <span class="dt">dict =</span> myDict, <span class="dt">file =</span> <span class="st">&quot;Estimation Table.tex&quot;</span>, <span class="dt">title =</span> <span class="st">&quot;Second export -- clustered standard-errors (on Product variable)&quot;</span>)</code></pre></div>
+<p>In this example, two tables containing the results of the 5 estimations are directly exported in the file “Estimation Table.tex”. The file is re-created in the first exportation thanks to the argument <code>append=FALSE</code>.</p>
+<p>To change the variable names in the Latex table, we use the argument <code>dict</code>. The variable <code>myDict</code> is the dictionary we use to rename the variables, it is simply a named vector. The original name of the variables correspond to the names of <code>myDict</code> while the new names of the variables are the values of this vector. Any variable that matches the names of <code>myDict</code> will be replaced by its value. Thus we do not care of the order of appearance of the variables in the estimation results.</p>
+<p>In the first export, the coefficient of the intercept is dropped by using <code>drop = &quot;Int&quot;</code> (could be anything such that <code>grepl(drop[1], &quot;(Intercept)&quot;)</code> is TRUE). In the second, the coefficient of the distance is put before the intercept (which is kept). Note that the actions performed by the arguments <code>drop</code> or <code>order</code> are performed <strong>before</strong> the renaming takes place with the argument <code>dict</code>.</p>
+</div>
+</div>
+<div id="looking-at-the-fixed-effects" class="section level2">
+<h2>Looking at the fixed-effects</h2>
+<p>To obtain the fixed-effects of the estimation, the function <code>getFE</code> must be performed on the results. The <code>print</code> method helps to have a quick overview:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">fixedEffects &lt;-<span class="st"> </span><span class="kw">getFE</span>(gravity_results)
+fixedEffects
+<span class="co">#&gt; Fixed-effects coefficients.</span>
+<span class="co">#&gt;                         Origin Destination Product   Year</span>
+<span class="co">#&gt; Number of fixed-effects     15          15      20     10</span>
+<span class="co">#&gt; Number of references         0           1       1      1</span>
+<span class="co">#&gt; Mean                      23.3        3.09  0.0129  0.157</span>
+<span class="co">#&gt; Variance                  1.63        1.23    1.86 0.0129</span>
+<span class="co">#&gt; </span>
+<span class="co">#&gt; COEFFICIENTS:</span>
+<span class="co">#&gt;   Origin:    AT    BE    DE    DK    ES                 </span>
+<span class="co">#&gt;           22.51 23.56 24.71 23.44 24.97 ... 10 remaining</span>
+<span class="co">#&gt; -----</span>
+<span class="co">#&gt;   Destination:    AT    BE    DE    DK    ES                 </span>
+<span class="co">#&gt;                2.436 2.696 4.323 2.451 4.043 ... 10 remaining</span>
+<span class="co">#&gt; -----</span>
+<span class="co">#&gt;   Product: 1     2      3     4      5                 </span>
+<span class="co">#&gt;            0 1.414 0.6562 1.449 -1.521 ... 15 remaining</span>
+<span class="co">#&gt; -----</span>
+<span class="co">#&gt;   Year: 2007    2008     2009    2010  2011                </span>
+<span class="co">#&gt;            0 0.06912 0.005225 0.07331 0.163 ... 5 remaining</span></code></pre></div>
+<p>We can see that the fixed-effects are balanced across clusters. Indeed, apart from the first cluster, only one fixed-effect per cluster needs to be set as reference (i.e. fixed to 0) to avoid collinearity across the fixed-effects of the different clusters. This ensures that the fixed-effects coefficients can be compared within cluster. Had there be strictly more than one reference per cluster, their interpretation would have been not possible at all. If this was the case though, a warning message would have been prompted. Note that the mean values are meaningless per se, but give a reference points to which compare the fixed-effects within a cluster.</p>
+<p>Finally, the <code>plot</code> method helps to distinguish the most notable fixed-effects:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">plot</span>(fixedEffects)</code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<p>For each cluster, the fixed-effects are first centered, then sorted, and finally the most notable (i.e. highest and lowest) are reported. The exponential of the coefficient is reported in the right hand side to simplify the interpretation for models with log-link (as the Poisson model). As we can see from the country of destination cluster, trade involving France (FR), Italy (IT) and Germany (DE) as destination countries is more than 2.7 times higher than the EU15 average. Further, the highest heterogeneity come from the product category, where trade in product 4 (dairy products) is roughly 2.7 times the average while product 14 (vegetable plaiting materials) represents a negligible fraction of the average.</p>
+<p>Note however that the interpretation of the fixed-effects must be taken with extra care. In particular, here the fixed-effects can be interpreted only because they are perfectly balanced.</p>
+</div>
+</div>
+<div id="additional-features" class="section level1">
+<h1>Additional features</h1>
+<p>Now we present some other features of the package. First the possibility for non-linear in parameter estimation. The use of parallelism to accelerate the estimation. And finally some troobleshooting in case of problems.</p>
+<div id="non-linear-in-parameters-example" class="section level2">
+<h2>Non-linear in parameters example</h2>
+<p>The function <code>femlm</code> also allows to have non-linear in parameters right-hand-sides (RHS). First an example without fixed-effects, the one with fixed-effects is given later. Let’s say we want to estimate the following relation with a Poisson model:</p>
+<p><span class="math inline">\(E\left(z_i\right) = a\times x_i + b\times y_i\)</span>.</p>
+<p>In fact, this type of model is non-linear in the context of a Poisson model because the sum is embedded within the log:</p>
+<p><span class="math inline">\(E\left(z_i\right) = \exp\left(\log\left(a\times x_i + b\times y_i\right)\right)\)</span>.</p>
+<p>So let’s estimate such a relation. First we generate the data:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Generating data:</span>
+n =<span class="st"> </span><span class="dv">1000</span>
+<span class="co"># x and y: two positive random variables</span>
+x =<span class="st"> </span><span class="kw">rnorm</span>(n, <span class="dv">1</span>, <span class="dv">5</span>)<span class="op">**</span><span class="dv">2</span>
+y =<span class="st"> </span><span class="kw">rnorm</span>(n, <span class="op">-</span><span class="dv">1</span>, <span class="dv">5</span>)<span class="op">**</span><span class="dv">2</span>
+<span class="co"># E(z) = 2*x + 3*y and some noise</span>
+z =<span class="st"> </span><span class="kw">rpois</span>(n, <span class="dv">2</span><span class="op">*</span>x <span class="op">+</span><span class="st"> </span><span class="dv">3</span><span class="op">*</span>y) <span class="op">+</span><span class="st"> </span><span class="kw">rpois</span>(n, <span class="dv">1</span>)
+base =<span class="st"> </span><span class="kw">data.frame</span>(x, y, z)</code></pre></div>
+<p>To estimate the non-linear relationship, we need to use the argument <code>NL.fml</code> where we put the non-linear part. We also have to provide starting values with the argument <code>start</code>. Finally, to ensure the RHS can be evaluated in any situation, we add lower bounds for the parameters with the argument <code>lower</code>.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">result_NL =<span class="st"> </span><span class="kw">femlm</span>(z<span class="op">~</span><span class="dv">0</span>, base, <span class="dt">NL.fml =</span> <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(a<span class="op">*</span>x <span class="op">+</span><span class="st"> </span>b<span class="op">*</span>y), <span class="dt">start =</span> <span class="kw">list</span>(<span class="dt">a=</span><span class="dv">1</span>, <span class="dt">b=</span><span class="dv">1</span>), <span class="dt">lower =</span> <span class="kw">list</span>(<span class="dt">a=</span><span class="dv">0</span>, <span class="dt">b=</span><span class="dv">0</span>))</code></pre></div>
+<p>Note that the arguments <code>start</code> and <code>lower</code> are named lists. Setting <code>lower = list(a=0, b=0)</code> means that the optimization algorithm will never explores parameters for <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span> that are lower than 0. The results obtained can be interpreted similarly to results with linear RHS. We can see them with a print:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">print</span>(result_NL)
+<span class="co">#&gt; Non-linear ML estimation, family = Poisson</span>
+<span class="co">#&gt; Observations: 1,000 </span>
+<span class="co">#&gt; Standard-errors type: Standard </span>
+<span class="co">#&gt;   Estimate Std. Error z value  Pr(&gt;|z|)    </span>
+<span class="co">#&gt; a   2.0067   0.012103   165.8 &lt; 2.2e-16 ***</span>
+<span class="co">#&gt; b   3.0329   0.012455   243.5 &lt; 2.2e-16 ***</span>
+<span class="co">#&gt; ---</span>
+<span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span>
+<span class="co">#&gt; # Evaluations: 6 </span>
+<span class="co">#&gt; Log-likelihood: -3,588.28 </span>
+<span class="co">#&gt; BIC: 7,190.39 </span>
+<span class="co">#&gt; Pseudo-R2: 0.9363067 </span>
+<span class="co">#&gt; Squared Cor.: 0.992025 </span>
+<span class="co">#&gt; Convergence state: relative convergence (4)</span></code></pre></div>
+<p>We can see that we obtain coefficients close to the generating values.</p>
+<div id="adding-fixed-effects-to-non-linear-in-parameters-models" class="section level3">
+<h3>Adding fixed-effects to non-linear in parameters models</h3>
+<p>Adding fixed-effects is identical to the linear case. The user must only be well aware of the functional form. Indeed, the fixed-effects must enter the estimation <strong>linearly</strong>. This means that the previous equation with one set of fixed-effects writes:</p>
+<p><span class="math inline">\(E\left(z_i\right) = \gamma_{id_i} \left( a\times x_i + b\times y_i \right)\)</span>,</p>
+<p>where <span class="math inline">\(id_i\)</span> is the class of observation <span class="math inline">\(i\)</span> and <span class="math inline">\(\gamma\)</span> is the vector of fixed-effects. Here the fixed-effects are in fact linear because in the context of the Poisson model we estimate:</p>
+<p><span class="math inline">\(E\left(z_i\right) = \exp\left(\gamma_{id_i}+\log\left(a\times x_i + b\times y_i\right)\right)\)</span>.</p>
+<p>Further, because <span class="math inline">\(\gamma_{id_i} \left( a\times x_i + b\times y_i \right)\)</span> is equivalent to <span class="math inline">\(a\times \gamma_{id_i} \left(x_i + b/a\times y_i \right)\)</span>, estimating the first relation directly will lead to a problem to uniquely identify the estimates (i.e. there is an infinity of <span class="math inline">\(\gamma_{id_i}\)</span>, <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span> that will solve it). We will fix one of the coefficient to uniquely identify them.</p>
+<p>Let’s generate this relation:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># the class of each observation</span>
+id =<span class="st"> </span><span class="kw">sample</span>(<span class="dv">20</span>, n, <span class="dt">replace =</span> <span class="ot">TRUE</span>)
+base<span class="op">$</span>id =<span class="st"> </span>id
+<span class="co"># the vector of fixed-effects</span>
+gamma =<span class="st"> </span><span class="kw">rnorm</span>(<span class="dv">20</span>)<span class="op">**</span><span class="dv">2</span>
+<span class="co"># the new vector z_bis</span>
+z_bis =<span class="st"> </span><span class="kw">rpois</span>(n, gamma[id] <span class="op">*</span><span class="st"> </span>(<span class="dv">2</span><span class="op">*</span>x <span class="op">+</span><span class="st"> </span><span class="dv">3</span><span class="op">*</span>y)) <span class="op">+</span><span class="st"> </span><span class="kw">rpois</span>(n, <span class="dv">1</span>)
+base<span class="op">$</span>z_bis =<span class="st"> </span>z_bis</code></pre></div>
+<p>Now we estimate it with the fixed-effects while fixing one of the coefficients (we fix <span class="math inline">\(a\)</span> to its true value but it could be any value):</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># we add the fixed-effect in the formula</span>
+result_NL_fe =<span class="st"> </span><span class="kw">femlm</span>(z_bis<span class="op">~</span><span class="dv">0</span><span class="op">|</span>id, base, <span class="dt">NL.fml =</span> <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(<span class="dv">2</span><span class="op">*</span>x <span class="op">+</span><span class="st"> </span>b<span class="op">*</span>y), <span class="dt">start =</span> <span class="kw">list</span>(<span class="dt">b=</span><span class="dv">1</span>), <span class="dt">lower =</span> <span class="kw">list</span>(<span class="dt">b=</span><span class="dv">0</span>))
+<span class="co"># The coef should be around 3</span>
+result_NL_fe<span class="op">$</span>coef
+<span class="co">#&gt;        b </span>
+<span class="co">#&gt; 2.975711</span>
+<span class="co"># the gamma and the exponential of the fixed-effects should be similar</span>
+<span class="kw">rbind</span>(gamma, <span class="kw">exp</span>(<span class="kw">getFE</span>(result_NL_fe)<span class="op">$</span>id))
+<span class="co">#&gt;                1         2        3         4         5         6        7</span>
+<span class="co">#&gt; gamma 0.03492042 0.8528244 1.755664 0.9460039 0.6165853 0.2654924 1.648103</span>
+<span class="co">#&gt;       0.04700761 0.8418906 1.805797 0.9434960 0.6274461 0.2689726 1.678827</span>
+<span class="co">#&gt;               8         9          10        11        12         13</span>
+<span class="co">#&gt; gamma 0.2342091 0.2195648 0.001783007 0.6709733 0.1194849 0.00498438</span>
+<span class="co">#&gt;       0.2419144 0.2207026 0.008668515 0.6731876 0.1338389 0.01103540</span>
+<span class="co">#&gt;               14       15        16        17       18        19       20</span>
+<span class="co">#&gt; gamma 0.02864261 2.850387 0.7995604 0.3750062 2.909203 0.4292568 1.344847</span>
+<span class="co">#&gt;       0.03328346 2.897127 0.8121286 0.3817602 2.918266 0.4461398 1.374988</span></code></pre></div>
+<p>As we can see, we obtain the “right” estimates.</p>
+</div>
+</div>
+<div id="using-multi-cores" class="section level2">
+<h2>Using multi-cores</h2>
+<p>The package FENmlm integrates multi-platform parallelism to hasten the estimation process. To use the multi-core facility, just use the argument <code>cores</code>:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Sample of results:</span>
+<span class="co"># 1 core: 2.7s</span>
+<span class="kw">system.time</span>(<span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km)<span class="op">|</span>Origin<span class="op">+</span>Destination<span class="op">+</span>Product<span class="op">+</span>Year, trade, <span class="dt">family =</span> <span class="st">&quot;negbin&quot;</span>, <span class="dt">cores =</span> <span class="dv">1</span>))
+<span class="co"># 2 cores: 1.74s</span>
+<span class="kw">system.time</span>(<span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km)<span class="op">|</span>Origin<span class="op">+</span>Destination<span class="op">+</span>Product<span class="op">+</span>Year, trade, <span class="dt">family =</span> <span class="st">&quot;negbin&quot;</span>, <span class="dt">cores =</span> <span class="dv">2</span>))
+<span class="co"># 4 cores: 1.31s</span>
+<span class="kw">system.time</span>(<span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km)<span class="op">|</span>Origin<span class="op">+</span>Destination<span class="op">+</span>Product<span class="op">+</span>Year, trade, <span class="dt">family =</span> <span class="st">&quot;negbin&quot;</span>, <span class="dt">cores =</span> <span class="dv">4</span>))</code></pre></div>
+<p>As you can see, the efficiency of increasing the number of cores is not 1 to 1. Two cores do not divide the computing time by 2, nor four cores by 4. However it still reduces significantly the computing time, which might be valuable for large sample estimations.</p>
+<p>Although parallelism has been implemented for all likelihood models, the only ones for which it is really efficient are the <em>Negative Binomial</em> and the <em>Logit</em> models.</p>
+<p>Indeed, the underlying <code>femlm</code> code alternate between R and C and the parallelism has been implemented with the C library OpenMP. Setting the parallelism with OpenMP incurs “fixed-costs”, and since there is many back and forth between R and C, these fixed-costs add up significantly. Thus to be worth, the C-code sections with parallelism must be “complex”.</p>
+<p>Because the <em>Negative Binomial</em> and <em>Logit</em> models are the ones with the most computationnaly intensive C-code chunks, they are the ones that benefit the most from the parallelism.</p>
+</div>
+<div id="troubleshooting" class="section level2">
+<h2>Troubleshooting</h2>
+<p>This section deals with possible error/warning messages stemming from the estimation. There are two identified – possible – problems: collinearity and precision.</p>
+<div id="collineartiy" class="section level3">
+<h3>Collineartiy</h3>
+<p>The user ought to estimate the coefficient of variables that are not collinear: 1) among each other, nor 2) with the fixed-effects. In such cases, the algorithm raise a warning and point to the collinear variable.</p>
+<p>Let’s take an example in which we want to estimate the coefficient of a variable which is constant. Of course it makes no sense, so a warning will be raised and the suspicious variable will be named.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">base_coll =<span class="st"> </span>trade
+base_coll<span class="op">$</span>constant_variable =<span class="st"> </span><span class="dv">1</span>
+res &lt;-<span class="st"> </span><span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km) <span class="op">+</span><span class="st"> </span>constant_variable<span class="op">|</span>Origin<span class="op">+</span>Destination<span class="op">+</span>Product<span class="op">+</span>Year, base_coll)
+<span class="co">#&gt; Warning in hessian(.par, ...): Some elements of the diagonal of the hessian</span>
+<span class="co">#&gt; are equal to 0: likely presence of collinearity. FYI the problematic</span>
+<span class="co">#&gt; variables are: constant_variable.</span>
+<span class="co">#&gt; Warning: The result is not reliable, the optimization did not converge.</span>
+<span class="co">#&gt; Warning: Could not achieve to get the covariance matrix. The information matrix was singular.</span>
+<span class="co">#&gt; Try to manually suppress some collinear variables. FYI the suspects (collinear with the clusters) are:</span>
+<span class="co">#&gt; constant_variable</span></code></pre></div>
+<p>In such situation, just remove the collinear variables. Their identification is eased by the detailed warning. Even in more elaborate cases of collinearity, the algorithm tries to find out the culprit and inform the user accordingly.</p>
+</div>
+<div id="precision" class="section level3">
+<h3>Precision</h3>
+<p>When there is more than one fixed-effect, the “optimal” fixed-effects are computed according to a fixed-point algorithm. This algorithm has a stopping criterion which is equal to the argument <code>precision.cluster</code>. By default, it stops when the maximum absolute difference between two iterations is lower than <span class="math inline">\(10^{-5}\)</span>.</p>
+<p>However, in very specific cases: for large data sets and very “similar” fixed-effects (ie fixed-effects with many overlap), the algorithm may not converge because because the fixed-effects are not computed with enough precision (although they’ll be very close to optimality).</p>
+<p>In such cases, just set the stopping criterion with the argument <code>precision.cluster</code> to a lower value (the algorithm will take more time to run though because there will be more iterations).</p>
+</div>
+</div>
+</div>
+
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

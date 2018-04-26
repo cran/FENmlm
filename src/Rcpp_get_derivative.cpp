@@ -18,7 +18,7 @@ using namespace Rcpp;
 
 double cpp_abs(double x){
 	//simple function to compute the absolute value
-	if(x > 0){
+	if(x >= 0){
 		return(x);
 	} else {
 		return(-x);
@@ -371,15 +371,18 @@ List RcppGetFE(int Q, int N, NumericVector S, IntegerMatrix dumMat, IntegerVecto
 	// Q, N: nber of clusters / obs
 	// nbCluster: vector of the number of cases per cluster
 	// obsCluster: the integer vector that is equal to order(dum[[g]])
+	// RETURN:
+	// a list for each cluster of the cluster coefficient value
+	// + the last element is the number of clusters that have been set as references (nb_ref)
 
 
-	int iter=0, iterMax=100;
-	int iter_loop=0, iterMax_loop=100;
+	int iter=0, iterMax=10000;
+	int iter_loop=0, iterMax_loop=10000;
 
 
 	// Creation of the indices to put all the cluster values into a single vector
 	int sum_cases=0;
-	IntegerVector start(Q), end(Q);
+	IntegerVector start(Q), end(Q), nb_ref(Q); // nb_ref takes the nb of elements set as ref
 	int q;
 
 	for(q=0 ; q<Q ; q++){
@@ -485,7 +488,7 @@ List RcppGetFE(int Q, int N, NumericVector S, IntegerMatrix dumMat, IntegerVecto
 		}
 
 		//
-		// Putting the 0s
+		// Putting the 0s, ie setting the references
 		//
 
 		// the first element is spared
@@ -509,6 +512,8 @@ List RcppGetFE(int Q, int N, NumericVector S, IntegerMatrix dumMat, IntegerVecto
 						obs = obsCluster(i, q);
 						mat_done(obs, q) = 1;
 					}
+					// 5) => we save the information on which cluster was set as a reference
+					nb_ref(q)++;
 				}
 			}
 		}
@@ -557,8 +562,8 @@ List RcppGetFE(int Q, int N, NumericVector S, IntegerMatrix dumMat, IntegerVecto
 
 					if(ok){
 						// the index was not already there
-						qui_indexes[nb_index] = index;
-						qui_obs[nb_index] = obs;
+						qui_indexes[nb_index] = index; // the 'cluster index'
+						qui_obs[nb_index] = obs; // the observation to be updated
 						nb_index++;
 					}
 				}
@@ -580,6 +585,8 @@ List RcppGetFE(int Q, int N, NumericVector S, IntegerMatrix dumMat, IntegerVecto
 				int q_select=0;
 
 				other_value = 0;
+				// Computing the sum of the other cluster values
+				// and finding the cluster to be updated (q_select)
 				for(q=0 ; q<Q ; q++){
 					// we can loop over all q because cluster_values is initialized to 0
 					obs = qui_obs[ind];
@@ -601,6 +608,11 @@ List RcppGetFE(int Q, int N, NumericVector S, IntegerMatrix dumMat, IntegerVecto
 					mat_done(obs, q_select) = 1;
 				}
 			}
+		}
+
+		// Check that everything is all right
+		if(iter_loop == iterMax_loop){
+			Rprintf("Problem getting FE, maximum iterations reached (2nd order loop).");
 		}
 
 		// now the control
@@ -633,8 +645,12 @@ List RcppGetFE(int Q, int N, NumericVector S, IntegerMatrix dumMat, IntegerVecto
 
 	}
 
+	if(iter == iterMax){
+		Rprintf("Problem getting FE, maximum iterations reached (1st order loop).");
+	}
+
 	// final formatting and save
-	List res(Q);
+	List res(Q + 1);
 	for(q=0 ; q<Q ; q++){
 		NumericVector quoi(nbCluster(q));
 		for(k=0 ; k<nbCluster(q) ; k++){
@@ -643,6 +659,9 @@ List RcppGetFE(int Q, int N, NumericVector S, IntegerMatrix dumMat, IntegerVecto
 		}
 		res(q) = quoi;
 	}
+
+	res(Q) = nb_ref;
+
 	return(res);
 }
 

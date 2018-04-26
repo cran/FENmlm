@@ -7,33 +7,33 @@
 getFE(x)
 }
 \arguments{
-\item{x}{A femlm object.}
+\item{x}{A \code{\link[FENmlm]{femlm}} object.
+
+If the cluster coefficients not regular, then several reference points need to be set, leading to the coefficients to be NOT interpretable. If this is the case, then a warning is raised.}
 }
 \value{
 A list containig the vectors of the fixed effects.
+
+If there is more than 1 cluster, then the attribute \dQuote{References} is created. This is a vector of length the number of clusters, each element contains the number of fixed-effects set as references. By construction, the elements of the first clusters are never set as references. In the presence of regular clusters, there should be Q-1 references (with Q the number of clusters).
 }
 \description{
 This function retrives the fixed effects from a femlm estimation. It is useful only when there are more than one cluster.
 }
 \examples{
 
-# Bilateral network
-nb = 20
-n = nb**2
-k = nb
-id1 = factor(rep(1:k, each=n/k))
-id2 = factor(rep(1:(n/k), times=k))
-d = rep(rnorm(k)**2, each=n/k)
-x = rnorm(n, 1, 5)**2
-y = rnorm(n, -1, 5)**2
-z = rpois(n, x*y+rnorm(n, sd = 3)**2) + rpois(n, 2)
-base = data.frame(x, y, z, id1, id2)
+data(trade)
 
-# We want to use the ID's of each observation as a variable: we use the option cluster
-est_poisson = femlm(z~log(x)+log(y), base, family="poisson", cluster=c("id1", "id2"))
+# We estimate the effect of distance on trade => we account for 3 cluster effects
+est_pois = femlm(Euros ~ log(dist_km)|Origin+Destination+Product, trade)
 
-# To get the FE:
-myFE = getFE(est_poisson)
+# obtaining the cluster coefficients
+fe_trade = getFE(est_pois)
+
+# plotting them
+plot(fe_trade)
+
+# plotting only the Products fixed-effects & showing more of them
+plot(fe_trade$Product, n=8)
 
 }
 \seealso{
