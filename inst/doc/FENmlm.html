@@ -12,7 +12,7 @@
 
 <meta name="author" content="Laurent Berge" />
 
-<meta name="date" content="2018-04-26" />
+<meta name="date" content="2018-08-04" />
 
 <title>Efficient Maximum Likelihood Estimation with Multiple Fixed-Effects</title>
 
@@ -70,25 +70,88 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 
 <h1 class="title toc-ignore">Efficient Maximum Likelihood Estimation with Multiple Fixed-Effects</h1>
 <h4 class="author"><em>Laurent Berge</em></h4>
-<h4 class="date"><em>2018-04-26</em></h4>
+<h4 class="date"><em>2018-08-04</em></h4>
 
 
 
 <!-- Help on vignette writing here: http://r-pkgs.had.co.nz/vignettes.html. -->
+<!-- Ajouter example simple et intuitif fixed-effects  -->
 <p>The package <code>FENmlm</code> is devoted to the estimation of maximum likelihood (ML) models with fixed-effects. The function <code>femlm</code> is the workhorse of the package: it performs efficient ML estimations with <em>any number</em> of fixed-effects and also allows for non-linear in parameters right-hand-sides. Four likelihood models are supported: Poisson, Negative Binomial, Gaussian and Logit.</p>
 <p>The standard-errors of the estimates can be very easily clustered (up to four-way).</p>
 <p>Two specific functions are implemented to seamlessly export the results of multiple estimations into either a data.frame (function <code>res2table</code>), or a Latex table of “article-like” quality (function <code>res2tex</code>).</p>
-<p>The main feautres of the package are illustrated in this vignette.</p>
+<p>The main features of the package are illustrated in this vignette. For the theory behind this method, see Berge (2018), “<em>Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm.</em>” CREA Discussion Papers, 13 (<a href="https://wwwen.uni.lu/content/download/110162/1299525/file/2018_13" class="uri">https://wwwen.uni.lu/content/download/110162/1299525/file/2018_13</a>).</p>
 <div id="complete-example-using-trade-data" class="section level1">
 <h1>Complete example using Trade data</h1>
 <p>This example deals with international trade, which is a setup that usually requires performing estimations with many fixed-effects. We estimate a very simple gravity model in which we are interested in finding out the negative effect of geographic distance on trade. The sample data consists of European trade extracted from Eurostat. Let’s load the data contained in the package:</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(FENmlm)
 <span class="kw">data</span>(trade)</code></pre></div>
-<p>This data set focuses on the levels of bilateral importations between EU15 countries from 2007 and 2016. The data is further broken down according to 20 product categories.</p>
+<p>This data is a sample of bilateral importations between EU15 countries from 2007 and 2016. The data is further broken down according to 20 product categories. Here is a sample of the data:</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Destination</th>
+<th align="left">Origin</th>
+<th align="right">Product</th>
+<th align="right">Year</th>
+<th align="right">dist_km</th>
+<th align="right">Euros</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">LU</td>
+<td align="left">BE</td>
+<td align="right">1</td>
+<td align="right">2007</td>
+<td align="right">139.5719</td>
+<td align="right">2966697</td>
+</tr>
+<tr class="even">
+<td align="left">BE</td>
+<td align="left">LU</td>
+<td align="right">1</td>
+<td align="right">2007</td>
+<td align="right">139.5719</td>
+<td align="right">6755030</td>
+</tr>
+<tr class="odd">
+<td align="left">LU</td>
+<td align="left">BE</td>
+<td align="right">2</td>
+<td align="right">2007</td>
+<td align="right">139.5719</td>
+<td align="right">57078782</td>
+</tr>
+<tr class="even">
+<td align="left">BE</td>
+<td align="left">LU</td>
+<td align="right">2</td>
+<td align="right">2007</td>
+<td align="right">139.5719</td>
+<td align="right">7117406</td>
+</tr>
+<tr class="odd">
+<td align="left">LU</td>
+<td align="left">BE</td>
+<td align="right">3</td>
+<td align="right">2007</td>
+<td align="right">139.5719</td>
+<td align="right">17379821</td>
+</tr>
+<tr class="even">
+<td align="left">BE</td>
+<td align="left">LU</td>
+<td align="right">3</td>
+<td align="right">2007</td>
+<td align="right">139.5719</td>
+<td align="right">2622254</td>
+</tr>
+</tbody>
+</table>
 <p>The dependent variable of the estimation will be the level of trade between two countries while the independent variable is the geographic distance between the two countries. To obtain the elasticity of geographic distance net of the effects of the four clusters, we estimate the following:</p>
 <p><span class="math inline">\(E\left(Trade_{i,j,p,t}\right)=\gamma_{i}^{Exporter}\times\gamma_{j}^{Importer}\times\gamma_{p}^{Product}\times\gamma_{t}^{Year}\times Distance_{ij}^{\beta}\)</span>,</p>
 <p>where the subscripts <span class="math inline">\(i\)</span>, <span class="math inline">\(j\)</span>, <span class="math inline">\(p\)</span> and <span class="math inline">\(t\)</span> stand respectively for the exporting country, the importing country, the type of product and the year, and the <span class="math inline">\(\gamma_{v}^{c}\)</span> are fixed-effects for these groups. Here <span class="math inline">\(\beta\)</span> is the elasticity of interest.</p>
-<p>Note that when you use the Poisson/Negative Binomial families, this relationship is in fact linear because the right hand side is exponentialized to avoid negative values for the Poisson parameter. This leads to the equivalent relation:</p>
+<p>Note that when you use the Poisson/Negative Binomial families, this relationship is in fact linear because the right hand side is exponentialized to avoid negative values for the Poisson parameter. This leads to the equivalent relation:<a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a></p>
 <p><span class="math inline">\(E\left(Trade_{i,j,p,t}\right)=\exp\left(\gamma_{i}^{Exporter}+\gamma_{j}^{Importer}+\gamma_{p}^{Product}+\gamma_{t}^{Year}+\beta\times \ln Distance_{ij}\right)\)</span>.</p>
 <div id="estimation" class="section level2">
 <h2>Estimation</h2>
@@ -98,7 +161,7 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">gravity_results &lt;-<span class="st"> </span><span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km)<span class="op">|</span>Origin<span class="op">+</span>Destination<span class="op">+</span>Product<span class="op">+</span>Year, trade)</code></pre></div>
 <p>The results can be shown directly with the <code>print</code> method:</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">print</span>(gravity_results)
-<span class="co">#&gt; ML estimation, family = Poisson</span>
+<span class="co">#&gt; ML estimation, family = Poisson, Dep. Var.: Euros</span>
 <span class="co">#&gt; Observations: 38,325 </span>
 <span class="co">#&gt; Cluster sizes: Origin: 15,  Destination: 15,  Product: 20,  Year: 10</span>
 <span class="co">#&gt; Standard-errors type: Standard </span>
@@ -106,12 +169,8 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <span class="co">#&gt; log(dist_km)  -1.5279   1.92e-06 -793704.7 &lt; 2.2e-16 ***</span>
 <span class="co">#&gt; ---</span>
 <span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span>
-<span class="co">#&gt; # Evaluations: 4 </span>
-<span class="co">#&gt; Log-likelihood: -7.025e+11 </span>
-<span class="co">#&gt; BIC: 1.405e+12 </span>
-<span class="co">#&gt; Pseudo-R2: 0.7640319 </span>
-<span class="co">#&gt; Squared Cor.: 0.6120208 </span>
-<span class="co">#&gt; Convergence state: relative convergence (4)</span></code></pre></div>
+<span class="co">#&gt; Log-likelihood: -7.025e+11      Pseudo-R2: 0.76403 </span>
+<span class="co">#&gt;            BIC: 1.405e+12    Squared Cor.: 0.61202</span></code></pre></div>
 <p>The <code>print</code> reports the coefficient estimates and standard-errors as well as some other information. Among the quality of fit information, the squared-correlation corresponds to the correlation between the dependent variable and the expected predictor; it reflects somehow to the idea of R-square in OLS estimations.</p>
 <p>The last line reports the convergence status of the optimization algorithm (the function <code>nlminb</code> from the package <code>stats</code>). In the, rare, event of no convergence, see the troubleshooting section of this Vignette to explore the possible causes and solutions.</p>
 </div>
@@ -119,24 +178,19 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <h2>Clustering the standard-errors</h2>
 <p>To cluster the standard-errors, we can simply use the argument <code>se</code> of the <code>summary</code> method. Let’s say we want to cluster the standard-errors according to the first two clusters (i.e. the <em>Origin</em> and <em>Destination</em> variables). Then we just have to do:</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summary</span>(gravity_results, <span class="dt">se =</span> <span class="st">&quot;twoway&quot;</span>)
-<span class="co">#&gt; Warning: Standard-errors clustered w.r.t. Origin &amp; Destination</span>
-<span class="co">#&gt; ML estimation, family = Poisson</span>
+<span class="co">#&gt; ML estimation, family = Poisson, Dep. Var.: Euros</span>
 <span class="co">#&gt; Observations: 38,325 </span>
 <span class="co">#&gt; Cluster sizes: Origin: 15,  Destination: 15,  Product: 20,  Year: 10</span>
-<span class="co">#&gt; Standard-errors type: Two-way </span>
+<span class="co">#&gt; Standard-errors type: Two-way (Origin &amp; Destination) </span>
 <span class="co">#&gt;              Estimate Std. Error z value  Pr(&gt;|z|)    </span>
 <span class="co">#&gt; log(dist_km)  -1.5279   0.126253 -12.102 &lt; 2.2e-16 ***</span>
 <span class="co">#&gt; ---</span>
 <span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span>
-<span class="co">#&gt; # Evaluations: 4 </span>
-<span class="co">#&gt; Log-likelihood: -7.025e+11 </span>
-<span class="co">#&gt; BIC: 1.405e+12 </span>
-<span class="co">#&gt; Pseudo-R2: 0.7640319 </span>
-<span class="co">#&gt; Squared Cor.: 0.6120208 </span>
-<span class="co">#&gt; Convergence state: relative convergence (4)</span></code></pre></div>
+<span class="co">#&gt; Log-likelihood: -7.025e+11      Pseudo-R2: 0.76403 </span>
+<span class="co">#&gt;            BIC: 1.405e+12    Squared Cor.: 0.61202</span></code></pre></div>
 <p>The clustering can be done on one (<code>se=&quot;cluster&quot;</code>), two (<code>se=&quot;twoway&quot;</code>), three (<code>se=&quot;threeway&quot;</code>) or up to four (<code>se=&quot;fourway&quot;</code>) variables. If the estimation includes fixed-effects, then by default the clustering will be done using these fixed-effects, in the original order. This is why the <em>Origin</em> and <em>Destination</em> variables were used for the two-way clustering in the previous example. If, instead, you wanted to perform one-way clustering on the <em>Product</em> variable, you need to use the argument <code>cluster</code>:</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summary</span>(gravity_results, <span class="dt">se =</span> <span class="st">&quot;cluster&quot;</span>, <span class="dt">cluster =</span> trade<span class="op">$</span>Product)
-<span class="co">#&gt; ML estimation, family = Poisson</span>
+<span class="co">#&gt; ML estimation, family = Poisson, Dep. Var.: Euros</span>
 <span class="co">#&gt; Observations: 38,325 </span>
 <span class="co">#&gt; Cluster sizes: Origin: 15,  Destination: 15,  Product: 20,  Year: 10</span>
 <span class="co">#&gt; Standard-errors type: Clustered </span>
@@ -144,16 +198,12 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <span class="co">#&gt; log(dist_km)  -1.5279   0.095758 -15.956 &lt; 2.2e-16 ***</span>
 <span class="co">#&gt; ---</span>
 <span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span>
-<span class="co">#&gt; # Evaluations: 4 </span>
-<span class="co">#&gt; Log-likelihood: -7.025e+11 </span>
-<span class="co">#&gt; BIC: 1.405e+12 </span>
-<span class="co">#&gt; Pseudo-R2: 0.7640319 </span>
-<span class="co">#&gt; Squared Cor.: 0.6120208 </span>
-<span class="co">#&gt; Convergence state: relative convergence (4)</span></code></pre></div>
+<span class="co">#&gt; Log-likelihood: -7.025e+11      Pseudo-R2: 0.76403 </span>
+<span class="co">#&gt;            BIC: 1.405e+12    Squared Cor.: 0.61202</span></code></pre></div>
 <p>Note that you can always cluster the standard-errors, even when not estimating with fixed-effects. Buth then you need to use the argument <code>cluster</code>, as before:</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">gravity_simple =<span class="st"> </span><span class="kw">femlm</span>(Euros <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(dist_km), trade)
 <span class="kw">summary</span>(gravity_simple, <span class="dt">se =</span> <span class="st">&quot;twoway&quot;</span>, <span class="dt">cluster =</span> trade[, <span class="kw">c</span>(<span class="st">&quot;Origin&quot;</span>, <span class="st">&quot;Destination&quot;</span>)])
-<span class="co">#&gt; ML estimation, family = Poisson</span>
+<span class="co">#&gt; ML estimation, family = Poisson, Dep. Var.: Euros</span>
 <span class="co">#&gt; Observations: 38,325 </span>
 <span class="co">#&gt; Standard-errors type: Two-way </span>
 <span class="co">#&gt;              Estimate Std. Error z value  Pr(&gt;|z|)    </span>
@@ -161,12 +211,8 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <span class="co">#&gt; log(dist_km)   -1.029   0.152666 -6.7399  1.58e-11 ***</span>
 <span class="co">#&gt; ---</span>
 <span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span>
-<span class="co">#&gt; # Evaluations: 14 </span>
-<span class="co">#&gt; Log-likelihood: -2.426e+12 </span>
-<span class="co">#&gt; BIC: 4.852e+12 </span>
-<span class="co">#&gt; Pseudo-R2: 0.1850227 </span>
-<span class="co">#&gt; Squared Cor.: 0.05510685 </span>
-<span class="co">#&gt; Convergence state: both X-convergence and relative convergence (5)</span></code></pre></div>
+<span class="co">#&gt; Log-likelihood: -2.426e+12      Pseudo-R2: 0.18502 </span>
+<span class="co">#&gt;            BIC: 4.852e+12    Squared Cor.: 0.05511</span></code></pre></div>
 </div>
 <div id="using-other-likelihoods" class="section level2">
 <h2>Using other Likelihoods</h2>
@@ -180,11 +226,6 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <h2>Viewing the results in R</h2>
 <p>Now let’s say that we want a compact overview of the results of several estimations. The best way is to use the function <code>res2table</code>. This function summarizes the results of several <code>femlm</code> estimations into a data.frame. To see the fixed-effects results with the three different likelihoods, we just have to type:</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">res2table</span>(gravity_results, gravity_results_negbin, gravity_results_gaussian, <span class="dt">se =</span> <span class="st">&quot;twoway&quot;</span>, <span class="dt">subtitles =</span> <span class="kw">c</span>(<span class="st">&quot;Poisson&quot;</span>, <span class="st">&quot;Negative Binomial&quot;</span>, <span class="st">&quot;Gaussian&quot;</span>))</code></pre></div>
-<pre><code>#&gt; Warning: Standard-errors clustered w.r.t. Origin &amp; Destination
-
-#&gt; Warning: Standard-errors clustered w.r.t. Origin &amp; Destination
-
-#&gt; Warning: Standard-errors clustered w.r.t. Origin &amp; Destination</code></pre>
 <table>
 <thead>
 <tr class="header">
@@ -196,85 +237,24 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 </thead>
 <tbody>
 <tr class="odd">
-<td>log(dist_km)</td>
-<td align="left">-1.5279*** (0.1263)</td>
-<td align="left">-1.7108*** (0.1712)</td>
-<td align="left">-2.1699*** (0.1655)</td>
-</tr>
-<tr class="even">
-<td>Dispersion Parameter</td>
-<td align="left"></td>
-<td align="left">0.5488*** (0.0592)</td>
-<td align="left"></td>
-</tr>
-<tr class="odd">
-<td>Fixed-Effects:</td>
-<td align="left">——————-</td>
-<td align="left">——————-</td>
-<td align="left">——————-</td>
-</tr>
-<tr class="even">
-<td>Origin</td>
-<td align="left">Yes</td>
-<td align="left">Yes</td>
-<td align="left">Yes</td>
-</tr>
-<tr class="odd">
-<td>Destination</td>
-<td align="left">Yes</td>
-<td align="left">Yes</td>
-<td align="left">Yes</td>
-</tr>
-<tr class="even">
-<td>Product</td>
-<td align="left">Yes</td>
-<td align="left">Yes</td>
-<td align="left">Yes</td>
-</tr>
-<tr class="odd">
-<td>Year</td>
-<td align="left">Yes</td>
-<td align="left">Yes</td>
-<td align="left">Yes</td>
-</tr>
-<tr class="even">
-<td>____________</td>
-<td align="left">___________________</td>
-<td align="left">___________________</td>
-<td align="left">___________________</td>
-</tr>
-<tr class="odd">
-<td>Observations</td>
-<td align="left">38,325</td>
-<td align="left">38,325</td>
-<td align="left">38,325</td>
-</tr>
-<tr class="even">
-<td>Squared-Correlation</td>
-<td align="left">0.612</td>
-<td align="left">0.438</td>
-<td align="left">0.706</td>
-</tr>
-<tr class="odd">
-<td>Adj-pseudo R2</td>
-<td align="left">0.76403</td>
-<td align="left">0.03464</td>
-<td align="left">0.23583</td>
-</tr>
-<tr class="even">
-<td>Log-Likelihood</td>
-<td align="left">-7.025e+11</td>
-<td align="left">-646,586.98</td>
-<td align="left">-75,682.54</td>
-</tr>
-<tr class="odd">
-<td>BIC</td>
-<td align="left">1.405e+12</td>
-<td align="left">1,293,796.64</td>
-<td align="left">151,977.21</td>
+<td>Dependent Var.:</td>
+<td align="left">Euros</td>
+<td align="left">Euros</td>
+<td align="left">log(Euros)</td>
 </tr>
 </tbody>
 </table>
+<p>log(dist_km) -1.5279*** (0.1263) -1.7108*** (0.1712) -2.1699*** (0.1655) Overdispersion: 0.54<br />
+Fixed-Effects: ——————- ——————- ——————- Origin Yes Yes Yes<br />
+Destination Yes Yes Yes<br />
+Product Yes Yes Yes<br />
+Year Yes Yes Yes<br />
+___________________ ___________________ ___________________ ___________________ Family: Poisson Neg. Bin. Gaussian<br />
+Observations 38,325 38,325 38,325<br />
+Squared-Correlation 0.612 0.438 0.706<br />
+Adj-pseudo R2 0.76403 0.03464 0.23583<br />
+Log-Likelihood -7.025e+11 -646,586.98 -75,682.54<br />
+BIC 1.405e+12 1,293,796.64 151,977.21</p>
 <p>We added the argument <code>se=&quot;twoway&quot;</code> to cluster the standard-errors for all estimations. As can be seen this function gives an overview of the estimates and standard-errors, as well as some quality of fit measures. The argument <code>subtitles</code> is used to add information on each estimation column.</p>
 <p>In the previous example, we directly added the estimation results as arguments of the function <code>res2table</code>. But the function also accepts lists of estimations. Let’s give an example. Say you want to see the influence of the introduction of fixed-effects on the estimate of the elasticity of distance. You can do it with the following code:</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">gravity_subcluster =<span class="st"> </span><span class="kw">list</span>()
@@ -353,7 +333,7 @@ all_clusters =<span class="st"> </span><span class="kw">c</span>(<span class="st
 <td align="left">Yes</td>
 </tr>
 <tr class="even">
-<td>____________</td>
+<td>___________________</td>
 <td align="left">___________________</td>
 <td align="left">___________________</td>
 <td align="left">___________________</td>
@@ -437,7 +417,7 @@ all_clusters =<span class="st"> </span><span class="kw">c</span>(<span class="st
 <span class="co">#&gt; BIC &amp; $4.852\times 10^{12}$&amp;$4.833\times 10^{12}$&amp;$3.821\times 10^{12}$&amp;$2.423\times 10^{12}$&amp;$1.405\times 10^{12}$\\</span>
 <span class="co">#&gt; \hline</span>
 <span class="co">#&gt; \hline</span>
-<span class="co">#&gt; \multicolumn{6}{l}{\emph{Two-way clustered standard-errors in parenthesis. Signif Codes: ***: 0.01, **: 0.05, *: 0.1}}\\</span>
+<span class="co">#&gt; \multicolumn{6}{l}{\emph{Two-way standard-errors in parenthesis. Signif Codes: ***: 0.01, **: 0.05, *: 0.1}}\\</span>
 <span class="co">#&gt; \end{tabular}</span>
 <span class="co">#&gt; \end{table}</span></code></pre></div>
 <p>This function has many optional arguments. The user can export the Latex table directly into a file (argument <code>file</code>), add a title (arg. <code>title</code>) and a label to the table (arg. <code>label</code>).</p>
@@ -507,24 +487,20 @@ y =<span class="st"> </span><span class="kw">rnorm</span>(n, <span class="op">-<
 <span class="co"># E(z) = 2*x + 3*y and some noise</span>
 z =<span class="st"> </span><span class="kw">rpois</span>(n, <span class="dv">2</span><span class="op">*</span>x <span class="op">+</span><span class="st"> </span><span class="dv">3</span><span class="op">*</span>y) <span class="op">+</span><span class="st"> </span><span class="kw">rpois</span>(n, <span class="dv">1</span>)
 base =<span class="st"> </span><span class="kw">data.frame</span>(x, y, z)</code></pre></div>
-<p>To estimate the non-linear relationship, we need to use the argument <code>NL.fml</code> where we put the non-linear part. We also have to provide starting values with the argument <code>start</code>. Finally, to ensure the RHS can be evaluated in any situation, we add lower bounds for the parameters with the argument <code>lower</code>.</p>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">result_NL =<span class="st"> </span><span class="kw">femlm</span>(z<span class="op">~</span><span class="dv">0</span>, base, <span class="dt">NL.fml =</span> <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(a<span class="op">*</span>x <span class="op">+</span><span class="st"> </span>b<span class="op">*</span>y), <span class="dt">start =</span> <span class="kw">list</span>(<span class="dt">a=</span><span class="dv">1</span>, <span class="dt">b=</span><span class="dv">1</span>), <span class="dt">lower =</span> <span class="kw">list</span>(<span class="dt">a=</span><span class="dv">0</span>, <span class="dt">b=</span><span class="dv">0</span>))</code></pre></div>
-<p>Note that the arguments <code>start</code> and <code>lower</code> are named lists. Setting <code>lower = list(a=0, b=0)</code> means that the optimization algorithm will never explores parameters for <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span> that are lower than 0. The results obtained can be interpreted similarly to results with linear RHS. We can see them with a print:</p>
+<p>To estimate the non-linear relationship, we need to use the argument <code>NL.fml</code> where we put the non-linear part. We also have to provide starting values with the argument <code>NL.start</code>. Finally, to ensure the RHS can be evaluated in any situation, we add lower bounds for the parameters with the argument <code>lower</code>.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">result_NL =<span class="st"> </span><span class="kw">femlm</span>(z<span class="op">~</span><span class="dv">0</span>, base, <span class="dt">NL.fml =</span> <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(a<span class="op">*</span>x <span class="op">+</span><span class="st"> </span>b<span class="op">*</span>y), <span class="dt">NL.start =</span> <span class="kw">list</span>(<span class="dt">a=</span><span class="dv">1</span>, <span class="dt">b=</span><span class="dv">1</span>), <span class="dt">lower =</span> <span class="kw">list</span>(<span class="dt">a=</span><span class="dv">0</span>, <span class="dt">b=</span><span class="dv">0</span>))</code></pre></div>
+<p>Note that the arguments <code>NL.start</code> and <code>lower</code> are named lists. Setting <code>lower = list(a=0, b=0)</code> means that the optimization algorithm will never explores parameters for <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span> that are lower than 0. The results obtained can be interpreted similarly to results with linear RHS. We can see them with a print:</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">print</span>(result_NL)
-<span class="co">#&gt; Non-linear ML estimation, family = Poisson</span>
+<span class="co">#&gt; Non-linear ML estimation, family = Poisson, Dep. Var.: z</span>
 <span class="co">#&gt; Observations: 1,000 </span>
 <span class="co">#&gt; Standard-errors type: Standard </span>
 <span class="co">#&gt;   Estimate Std. Error z value  Pr(&gt;|z|)    </span>
-<span class="co">#&gt; a   2.0067   0.012103   165.8 &lt; 2.2e-16 ***</span>
-<span class="co">#&gt; b   3.0329   0.012455   243.5 &lt; 2.2e-16 ***</span>
+<span class="co">#&gt; a   2.0326   0.011385  178.54 &lt; 2.2e-16 ***</span>
+<span class="co">#&gt; b   3.0069   0.012893  233.21 &lt; 2.2e-16 ***</span>
 <span class="co">#&gt; ---</span>
 <span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span>
-<span class="co">#&gt; # Evaluations: 6 </span>
-<span class="co">#&gt; Log-likelihood: -3,588.28 </span>
-<span class="co">#&gt; BIC: 7,190.39 </span>
-<span class="co">#&gt; Pseudo-R2: 0.9363067 </span>
-<span class="co">#&gt; Squared Cor.: 0.992025 </span>
-<span class="co">#&gt; Convergence state: relative convergence (4)</span></code></pre></div>
+<span class="co">#&gt; Log-likelihood: -3,622.79      Pseudo-R2: 0.93617 </span>
+<span class="co">#&gt;            BIC: 7,273.22    Squared Cor.: 0.99292</span></code></pre></div>
 <p>We can see that we obtain coefficients close to the generating values.</p>
 <div id="adding-fixed-effects-to-non-linear-in-parameters-models" class="section level3">
 <h3>Adding fixed-effects to non-linear in parameters models</h3>
@@ -532,7 +508,9 @@ base =<span class="st"> </span><span class="kw">data.frame</span>(x, y, z)</code
 <p><span class="math inline">\(E\left(z_i\right) = \gamma_{id_i} \left( a\times x_i + b\times y_i \right)\)</span>,</p>
 <p>where <span class="math inline">\(id_i\)</span> is the class of observation <span class="math inline">\(i\)</span> and <span class="math inline">\(\gamma\)</span> is the vector of fixed-effects. Here the fixed-effects are in fact linear because in the context of the Poisson model we estimate:</p>
 <p><span class="math inline">\(E\left(z_i\right) = \exp\left(\gamma_{id_i}+\log\left(a\times x_i + b\times y_i\right)\right)\)</span>.</p>
-<p>Further, because <span class="math inline">\(\gamma_{id_i} \left( a\times x_i + b\times y_i \right)\)</span> is equivalent to <span class="math inline">\(a\times \gamma_{id_i} \left(x_i + b/a\times y_i \right)\)</span>, estimating the first relation directly will lead to a problem to uniquely identify the estimates (i.e. there is an infinity of <span class="math inline">\(\gamma_{id_i}\)</span>, <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span> that will solve it). We will fix one of the coefficient to uniquely identify them.</p>
+<p>Further, remark that there exists an infinity of values of <span class="math inline">\(\gamma^{\prime}\)</span>, <span class="math inline">\(a^{\prime}\)</span> and <span class="math inline">\(b^{\prime}\)</span> such that:</p>
+<p><span class="math inline">\(\gamma_{k} \left( a\times x_i + b\times y_i \right) = \gamma_{k}^{\prime} \left(a^{\prime}\times x_i + b^{\prime}\times y_i \right),\forall i,k\)</span>.</p>
+<p>An example is <span class="math inline">\(\gamma^{\prime}_{k} = 2\times \gamma_k\)</span>, <span class="math inline">\(a^{\prime} = a/2\)</span> and <span class="math inline">\(b^{\prime} = b/2\)</span>. Thus estimating this relation directly will lead to a problem to uniquely identify the coefficients. To circumvent this problem, we just have to fix one of the coefficient, this will ensure that we uniquely identify them.</p>
 <p>Let’s generate this relation:</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># the class of each observation</span>
 id =<span class="st"> </span><span class="kw">sample</span>(<span class="dv">20</span>, n, <span class="dt">replace =</span> <span class="ot">TRUE</span>)
@@ -544,22 +522,24 @@ z_bis =<span class="st"> </span><span class="kw">rpois</span>(n, gamma[id] <span
 base<span class="op">$</span>z_bis =<span class="st"> </span>z_bis</code></pre></div>
 <p>Now we estimate it with the fixed-effects while fixing one of the coefficients (we fix <span class="math inline">\(a\)</span> to its true value but it could be any value):</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># we add the fixed-effect in the formula</span>
-result_NL_fe =<span class="st"> </span><span class="kw">femlm</span>(z_bis<span class="op">~</span><span class="dv">0</span><span class="op">|</span>id, base, <span class="dt">NL.fml =</span> <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(<span class="dv">2</span><span class="op">*</span>x <span class="op">+</span><span class="st"> </span>b<span class="op">*</span>y), <span class="dt">start =</span> <span class="kw">list</span>(<span class="dt">b=</span><span class="dv">1</span>), <span class="dt">lower =</span> <span class="kw">list</span>(<span class="dt">b=</span><span class="dv">0</span>))
+result_NL_fe =<span class="st"> </span><span class="kw">femlm</span>(z_bis<span class="op">~</span><span class="dv">0</span><span class="op">|</span>id, base, <span class="dt">NL.fml =</span> <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(<span class="dv">2</span><span class="op">*</span>x <span class="op">+</span><span class="st"> </span>b<span class="op">*</span>y), <span class="dt">NL.start =</span> <span class="kw">list</span>(<span class="dt">b=</span><span class="dv">1</span>), <span class="dt">lower =</span> <span class="kw">list</span>(<span class="dt">b=</span><span class="dv">0</span>))
 <span class="co"># The coef should be around 3</span>
 result_NL_fe<span class="op">$</span>coef
-<span class="co">#&gt;        b </span>
-<span class="co">#&gt; 2.975711</span>
+<span class="co">#&gt; NULL</span>
 <span class="co"># the gamma and the exponential of the fixed-effects should be similar</span>
 <span class="kw">rbind</span>(gamma, <span class="kw">exp</span>(<span class="kw">getFE</span>(result_NL_fe)<span class="op">$</span>id))
-<span class="co">#&gt;                1         2        3         4         5         6        7</span>
-<span class="co">#&gt; gamma 0.03492042 0.8528244 1.755664 0.9460039 0.6165853 0.2654924 1.648103</span>
-<span class="co">#&gt;       0.04700761 0.8418906 1.805797 0.9434960 0.6274461 0.2689726 1.678827</span>
-<span class="co">#&gt;               8         9          10        11        12         13</span>
-<span class="co">#&gt; gamma 0.2342091 0.2195648 0.001783007 0.6709733 0.1194849 0.00498438</span>
-<span class="co">#&gt;       0.2419144 0.2207026 0.008668515 0.6731876 0.1338389 0.01103540</span>
-<span class="co">#&gt;               14       15        16        17       18        19       20</span>
-<span class="co">#&gt; gamma 0.02864261 2.850387 0.7995604 0.3750062 2.909203 0.4292568 1.344847</span>
-<span class="co">#&gt;       0.03328346 2.897127 0.8121286 0.3817602 2.918266 0.4461398 1.374988</span></code></pre></div>
+<span class="co">#&gt;              1        2          3         4         5          6</span>
+<span class="co">#&gt; gamma 1.123013 1.120309 0.08996052 0.1015826 0.3339449 0.09156451</span>
+<span class="co">#&gt;       1.121601 1.154045 0.09645081 0.1141617 0.3468482 0.09880460</span>
+<span class="co">#&gt;               7        8         9        10       11         12       13</span>
+<span class="co">#&gt; gamma 0.3855839 8.126745 0.3265409 0.3911165 2.051332 0.04923531 4.465920</span>
+<span class="co">#&gt;       0.4164829 8.234310 0.3245509 0.4090975 2.095017 0.05574040 4.531674</span>
+<span class="co">#&gt;              14        15         16        17        18        19</span>
+<span class="co">#&gt; gamma 0.6850229 0.6870254 0.01329222 0.6756325 0.8965223 0.9569944</span>
+<span class="co">#&gt;       0.7048347 0.6943199 0.02153501 0.6967835 0.9059057 0.9628418</span>
+<span class="co">#&gt;             20</span>
+<span class="co">#&gt; gamma 3.130541</span>
+<span class="co">#&gt;       3.188854</span></code></pre></div>
 <p>As we can see, we obtain the “right” estimates.</p>
 </div>
 </div>
@@ -591,7 +571,8 @@ res &lt;-<span class="st"> </span><span class="kw">femlm</span>(Euros <span clas
 <span class="co">#&gt; Warning in hessian(.par, ...): Some elements of the diagonal of the hessian</span>
 <span class="co">#&gt; are equal to 0: likely presence of collinearity. FYI the problematic</span>
 <span class="co">#&gt; variables are: constant_variable.</span>
-<span class="co">#&gt; Warning: The result is not reliable, the optimization did not converge.</span>
+<span class="co">#&gt; Warning: The optimization algorithm did not converge, the results are not</span>
+<span class="co">#&gt; reliable.</span>
 <span class="co">#&gt; Warning: Could not achieve to get the covariance matrix. The information matrix was singular.</span>
 <span class="co">#&gt; Try to manually suppress some collinear variables. FYI the suspects (collinear with the clusters) are:</span>
 <span class="co">#&gt; constant_variable</span></code></pre></div>
@@ -604,6 +585,12 @@ res &lt;-<span class="st"> </span><span class="kw">femlm</span>(Euros <span clas
 <p>In such cases, just set the stopping criterion with the argument <code>precision.cluster</code> to a lower value (the algorithm will take more time to run though because there will be more iterations).</p>
 </div>
 </div>
+</div>
+<div class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>Since the <span class="math inline">\(\gamma\)</span> are parameters, I omit to put them in logarithmic form.<a href="#fnref1">↩</a></p></li>
+</ol>
 </div>
 
 

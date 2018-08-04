@@ -9,6 +9,10 @@ library(FENmlm)
 data(trade)
 
 
+## ---- echo=FALSE, results='asis'-----------------------------------------
+tab = head(trade)
+knitr::kable(tab)
+
 ## ------------------------------------------------------------------------
 gravity_results <- femlm(Euros ~ log(dist_km), trade, family = "poisson", cluster = c("Origin", "Destination", "Product", "Year"))
 
@@ -87,7 +91,7 @@ z = rpois(n, 2*x + 3*y) + rpois(n, 1)
 base = data.frame(x, y, z)
 
 ## ------------------------------------------------------------------------
-result_NL = femlm(z~0, base, NL.fml = ~ log(a*x + b*y), start = list(a=1, b=1), lower = list(a=0, b=0))
+result_NL = femlm(z~0, base, NL.fml = ~ log(a*x + b*y), NL.start = list(a=1, b=1), lower = list(a=0, b=0))
 
 ## ------------------------------------------------------------------------
 print(result_NL)
@@ -104,7 +108,7 @@ base$z_bis = z_bis
 
 ## ------------------------------------------------------------------------
 # we add the fixed-effect in the formula
-result_NL_fe = femlm(z_bis~0|id, base, NL.fml = ~ log(2*x + b*y), start = list(b=1), lower = list(b=0))
+result_NL_fe = femlm(z_bis~0|id, base, NL.fml = ~ log(2*x + b*y), NL.start = list(b=1), lower = list(b=0))
 # The coef should be around 3
 result_NL_fe$coef
 # the gamma and the exponential of the fixed-effects should be similar

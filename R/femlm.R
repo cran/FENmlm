@@ -1,37 +1,35 @@
 # Commands to genereate the help files:
-# file.sources = list.files("R", pattern="*.R$", full.names=TRUE, ignore.case=TRUE)
-# sapply(file.sources, source, .GlobalEnv)
 # load("data/trade.RData")
 # roxygen2::roxygenise(roclets = "rd")
+# devtools::install(args = "--no-multiarch", build_vignettes = TRUE) # To build the vignettes
 
-# TODO:
-# Add only cluster with negbin (needs to create the functions to maximize it)
-# change name: id_dummies and dummies to id_clusters and sumClusterCoefs (or a better name)
+# Global to handle number of cores:
+FENmlm_CORES = 1
 
 
 #' Fixed effects maximum likelihood models
 #'
 #' This function estimates maximum likelihood models (e.g., Poisson or Logit) and is efficient to handle any number of fixed effects (i.e. cluster variables). It further allows for nonlinear in parameters right hand sides.
 #'
-#' @param fml A formula. This formula gives the linear formula to be estimated (it is similar to a \code{lm} formula), for example: \code{fml = z~x+y}. To include cluster variables, you can 1) either insert them in this formula using a pipe (e.g. \code{fml = z~x+y|cluster1+cluster2}), or 2) either use the argment \code{cluster}. You can add a non-linear element in this formula by using the argment \code{NL.fml}. If you want to estimate only a non-linear formula without even the intercept, you can use \code{fml = z~0} in combination with \code{NL.fml}.
+#' @param fml A formula. This formula gives the linear formula to be estimated (it is similar to a \code{lm} formula), for example: \code{fml = z~x+y}. To include cluster variables, you can 1) either insert them in this formula using a pipe (e.g. \code{fml = z~x+y|cluster1+cluster2}), or 2) either use the argment \code{cluster}. To include a non-linear in parameters element, you must use the argment \code{NL.fml}.
 #' @param NL.fml A formula. If provided, this formula represents the non-linear part of the right hand side (RHS). Note that contrary to the \code{fml} argument, the coefficients must explicitely appear in this formula. For instance, it can be \code{~a*log(b*x + c*x^3)}, where \code{a}, \code{b}, and \code{c} are the coefficients to be estimated. Note that only the RHS of the formula is to be provided, and NOT the left hand side.
-#' @param data A data.frame containing the necessary variables to run the model. The variables of the non-linear right hand side of the formula are identified with this \code{data.frame} names. Note that no \code{NA} is allowed in the variables to be used in the estimation.
+#' @param data A data.frame containing the necessary variables to run the model. The variables of the non-linear right hand side of the formula are identified with this \code{data.frame} names. Note that no \code{NA} is allowed in the variables to be used in the estimation. Can also be a matrix.
 #' @param family Character scalar. It should provide the family. The possible values are "poisson" (Poisson model with log-link, the default), "negbin" (Negative Binomial model with log-link), "logit" (LOGIT model with log-link), "gaussian" (Gaussian model).
 #' @param cluster Character vector. The name/s of a/some variable/s within the dataset to be used as clusters. These variables should contain the identifier of each observation (e.g., think of it as a panel identifier).
-#' @param useAcc Default is \code{TRUE}. Whether an acceleration algorithm (Irons and Tuck iterations) should be used to otbain the cluster coefficients when there are two clusters.
-#' @param start A list. Starting values for the non-linear parameters. ALL the parameters are to be named and given a staring value. Example: \code{start=list(a=1,b=5,c=0)}. Though, there is an exception: if all parameters are to be given the same starting value, you can use the argument \code{start.init}.
-#' @param lower A list. The lower bound for each of the non-linear parameters that requires one. Example: \code{lower=list(b=0,c=0)}. Beware, if the estimated parameter is at his lower bound, then asymptotic theory cannot be applied and the standard-error of the parameter cannot be estimated because the gradient will not be null. In other words, when at its upper/lower bound, the parameter is considered as 'fixed'.
-#' @param upper A list. The upper bound for each of the non-linear parameters that requires one. Example: \code{upper=list(a=10,c=50)}. Beware, if the estimated parameter is at his upper bound, then asymptotic theory cannot be applied and the standard-error of the parameter cannot be estimated because the gradient will not be null. In other words, when at its upper/lower bound, the parameter is considered as 'fixed'.
-#' @param env An environment. You can provide an environement in which the non-linear part will be evaluated. (May be useful for some particular non-linear functions.)
-#' @param start.init Numeric scalar. If the argument \code{start} is not provided, or only partially filled (i.e. there remain non-linear parameters with no starting value), then the starting value of all remaining non-linear parameters is set to \code{start.init}.
+#' @param useAcc Default is \code{TRUE}. Whether an acceleration algorithm (Irons and Tuck iterations) should be used to otbain the cluster coefficients when there are two or more clusters.
+#' @param NL.start (For NL models only) A list of starting values for the non-linear parameters. ALL the parameters are to be named and given a staring value. Example: \code{NL.start=list(a=1,b=5,c=0)}. Though, there is an exception: if all parameters are to be given the same starting value, you can use the argument \code{NL.start.init}.
+#' @param lower (For NL models only) A list. The lower bound for each of the non-linear parameters that requires one. Example: \code{lower=list(b=0,c=0)}. Beware, if the estimated parameter is at his lower bound, then asymptotic theory cannot be applied and the standard-error of the parameter cannot be estimated because the gradient will not be null. In other words, when at its upper/lower bound, the parameter is considered as 'fixed'.
+#' @param upper (For NL models only) A list. The upper bound for each of the non-linear parameters that requires one. Example: \code{upper=list(a=10,c=50)}. Beware, if the estimated parameter is at his upper bound, then asymptotic theory cannot be applied and the standard-error of the parameter cannot be estimated because the gradient will not be null. In other words, when at its upper/lower bound, the parameter is considered as 'fixed'.
+#' @param env (For NL models only) An environment. You can provide an environement in which the non-linear part will be evaluated. (May be useful for some particular non-linear functions.)
+#' @param NL.start.init (For NL models only) Numeric scalar. If the argument \code{NL.start} is not provided, or only partially filled (i.e. there remain non-linear parameters with no starting value), then the starting value of all remaining non-linear parameters is set to \code{NL.start.init}.
 #' @param offset A formula. An offset can be added to the estimation. It should be a formula of the form (for example) ~0.5*x**2. This offset is linearily added to the elements of the main formula 'fml'. Note that when using the argument 'NL.fml', you can directly add the offset there.
-#' @param nl.gradient A formula. The user can prodide a function that computes the gradient of the non-linear part. The formula should be of the form \code{~f0(a1,x1,a2,a2)}. The important point is that it should be able to be evaluated by: \code{eval(nl.gradient[[2]], env)} where \code{env} is the working environment of the algorithm (which contains all variables and parameters). The function should return a list or a data.frame whose names are the non-linear parameters.
-#' @param linear.start Numeric named vector. The starting values of the linear part. Note that you can
+#' @param nl.gradient (For NL models only) A formula. The user can prodide a function that computes the gradient of the non-linear part. The formula should be of the form \code{~f0(a1,x1,a2,a2)}. The important point is that it should be able to be evaluated by: \code{eval(nl.gradient[[2]], env)} where \code{env} is the working environment of the algorithm (which contains all variables and parameters). The function should return a list or a data.frame whose names are the non-linear parameters.
+#' @param linear.start Numeric named vector. The starting values of the linear part.
 #' @param jacobian.method Character scalar. Provides the method used to numerically compute the jacobian of the non-linear part. Can be either \code{"simple"} or \code{"Richardson"}. Default is \code{"simple"}. See the help of \code{\link[numDeriv]{jacobian}} for more information.
 #' @param useHessian Logical. Should the Hessian be computed in the optimization stage? Default is \code{TRUE}.
-#' @param opt.control List of elements to be passed to the optimization method \code{\link[stats]{nlminb}}.
-#' @param cores Integer, default is 1. Number of threads to be used (accelerates the algorithm via the use of openMP routines). This is particularly efficient for the negative binomial and logit models, less so for Gaussian and Poisson likelihoods (unless for large datasets).
-#' @param debug Logical. If \code{TRUE} then the log-likelihood as well as all parameters are printed at each iteration. Default is \code{FALSE}.
+#' @param opt.control List of elements to be passed to the optimization method \code{\link[stats]{nlminb}}. See the help page of \code{\link[stats]{nlminb}} for more information.
+#' @param cores Integer, default is 1. Number of threads to be used (accelerates the algorithm via the use of openMP routines). This is particularly efficient for the negative binomial and logit models, less so for the Gaussian and Poisson likelihoods (unless for very large datasets).
+#' @param verbose Integer, default is 0. It represents the level of information that should be reported during the optimisation process. If \code{verbose=0}: nothing is reported. If \code{verbose=1}: the value of the coefficients and the likelihood are reported. If \code{verbose=2}: \code{1} + information on the computing tiime of the null model, the cluster coefficients and the hessian are reported.
 #' @param theta.init Positive numeric scalar. The starting value of the dispersion parameter if \code{family="negbin"}. By default, the algorithm uses as a starting value the theta obtained from the model with only the intercept.
 #' @param precision.cluster Precision used to obtain the fixed-effects (ie cluster coefficients). Defaults to \code{1e-5}. It corresponds to the maximum absolute difference allowed between two iterations.
 #' @param ... Not currently used.
@@ -55,34 +53,38 @@
 #' \deqn{f(X,\beta)=X^1\beta^1 + g(X^2,\beta^2)}
 #' with first a linear term and then a non linear part expressed by the function g. That is, we add a non-linear term to the linear terms (which are \eqn{X*beta} and the cluster coefficients). It is always better (more efficient) to put into the argument \code{NL.fml} only the non-linear in parameter terms, and add all linear terms in the \code{fml} argument.
 #'
+#' To estimate only a non-linear formula without even the intercept, you must exclude the intercept from the linear formula by using, e.g., \code{fml = z~0}.
+#'
+#' The over-dispersion parameter of the Negative Binomial family, theta, is capped at 10,000. If theta reaches this high values, it means that there is no overdispersion.
+#'
 #' @return
 #' An \code{femlm} object.
-#' \item{coef}{The coefficients.}
+#' \item{coefficients}{The named vector of coefficients.}
 #' \item{coeftable}{The table of the coefficients with their standard errors, z-values and p-values.}
 #' \item{loglik}{The loglikelihood.}
 #' \item{iterations}{Number of iterations of the algorithm.}
 #' \item{n}{The number of observations.}
-#' \item{k}{The number of parameters of the model.}
+#' \item{nparams}{The number of parameters of the model.}
 #' \item{call}{The call.}
-#' \item{NL.fml}{The nonlinear formula of the call.}
-#' \item{linear.formula}{The linear formula of the call.}
+#' \item{fml}{The linear formula of the call.}
 #' \item{ll_null}{Log-likelihood of the null model (i.e. with the intercept only).}
 #' \item{pseudo_r2}{The adjusted pseudo R2.}
-#' \item{naive.r2}{The R2 as if the expected predictor was the linear predictor in OLS.}
 #' \item{message}{The convergence message from the optimization procedures.}
-#' \item{sq.cor}{Squared correlation between the dependent variable and its expected value as given by the optimization.}
+#' \item{sq.cor}{Squared correlation between the dependent variable and the expected predictor (i.e. fitted.values) obtained by the estimation.}
 #' \item{hessian}{The Hessian of the parameters.}
-#' \item{expected.predictor}{The expected predictor is the expected value of the dependent variable.}
+#' \item{fitted.values}{The fitted values are the expected value of the dependent variable for the fitted model: that is \eqn{E(Y|X)}.}
 #' \item{cov.unscaled}{The variance-covariance matrix of the parameters.}
-#' \item{bounds}{Whether the coefficients were upper or lower bounded. -- This can only be the case when a non-linear formula is included and the arguments 'lower' or 'upper' are provided.}
-#' \item{isBounded}{The logical vector that gives for each coefficient whether it was bounded or not. This can only be the case when a non-linear formula is included and the arguments 'lower' or 'upper' are provided.}
 #' \item{se}{The standard-error of the parameters.}
 #' \item{scores}{The matrix of the scores (first derivative for each observation).}
 #' \item{family}{The ML family that was used for the estimation.}
-#' \item{resids}{The difference between the dependent variable and the expected predictor.}
+#' \item{residuals}{The difference between the dependent variable and the expected predictor.}
 #' \item{sumFE}{The sum of the fixed-effects for each observation.}
+#' \item{offset}{The offset formula.}
+#' \item{NL.fml}{The nonlinear formula of the call.}
+#' \item{bounds}{Whether the coefficients were upper or lower bounded. -- This can only be the case when a non-linear formula is included and the arguments 'lower' or 'upper' are provided.}
+#' \item{isBounded}{The logical vector that gives for each coefficient whether it was bounded or not. This can only be the case when a non-linear formula is included and the arguments 'lower' or 'upper' are provided.}
 #' \item{clusterNames}{The names of each cluster.}
-#' \item{id_dummies}{The list (of length the number of clusters) of the cluser identifiers for each observation.}
+#' \item{id_dummies}{The list (of length the number of clusters) of the cluster identifiers for each observation.}
 #' \item{clusterSize}{The size of each cluster.}
 #' \item{obsRemoved}{In the case there were clusters and some observations were removed because of only 0/1 outcome within a cluster, it gives the row numbers of the observations that were removed.}
 #' \item{clusterRemoved}{In the case there were clusters and some observations were removed because of only 0/1 outcome within a cluster, it gives the list (for each cluster) of the clustr identifiers that were removed.}
@@ -95,11 +97,12 @@
 #' Laurent Berge
 #'
 #' @references
+#'
+#' Berge, Laurent, 2018, "Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm." CREA Discussion Papers, 13 (\url{https://wwwen.uni.lu/content/download/110162/1299525/file/2018_13}).
+#'
 #' For models with multiple fixed-effects:
 #'
 #' Gaure, Simen, 2013, "OLS with multiple high dimensional category variables", Computational Statistics & Data Analysis 66 pp. 8--18
-#'
-#'
 #'
 #' On the unconditionnal Negative Binomial model:
 #'
@@ -120,11 +123,11 @@
 #' # alternative formulation giving the same results:
 #' # est_pois = femlm(Euros ~ log(dist_km), trade, cluster = c("Origin", "Destination", "Product"))
 #'
-#' # 2) Log-Log Gaussian estimation
-#' est_gaus = femlm(log(Euros+1) ~ log(dist_km)|Origin+Destination+Product, trade, family="gaussian")
+#' # 2) Log-Log Gaussian estimation (with same clusters)
+#' est_gaus = update(est_pois, log(Euros+1) ~ ., family="gaussian")
 #'
 #' # 3) Negative Binomial estimation
-#' est_nb = femlm(Euros ~ log(dist_km)|Origin+Destination+Product, trade, family="negbin")
+#' est_nb = update(est_pois, family="negbin")
 #'
 #' # Comparison of the results using the function res2table
 #' res2table(est_pois, est_gaus, est_nb)
@@ -141,6 +144,26 @@
 #'
 #'
 #' #
+#' # Example of Equivalences
+#' #
+#'
+#' # equivalence with glm poisson
+#' est_glm <- glm(Euros ~ log(dist_km) + factor(Origin) +
+#'             factor(Destination) + factor(Product), trade, family = poisson)
+#'
+#' # coefficient estimates + Standard-error
+#' summary(est_glm)$coefficients["log(dist_km)", ]
+#' est_pois$coeftable
+#'
+#' # equivalence with lm
+#' est_lm <- lm(log(Euros+1) ~ log(dist_km) + factor(Origin) +
+#'             factor(Destination) + factor(Product), trade)
+#'
+#' # coefficient estimates + Standard-error
+#' summary(est_lm)$coefficients["log(dist_km)", ]
+#' summary(est_gaus, dof_correction = TRUE)$coeftable
+#'
+#' #
 #' # Non-linear examples
 #' #
 #'
@@ -148,49 +171,52 @@
 #' n = 100
 #' x = rnorm(n, 1, 5)**2
 #' y = rnorm(n, -1, 5)**2
-#' z = rpois(n, x*y) + rpois(n, 2)
-#' base = data.frame(x, y, z)
+#' z1 = rpois(n, x*y) + rpois(n, 2)
+#' base = data.frame(x, y, z1)
 #'
-#' # Comparing the results of a 'linear' function using a 'non-linear' call
-#' est0L = femlm(z~log(x)+log(y), base)
-#' est0NL = femlm(z~1, base, NL.fml = ~a*log(x)+b*log(y), start = list(a=0, b=0))
-#' # we compare the estimates with the function res2table
-#' res2table(est0L, est0NL)
+#' # Estimating a 'linear' relation:
+#' est1_L = femlm(z1 ~ log(x) + log(y), base)
+#' # Estimating the same 'linear' relation using a 'non-linear' call
+#' est1_NL = femlm(z1 ~ 1, base, NL.fml = ~a*log(x)+b*log(y), NL.start = list(a=0, b=0))
+#' # we compare the estimates with the function res2table (they are identical)
+#' res2table(est1_L, est1_NL)
 #'
-#' # Generating a non-linear relation
+#' # Now generating a non-linear relation (E(z2) = x + y + 1):
 #' z2 = rpois(n, x + y) + rpois(n, 1)
 #' base$z2 = z2
 #'
-#' # Using a non-linear form
-#' est1NL = femlm(z2~0, base, NL.fml = ~log(a*x + b*y), start = list(a=1, b=2), lower = list(a=0, b=0))
+#' # Estimation using this non-linear form
+#' est2_NL = femlm(z2~0, base, NL.fml = ~log(a*x + b*y),
+#'                NL.start = list(a=1, b=2), lower = list(a=0, b=0))
 #' # we can't estimate this relation linearily
 #' # => closest we can do:
-#' est1L = femlm(z2~log(x)+log(y), base)
+#' est2_L = femlm(z2~log(x)+log(y), base)
 #'
-#' res2table(est1L, est1NL)
+#' # Difference between the two models:
+#' res2table(est2_L, est2_NL)
+#'
+#' # Plotting the fits:
+#' plot(x, z2, pch = 18)
+#' points(x, fitted(est2_L), col = 2, pch = 1)
+#' points(x, fitted(est2_NL), col = 4, pch = 2)
+#'
 #'
 #' # Using a custom Jacobian for the function log(a*x + b*y)
 #' myGrad = function(a,x,b,y){
-#' 	# Custom Jacobian
 #' 	s = a*x+b*y
 #' 	data.frame(a = x/s, b = y/s)
 #' }
 #'
-#' est1NL_grad = femlm(z2~0, base, NL.fml = ~log(a*x + b*y), start = list(a=1,b=2),
-#'                      nl.gradient = ~myGrad(a,x,b,y))
+#' est2_NL_grad = femlm(z2~0, base, NL.fml = ~log(a*x + b*y),
+#'                      NL.start = list(a=1,b=2), nl.gradient = ~myGrad(a,x,b,y))
 #'
 #'
-femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, useAcc=TRUE, start, lower, upper, env, start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), cores = 1, debug=FALSE, theta.init, precision.cluster, ...){
+femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, useAcc=TRUE, NL.start, lower, upper, env, NL.start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), cores = 1, verbose=0, theta.init, precision.cluster, ...){
 
 	# use of the conjugate gradient in the gaussian case to get
 	# the cluster coefficients
 	useCG = FALSE
 	accDeriv = TRUE
-
-	# opt_method = c("nlminb", "optim")
-	# opt_method <- match.arg(opt_method)
-	opt_method = "nlminb"
-	optim.method="BFGS" # deprec
 
 	jacobian.method <- match.arg(jacobian.method)
 	family = match.arg(family)
@@ -203,26 +229,42 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# DOTS
 	dots = list(...)
 
+	# DEPRECATED INFORMATION
 	# I initially called the cluster dummies... I keep it for compatibility
 	if(missing(cluster) && "dummy" %in% names(dots)) cluster = dots$dummy
 	if("linear.fml" %in% names(dots)) stop("Argument 'linear.fml' is deprecated, now use 'fml' in combination with 'NL.fml'.")
+	if(missing(NL.start) && "start" %in% names(dots)) {
+		warning("Argument 'start' is deprecated.\nUse 'NL.start' instead.", immediate. = TRUE)
+		NL.start = dots$start
+	}
+	if(missing(NL.start.init) && "start.init" %in% names(dots)) {
+		warning("Argument 'start.init' is deprecated.\nUse 'NL.start.init' instead.", immediate. = TRUE)
+		NL.start.init = dots$start.init
+	}
 
 	#
 	# The clusters => controls + setup
-	fml_char = as.character(fml)[3]
-	n_pipes = length(strsplit(fml_char, "|", fixed=TRUE)[[1]]) - 1
-	if(n_pipes >= 2) stop("The argument 'fml' cannot contain more than one '|'.")
-	extract_fml = extractCluster(fml)
-	if(!is.null(extract_fml$cluster)){
+	if(class(fml) != "formula") stop("The argument 'fml' must be a formula.")
+	if(length(fml) != 3) stop("The formula must be two sided.\nEG: a~exp(b/x), or a~0 if there is no linear part.")
+
+	FML = Formula::Formula(fml)
+	n_rhs = length(FML)[2]
+
+	if(n_rhs > 2){
+		stop("The argument 'fml' cannot contain more than two parts separated by a pipe ('|').")
+	}
+
+	if(n_rhs == 2){
 		if(missing(cluster) || length(cluster) == 0){
-			cluster = extract_fml$cluster
-			fml = extract_fml$fml
+			cluster = formula(FML, lhs = 0, rhs = 2)
+			fml = formula(FML, lhs = 1, rhs = 1)
 		} else {
 			stop("To add cluster variables: either include them in argument 'fml' using a pipe ('|'), either use the argument 'cluster'. You cannot use both!")
 		}
 	}
 
 	# Other paramaters
+	if(!is.null(dots$debug) && dots$debug) verbose = 2
 	d.hessian = dots$d.hessian
 
 	#
@@ -238,7 +280,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	} else if(cores > parallel::detectCores()){
 		stop("The argument 'cores' must be lower or equal to the number of possible threads (equal to ", parallel::detectCores(), ") in this computer.")
 	} else {
-		set_omp(cores)
+		FENmlm_CORES <<- cores
 		isMulticore = TRUE
 	}
 
@@ -246,25 +288,43 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 						 poisson = ml_poisson(),
 						 negbin = ml_negbin(),
 						 logit = ml_logit(),
-						 tobit = ml_tobit(),
-						 probit = ml_probit(),
 						 gaussian = ml_gaussian())
 
-	stopifnot(class(fml)=="formula")
-	if(length(fml)!=3) stop("The formula must be two sided.\nEG: a~exp(b/x), or a~0 if there is no nonlinear part.")
-	call = match.call()
+	call = match.call(expand.dots = FALSE)
+	# cleaning the call from update method
+	# we drop 'hidden' arguments for a clean call
+	call$"..." = NULL
+
+	if(is.matrix(data)){
+		if(is.null(colnames(data))){
+			stop("If argument data is to be a matrix, its columns must be named.")
+		}
+		data = as.data.frame(data)
+	}
+	# The conversion of the data (due to data.table)
+	if(!"data.frame" %in% class(data)){
+		stop("The argument 'data' must be a data.frame or a matrix.")
+	}
+	if("data.table" %in% class(data)){
+		# this is a local change only
+		class(data) = "data.frame"
+	}
+
 	dataNames = names(data)
 
 	# The LHS must contain only values in the DF
 	namesLHS = all.vars(fml[[2]])
-	if(!all(namesLHS%in%dataNames)) stop("Some elements on the LHS of the formula are not in the dataset:\n", paste0(namesLHS[!namesLHS%in%dataNames], collapse=", "))
+	if(!all(namesLHS %in% dataNames)) stop("Some elements on the LHS of the formula are not in the dataset:\n", paste0(namesLHS[!namesLHS %in% dataNames], collapse=", "))
 
 	# Now the nonlinear part:
 
-	if(!missing(NL.fml)){
+	if(!missing(NL.fml) && !is.null(NL.fml)){
+
+		if(!class(NL.fml) == "formula") stop("Argument 'NL.fml' must be a formula.")
+
 		isNonLinear = TRUE
 		nl.call = NL.fml[[length(NL.fml)]]
-		# allnames = all.vars(fml[[3]])
+
 		allnames = all.vars(nl.call)
 		nonlinear.params = allnames[!allnames %in% dataNames]
 		nonlinear.varnames = allnames[allnames %in% dataNames]
@@ -273,27 +333,21 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			warning("As there is no parameter to estimate in argument 'NL.fml', this argument is ignored.\nIf you want to add an offset, use argument 'offset'.")
 		}
 
+		# Control for NAs
+		if(anyNA(data[, nonlinear.varnames])){
+			varWithNA = nonlinear.varnames[which(apply(data[, nonlinear.varnames, FALSE], 2, anyNA))]
+			text = show_vars_limited_width(varWithNA)
+			stop("Some variables in 'NL.fml' contain NA. NAs are not supported, please remove them first. FYI, the variables are:\n", text, call. = FALSE)
+		}
+
 	} else {
 		isNonLinear = FALSE
 		nl.call = 0
 		allnames = nonlinear.params = nonlinear.varnames = character(0)
 	}
 
-	# The conversion of the data (due to data.table)
-	if(!"data.frame" %in% class(data)){
-		stop("The argument 'data' must be a data.frame.")
-	}
-	if("data.table" %in% class(data)){
-		class(data) = "data.frame"
-	}
-
 	# The dependent variable: lhs==left_hand_side
 	lhs = as.vector(eval(fml[[2]], data))
-
-	# We check that the dep var is not a constant
-	if(var(lhs) == 0){
-		stop("The dependent variable is a constant, the regression cannot be done.")
-	}
 
 	# creation de l'environnement
 	if(missing(env)) env <- new.env()
@@ -305,8 +359,12 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	# NA are not allowed !!!
 	if(anyNA(lhs)) stop("The left hand side of the fomula has NA values. Please provide data without NA.")
-	if(family%in%c("poisson", "negbin") & any(lhs<0)) stop("Negative values of the dependant variable \nare not allowed for the \"", family, "\" family.", sep="")
-	if(family%in%c("logit") & !all(lhs==0 | lhs==1)) stop("The dependant variable has values different from 0 or 1.\nThis is not allowed with the \"logit\" family.")
+	# We check that the dep var is not a constant
+	if(var(lhs) == 0){
+		stop("The dependent variable is a constant, the regression cannot be done.")
+	}
+	if(family %in% c("poisson", "negbin") & any(lhs<0)) stop("Negative values of the dependant variable \nare not allowed for the \"", family, "\" family.", sep="")
+	if(family %in% c("logit") & !all(lhs==0 | lhs==1)) stop("The dependant variable has values different from 0 or 1.\nThis is not allowed with the \"logit\" family.")
 
 	# Add checks for the clusters
 
@@ -317,44 +375,57 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	isLinear = FALSE
 	linear.varnames = all.vars(fml[[3]])
 
-	if(length(linear.varnames)>0 || attr(terms(fml), "intercept")==1){
+	if(length(linear.varnames) > 0 || attr(terms(fml), "intercept") == 1){
 		isLinear = TRUE
 		linear.fml = fml
 	}
 
-	# if(!missing(linear.fml)){
-	# 	isLinear <- TRUE
+
 	if(isLinear){
-		# if(class(linear.fml)!="formula" || length(linear.fml)!=2) stop("'linear.fml' must be a formula like, for ex., ~x1+x2-1")
-		# linear.varnames <- all.vars(linear.fml)
-		if(!all(linear.varnames%in%dataNames)) stop(paste("In 'fml', some variables are not in the data:\n", paste(linear.varnames[!linear.varnames%in%dataNames], collapse=', '), ".", sep=""))
-		if(!missing(cluster) && length(cluster)!=0){
+
+		if(!all(linear.varnames %in% dataNames)) stop(paste("In 'fml', some variables are not in the data:\n", paste(linear.varnames[!linear.varnames%in%dataNames], collapse=', '), ".", sep=""))
+
+		if(!missing(cluster) && length(cluster) != 0){
 			#if dummies are provided, we make sure there is an
 			#intercept so that factors can be handled properly
 			linear.fml = update(linear.fml, ~.+1)
 		}
 
+		#
 		# We construct the linear matrix
+		#
+
+		# we look at whether there are factor-like variables to be evaluated
 		# if there is factors => model.matrix
 		types = sapply(data[, dataNames %in% linear.varnames, FALSE], class)
 		if(grepl("factor", deparse(linear.fml)) || any(types %in% c("character", "factor"))){
+			useModel.matrix = TRUE
+		} else {
+			useModel.matrix = FALSE
+		}
+
+		if(useModel.matrix){
 			linear.mat = stats::model.matrix(linear.fml, data)
 		} else {
 			linear.mat = prepare_matrix(linear.fml, data)
 		}
 
 		linear.params <- colnames(linear.mat)
-		N_linear <- length(linear.params)
+		# N_linear <- length(linear.params)
 		if(anyNA(linear.mat)){
 			quiNA = apply(linear.mat, 2, anyNA)
 			whoIsNA = linear.params[quiNA]
-
 			text = show_vars_limited_width(whoIsNA)
 
 			stop("Evaluation of the linear part returns NA. NAs are not supported, please remove them before running this function. FYI the variables with NAs are:\n", text)
 		}
+
 		if(!is.numeric(linear.start)) stop("'linear.start' must be numeric!")
-	} 	else linear.params <- linear.start <- linear.varnames <- NULL
+
+	} 	else {
+		linear.params <- linear.start <- linear.varnames <- NULL
+		useModel.matrix = FALSE
+	}
 
 	params <- c(nonlinear.params, linear.params)
 	lparams <- length(params)
@@ -364,26 +435,72 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	if(length(nonlinear.params)==0) isNL = FALSE
 	else isNL = TRUE
 
-	# Control for NAs
-	if(anyNA(data[, varnames])){
-		varWithNA = varnames[which(apply(data[, varnames, FALSE], 2, anyNA))]
-		text = show_vars_limited_width(varWithNA)
-		stop("Some variables used for this estimation contain NA. NAs are not supported, please remove them first.\nFYI, the variables are:\n", text, call. = FALSE)
-	}
+
 
 	#
 	# Handling Clusters ####
 	#
 
 	isDummy = FALSE
-	if(!missing(cluster) && length(cluster)!=0){
-		# TODO:
-		# - mettre un meilleur controle des classes pures (mettre un while, ici ne suffit pas)
+	if(!is.null(dots$clusterFromUpdate) && dots$clusterFromUpdate){
+		# Cluster information coming from the update method
+
+		# means that there is no modification of past clusters
+		object = dots$object
+
+		# we retrieve past information
+		dum_all = object$id_dummies
+		obs2remove = object$obsRemoved
+		dummyOmises = object$clusterRemoved
+		cluster = object$clusterNames
+		nbCluster = object$clusterSize
+		Q = length(nbCluster)
+
+		# If obsRemoved => need to modify the data base
+		if(length(obs2remove) > 0){
+			data = data[-obs2remove, ]
+
+			# We recreate the linear matrix
+			if(isLinear) {
+				if(useModel.matrix){
+					# means there are factors
+					linear.mat = stats::model.matrix(linear.fml, data)
+				} else {
+					linear.mat = linear.mat[-obs2remove, ]
+				}
+			}
+
+			lhs = eval(fml[[2]], data)
+		}
+
+		# We still need to recreate some objects though
+		isDummy = TRUE
+		dumMat_cpp = matrix(unlist(dum_all), ncol = Q) - 1
+
+		dum_names = sum_y_all = obs_per_cluster_all = list()
+		for(i in 1:Q){
+			k = nbCluster[i]
+			dum = dum_all[[i]]
+			sum_y_all[[i]] = cpp_tapply_vsum(k, lhs, dum)
+			obs_per_cluster_all[[i]] = cpp_table(k, dum)
+			dum_names[[i]] = attr(dum_all[[i]], "clust_names")
+		}
+
+	} else if(!missing(cluster) && length(cluster)!=0){
+		# The main cluster construction
 
 		isDummy = TRUE
-		if(class(cluster)!="character" | any(!cluster%in%names(data))){
+
+		isClusterFml = FALSE
+		if(is.character(cluster) && any(!cluster %in% names(data))){
 			var_problem = cluster[!cluster%in%names(data)]
 			stop("The argument 'cluster' must be a variable name!\nCluster(s) not in the data: ", paste0(var_problem, collapse = ", "), ".")
+		} else if(!is.character(cluster)){
+			# means the cluster is a formula
+			cluster_mat = model.frame(cluster, data)
+			# we change cluster to become a vector of characters
+			cluster = names(cluster_mat)
+			isClusterFml = TRUE
 		}
 
 		Q = length(cluster)
@@ -392,7 +509,13 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		obs2remove = c()
 		dummyOmises = list()
 		for(i in 1:Q){
-			dum_raw = data[[cluster[i]]]
+
+			if(isClusterFml){
+				dum_raw = cluster_mat[[cluster[i]]]
+			} else {
+				dum_raw = data[[cluster[i]]]
+			}
+
 			# in order to avoid "unclassed" values > real nber of classes: we re-factor the cluster
 
 			dum_names[[i]] = thisNames = getItems(dum_raw)
@@ -428,11 +551,11 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 			# We recreate the linear matrix and the LHS
 			if(isLinear) {
-				types = sapply(data[, dataNames %in% linear.varnames, FALSE], class)
-				if(grepl("factor", deparse(linear.fml)) || any(types %in% c("character", "factor"))){
+				if(useModel.matrix){
+					# means there are factors
 					linear.mat = stats::model.matrix(linear.fml, data)
 				} else {
-					linear.mat = prepare_matrix(linear.fml, data)
+					linear.mat = linear.mat[-obs2remove, ]
 				}
 			}
 
@@ -463,8 +586,16 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		# Trick to go faster
 		dumMat_cpp = matrix(unlist(dum_all), ncol = Q) - 1
 
-		nbCluster = sapply(dum_all, function(x) length(unique(x)))
+		# nbCluster = sapply(dum_all, function(x) length(unique(x)))
+		nbCluster = sapply(dum_all, max)
 
+	} else {
+		# There is no cluster
+		Q = 0
+	}
+
+	# If presence of clusters => we exclude the intercept
+	if(Q > 0){
 		# If there is a linear intercept, we withdraw it
 		# We drop the intercept:
 		if(isLinear && "(Intercept)" == colnames(linear.mat)){
@@ -478,18 +609,14 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			} else{
 				linear.mat = linear.mat[, -var2remove, drop=FALSE]
 				linear.params <- colnames(linear.mat)
-				N_linear <- length(linear.params)
+				# N_linear <- length(linear.params)
 				params <- c(nonlinear.params, linear.params)
 				lparams <- length(params)
 				varnames <- c(nonlinear.varnames, linear.varnames)
 			}
 		}
-	} else {
-		# There is no cluster
-		Q = 0
 	}
 
-	# browser()
 
 	#
 	# Checks for MONKEY TEST
@@ -503,30 +630,32 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	#
 
 	if(isNL){
-		if(missing(start.init)){
-			if(missing(start)) stop("There must be starting values.")
-			if(typeof(start)!="list") stop("start must be a list.")
-			if(any(!names(start) %in% params)) stop(paste("Some parameters in 'start' are not in the formula:\n", paste(names(start)[!names(start) %in% params], collapse=", "), ".", sep=""))
-			if(any(!nonlinear.params %in% names(start))) stop(paste("Hey, some parameters have no starting values:\n", paste(nonlinear.params[!nonlinear.params%in%names(start)], collapse=", "), ".", sep=""))
-		}
-		else{
-			if(length(start.init)>1) stop("start.init musn't be a vector.")
-			if(class(start.init)!="numeric") stop("start.init must be numeric!")
-			if(!is.finite(start.init)) stop("Infinites values as starting values, you must be kidding me...")
+		if(missing(NL.start.init)){
+			if(missing(NL.start)) stop("There must be starting values for NL parameters. Please use argument NL.start (or NL.start.init).")
+			if(typeof(NL.start)!="list") stop("NL.start must be a list.")
+			if(any(!nonlinear.params %in% names(NL.start))) stop(paste("Some NL parameters have no starting values:\n", paste(nonlinear.params[!nonlinear.params %in% names(NL.start)], collapse=", "), ".", sep=""))
 
-			if(missing(start)){
-				start <- list()
-				start[nonlinear.params] <- start.init
-			}
-			else{
-				if(typeof(start)!="list") stop("start must be a list.")
-				if(any(!names(start) %in% params)) stop(paste("Some parameters in 'start' are not in the formula:\n", paste(names(start)[!names(start) %in% params], collapse=", "), ".", sep=""))
+			# we restrict NL.start to the nonlinear.params
+			NL.start = NL.start[nonlinear.params]
+		} else {
+			if(length(NL.start.init)>1) stop("NL.start.init must be a scalar.")
+			if(!is.numeric(NL.start.init)) stop("NL.start.init must be numeric!")
+			if(!is.finite(NL.start.init)) stop("Infinites values as starting values, you must be kidding me...")
 
-				missing.params <- nonlinear.params[!nonlinear.params%in%names(start)]
-				start[missing.params] <- start.init
+			if(missing(NL.start)){
+				NL.start <- list()
+				NL.start[nonlinear.params] <- NL.start.init
+			} else {
+				if(typeof(NL.start)!="list") stop("NL.start must be a list.")
+				if(any(!names(NL.start) %in% params)) stop(paste("Some parameters in 'NL.start' are not in the formula:\n", paste(names(NL.start)[!names(NL.start) %in% params], collapse=", "), ".", sep=""))
+
+				missing.params <- nonlinear.params[!nonlinear.params%in%names(NL.start)]
+				NL.start[missing.params] <- NL.start.init
 			}
 		}
-	} else start <- list()
+	} else {
+		NL.start <- list()
+	}
 
 	#
 	# Controls: The upper and lower limits
@@ -535,14 +664,14 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	if(!missing(lower)){
 		if(typeof(lower)!="list") stop("'lower' MUST be a list.")
 		if(any(!names(lower)%in%params)){
-			text <- paste("Hey, some parameters in 'lower' are not in the formula:\n", paste(names(lower)[!names(lower)%in%params], collapse=", "), ".", sep="")
+			text <- paste("Some parameters in 'lower' are not in the formula:\n", paste(names(lower)[!names(lower)%in%params], collapse=", "), ".", sep="")
 			stop(text)
 		}
 	}
 	if(!missing(upper)){
 		if(typeof(upper)!="list") stop("'upper' MUST be a list.")
 		if(any(!names(upper)%in%params)){
-			text <- paste("Hey, some parameters in 'upper' are not in the formula:\n", paste(names(upper)[!names(upper)%in%params], collapse=", "), ".", sep="")
+			text <- paste("Some parameters in 'upper' are not in the formula:\n", paste(names(upper)[!names(upper)%in%params], collapse=", "), ".", sep="")
 			stop(text)
 		}
 	}
@@ -553,7 +682,6 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		lower[params[!params%in%names(lower)]] <- -Inf
 		lower <- unlist(lower[params])
 	}	else {
-		#TODO B
 		lower <- rep(-Inf, lparams)
 		names(lower) <- params
 	}
@@ -573,14 +701,14 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	#
 
 	if(!missing(nl.gradient)){
-		isGradient=TRUE
+		isGradient = TRUE
 		if(class(nl.gradient)!="formula" | length(nl.gradient)==3) stop("'nl.gradient' must be a formula like, for ex., ~f0(a1, x1, a2, x2). f0 giving the gradient.")
 	} else {
-		isGradient=FALSE
+		isGradient = FALSE
 	}
 
 	if(!is.null(d.hessian)){
-		hessianArgs=list(d=d.hessian)
+		hessianArgs = list(d=d.hessian)
 	} else hessianArgs = NULL
 	assign("hessianArgs", hessianArgs, env)
 
@@ -589,9 +717,12 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	#
 
 	offset.value = 0
-	if(!missing(offset) && !class(offset) == "formula"){
-		stop("Argument 'offset' must be a formula (e.g. ~ 1+x^2).")
-	} else if(!missing(offset)){
+	if(!missing(offset) && !is.null(offset)){
+
+		# control
+		if(!class(offset) == "formula"){
+			stop("Argument 'offset' must be a formula (e.g. ~ 1+x^2).")
+		}
 
 		if(length(offset) != 2){
 			stop("Argument 'offset' must be a formula of the type (e.g.): ~ 1+x^2.")
@@ -636,7 +767,10 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 
 	# Initial checks are done
-	nonlinear.params <- names(start) #=> in the order the user wants
+	nonlinear.params <- names(NL.start) #=> in the order the user wants
+
+	# starting values of all parameters (initialized with the NL ones):
+	start = NL.start
 
 	# control for the linear start => we can provide coefficients
 	# from past estimations. Coefficients that are not provided are set
@@ -667,31 +801,25 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	assign("nobs", length(lhs), env)
 	assign(".lhs", lhs, env)
 	assign(".isMulticore", isMulticore, env)
+	assign(".verbose", verbose, env)
 
 	if(missing(theta.init)){
 		theta.init = NULL
 	} else {
-		if(!is.numeric(theta.init) || length(theta.init)!=1 || theta.init<=0) stop("the argument 'theta.init' must be a strictly positive scalar.")
+		if(!is.null(theta.init) && (!is.numeric(theta.init) || length(theta.init)!=1 || theta.init<=0)){
+			stop("the argument 'theta.init' must be a strictly positive scalar.")
+		}
 	}
 
 	model0 <- get_model_null(env, theta.init)
 	theta.init = model0$theta
 
 	# For the negative binomial:
-	if(family=="negbin"){
+	if(family == "negbin"){
 		params = c(params, ".theta")
 		start = c(start, theta.init)
 		names(start) = params
-		upper = c(upper, Inf)
-		lower = c(lower, 1e-3)
-		# DEPREC:
-		# 		theta = 1 # no matter the init, its handled in the function getting theta
-		# 		assign(".theta", theta, env)
-	} else if(family=="tobit"){
-		params = c(params, ".sigma")
-		start = c(start, 1)
-		names(start) = params
-		upper = c(upper, Inf)
+		upper = c(upper, 10000)
 		lower = c(lower, 1e-3)
 	}
 
@@ -736,7 +864,18 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		assign(".tableCluster", obs_per_cluster_all, env)
 
 		# the saved dummies
-		if(useExp_clusterCoef){
+		if(!is.null(dots$clusterStart)){
+			# information on strating values coming from update method
+			doExp = ifelse(useExp_clusterCoef, exp, I)
+
+			if(dots$clusterFromUpdate || length(obs2remove) == 0){
+				# Means it's the full cluster properly given
+				assign(".savedDummy", doExp(dots$clusterStart), env)
+			} else {
+				assign(".savedDummy", doExp(dots$clusterStart[-obs2remove]), env)
+			}
+
+		} else if(useExp_clusterCoef){
 			assign(".savedDummy", rep(1, length(lhs)), env)
 		} else {
 			assign(".savedDummy", rep(0, length(lhs)), env)
@@ -765,7 +904,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	assign("nonlinear.params", nonlinear.params, env)
 	assign("params", params, env)
 	assign("nobs", length(lhs), env)
-	assign("debug", debug, env)
+	assign(".verbose", verbose, env)
 	assign("jacobian.method", jacobian.method, env)
 	assign(".famFuns", famFuns, env)
 	assign(".family", family, env)
@@ -787,6 +926,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# OTHER
 	assign(".useAcc", useAcc, env)
 	assign(".warn_0_Hessian", FALSE, env)
+	assign(".warn_overfit_logit", FALSE, env)
 
 	# To monitor how the clusters are computed (if the problem is difficult or not)
 	assign(".firstIterCluster", 1e10, env)
@@ -803,7 +943,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	if(!isLinear && !isNonLinear && Q>0){
 		if(family == "negbin"){
-			stop("To estimate the negative binomial model, you need at least one variable. (The estimation of the model with only the clusters is to be implemented.)")
+			stop("To estimate the negative binomial model, you need at least one variable. (The estimation of the model with only the clusters is not implemented.)")
 		}
 		results = femlm_only_clusters(env, model0, cluster, dum_names)
 		results$call = match.call()
@@ -819,17 +959,51 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	# On teste les valeurs initiales pour informer l'utilisateur
 	for(var in nonlinear.params) assign(var, start[var], env)
-	mu = eval(nl.call, envir= env)
+
+	if(isNL){
+		mu = NULL
+		try(mu <- eval(nl.call, envir= env), silent = FALSE)
+		if(is.null(mu)){
+			# the non linear part could not be evaluated - ad hoc message
+			stop("The non-linear part (NL.fml) could not be evaluated. There may be a problem in 'NL.fml'.")
+		}
+
+		# the special case of the constant
+		if(length(mu) == 1){
+			mu = rep(mu, nrow(data))
+		}
+
+		# No numeric vectors
+		if(!is.vector(mu) || !is.numeric(mu)){
+			stop("Evaluation of NL.fml should return a numeric vector. (This is currently not the case)")
+		}
+
+		# Handling NL.fml errors
+		if(length(mu) != nrow(data)){
+			stop("Evaluation of NL.fml leads to ", length(mu), " observations while there are ", nrow(data), " observations in the data base. They should be the same lenght.")
+		}
+
+		if(anyNA(mu)){
+			stop("Evaluating NL.fml leads to NA values (which are forbidden). Maybe it's a problem with the starting values, maybe it's another problem.")
+		}
+
+	} else {
+		mu = eval(nl.call, envir = env)
+	}
+
 
 	# On sauvegarde les valeurs de la partie non lineaire
 	assign(".nbMaxSave", NLsave, env) # nombre maximal de valeurs a sauvegarder
 	assign(".nbSave", 1, env)  # nombre de valeurs totales sauvegardees
 	assign(".savedCoef", list(start[nonlinear.params]), env)
 	assign(".savedValue", list(mu), env)
-	if(isLinear) mu <- mu + c(linear.mat%*%unlist(start[linear.params]))
+	if(isLinear) {
+		mu <- mu + c(linear.mat%*%unlist(start[linear.params]))
+	}
 
-	if(length(mu)!=nrow(data)) stop("Wow, must be a big problem... length(lhs)!=length(eval(NL.fml)): ", nrow(data), "!=", length(mu))
-	if(anyNA(mu)) stop("Hum, must be a problem, evaluating formula returns NA.\nMaybe only these starting values can't be computed, or maybe there's another BIGGER problem.")
+	if(anyNA(mu)){
+		stop("Evaluating the left hand side leads to NA values.")
+	}
 
 	# Check of the user-defined gradient, if given
 	if(isGradient){
@@ -846,11 +1020,10 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		assign(".JC_savedValue", list(jacob.mat), env)
 	}
 
-	#Mise en place du calcul du gradient
-	gradient = NULL
-	if(opt_method=="nlminb" | optim.method%in%c("BFGS", "CG", "L-BFGS-B")) gradient = ll_glm_gradient
+	# Mise en place du calcul du gradient
+	gradient = femlm_gradient
 	hessian <- NULL
-	if(useHessian) hessian <- ll_glm_hessian
+	if(useHessian) hessian <- femlm_hessian
 
 	# GIVE PARAMS
 	if(!is.null(dots$give.params) && dots$give.params) return(list(coef=start, env=env))
@@ -860,29 +1033,16 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	#
 
 	opt <- NULL
-	if(opt_method=="nlminb"){
-# 		try(opt <- nlminb(start=start, objective=ll_glm, env=env, lower=lower, upper=upper, gradient=gradient, hessian=hessian), silent=FALSE)
-		opt <- stats::nlminb(start=start, objective=ll_glm, env=env, lower=lower, upper=upper, gradient=gradient, hessian=hessian, control=opt.control)
-	} else if(opt_method=="optim"){
-		try(opt <- stats::optim(par=start, fn=ll_glm, gr=gradient, env=env, hessian=FALSE, control=opt.control), silent=FALSE)
-		opt$objective <- opt$value
-		opt$message = opt$convergence
-	}
+	opt <- stats::nlminb(start=start, objective=femlm_ll, env=env, lower=lower, upper=upper, gradient=gradient, hessian=hessian, control=opt.control)
 
 	if(is.null(opt)){
 		stop("Could not achieve maximization.")
 	}
 
 	convStatus = TRUE
-	if(opt_method=="nlminb" && !opt$message %in% c("relative convergence (4)", "both X-convergence and relative convergence (5)")){
-		warning("The result is not reliable, the optimization did not converge.", call. = FALSE)
+	if(!opt$message %in% c("relative convergence (4)", "both X-convergence and relative convergence (5)")){
+		warning("The optimization algorithm did not converge, the results are not reliable.", call. = FALSE)
 		convStatus = FALSE
-	} else if(opt_method=="optim"){
-		if(opt$convergence!=0){
-			warning("The result is not reliable, the optimization did not converge.\nConvergence code", opt$convergence, ". See optim help page for more info.", call. = FALSE)
-			opt$message = paste0("No convergence. Status ", opt$convergence)
-			convStatus = FALSE
-		} else opt$message = "Convergence"
 	}
 
 	####
@@ -892,9 +1052,9 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	coef <- opt$par
 
 	# The Hessian
-	hessian = ll_glm_hessian(coef, env=env)
+	hessian = femlm_hessian(coef, env=env)
 	# we add the names of the non linear variables in the hessian
-	if(isNonLinear){
+	if(isNonLinear || family == "negbin"){
 		dimnames(hessian) = list(params, params)
 	}
 
@@ -966,7 +1126,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	} else {
 		se = diag(var)
 		se[se<0] = NA
-		if(anyNA(se)) warning("CAUTION: Variance needs to be 'eigenfixed'.", call. = FALSE)
+		# if(anyNA(se)) warning("CAUTION: Variance needs to be 'eigenfixed'.", call. = FALSE)
 		se = sqrt(se)
 	}
 
@@ -982,16 +1142,9 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# We add the information on the bound for the se & update the var to drop the bounded vars
 	se_format = se
 	if(any(isBounded)){
-		# se[!isBounded] = decimalFormat(se[!isBounded])
-		# se[isBounded] = boundText
 		se_format[!isBounded] = decimalFormat(se_format[!isBounded])
 		se_format[isBounded] = boundText
 	}
-
-	# coeftable <- cbind(coef, se, zvalue, pvalue)
-	# colnames(coeftable) <- c("Estimate", "Std. Error", "z value",  "Pr(>|z|)")
-	# rownames(coeftable) <- params
-	# class(coeftable) <- "coeftest"
 
 	coeftable <- data.frame("Estimate"=coef, "Std. Error"=se_format, "z value"=zvalue, "Pr(>|z|)"=pvalue, stringsAsFactors = FALSE)
 	names(coeftable) <- c("Estimate", "Std. Error", "z value",  "Pr(>|z|)")
@@ -1011,16 +1164,10 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	if(isDummy) df_k = df_k + sum(sapply(dum_all, max) - 1) + 1
 	# dummies are constrained, they don't have full dof (cause you need to take one value off for unicity)
 	pseudo_r2 <- 1 - (loglik-df_k)/(ll_null-1)
-	# pseudo_r2 <- 1 - loglik/ll_null # NON Adjusted => NO
-
-	# deprecated resids
-	# null.resids <- lhs-model0$constant
-	# new null resids
-	# null.resids <- lhs-mean(lhs)
 
 	# Calcul residus
 	expected.predictor = famFuns$expected.predictor(mu, exp_mu, env)
-	resids = lhs - expected.predictor
+	residuals = lhs - expected.predictor
 
 	# calcul squared corr
 	if(sd(expected.predictor) == 0){
@@ -1029,18 +1176,28 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		sq.cor = stats::cor(lhs, expected.predictor)**2
 	}
 
-	# calcul r2 naif
-	naive.r2 = 1 - sum(resids**2)/sum((lhs-mean(lhs))**2)
-
 	# The scores
-	scores = ll_glm_scores(coef, env)
+	scores = femlm_scores(coef, env)
 	if(isNonLinear){
 		# we add the names of the non linear params in the score
 		colnames(scores) = params
 	}
 
 
-	res <- list(coef=coef, coeftable=coeftable, loglik=loglik, iterations=opt$iterations, n=length(lhs), k=df_k, call=call, fml=fml, NL.fml=NL.fml, ll_null=ll_null, pseudo_r2=pseudo_r2, naive.r2=naive.r2, message=opt$message, convStatus=convStatus, sq.cor=sq.cor, expected.predictor=expected.predictor, hessian=hessian, cov.unscaled=var, bounds=bounds, isBounded=isBounded, se=se, scores=scores, family=family, resids=resids)
+	res <- list(coefficients=coef, coeftable=coeftable, loglik=loglik, iterations=opt$iterations, n=length(lhs), nparams=df_k, call=call, fml=fml, ll_null=ll_null, pseudo_r2=pseudo_r2, message=opt$message, convStatus=convStatus, sq.cor=sq.cor, fitted.values=expected.predictor, hessian=hessian, cov.unscaled=var, se=se, scores=scores, family=family, residuals=residuals)
+
+	# Other optional elements
+	if(!missing(offset)){
+		res$offset = offset
+	}
+
+	if(!is.null(NL.fml)){
+		res$NL.fml = NL.fml
+		if(!is.null(bounds)){
+			res$bounds = bounds
+			res$isBounded = isBounded
+		}
+	}
 
 	# Dummies
 	if(isDummy){
@@ -1054,7 +1211,6 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 		id_dummies = list()
 		for(i in 1:length(cluster)){
-			# id_dummies[[cluster[i]]] = factor(dum_all[[i]], labels=dum_names[[i]])
 			dum = dum_all[[i]]
 			attr(dum, "clust_names") = as.character(dum_names[[i]])
 			id_dummies[[cluster[i]]] = dum
@@ -1073,11 +1229,16 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	if(family == "negbin"){
 		theta = coef[".theta"]
 		res$theta = theta
+
+		if(theta > 1000){
+			warning("Very high value of theta (", theta, "). There is no sign of overdisperion, you may consider a Poisson model.")
+		}
+
 	}
 
 	class(res) <- "femlm"
 
-	if(debug){
+	if(verbose > 0){
 		cat("\n")
 	}
 
@@ -1147,7 +1308,7 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 
 	# Calcul residus
 	expected.predictor = famFuns$expected.predictor(mu, exp_mu, env)
-	resids = lhs - expected.predictor
+	residuals = lhs - expected.predictor
 
 	# calcul squared corr
 	if(sd(expected.predictor) == 0){
@@ -1157,9 +1318,9 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 	}
 
 	# calcul r2 naif
-	naive.r2 = 1 - sum(resids**2) / sum((lhs - mean(lhs))**2)
+	naive.r2 = 1 - sum(residuals**2) / sum((lhs - mean(lhs))**2)
 
-	res = list(loglik=loglik, n=length(lhs), k=df_k, call=call, ll_null=ll_null, pseudo_r2=pseudo_r2, naive.r2=naive.r2, sq.cor=sq.cor, expected.predictor=expected.predictor, family=family)
+	res = list(loglik=loglik, n=length(lhs), nparams=df_k, call=call, ll_null=ll_null, pseudo_r2=pseudo_r2, naive.r2=naive.r2, sq.cor=sq.cor, expected.predictor=expected.predictor, residuals=residuals, family=family)
 	#
 	# Information on the dummies
 
@@ -1192,11 +1353,11 @@ femlm_only_clusters <- function(env, model0, cluster, dum_names){
 	return(res)
 }
 
-ll_glm_hessian <- function(coef, env){
+femlm_hessian <- function(coef, env){
 	# Computes the hessian
-	# cat("in Hessian:", as.vector(coef), "\n")
-	debug = get("debug", env)
-	if(debug) ptm = proc.time()
+
+	verbose = get(".verbose", env)
+	if(verbose >= 2) ptm = proc.time()
 	params <- get("params", env)
 	names(coef) <- params
 	nonlinear.params <- get("nonlinear.params", env)
@@ -1250,10 +1411,6 @@ ll_glm_hessian <- function(coef, env){
 		h.theta = famFuns$hess_theta_part(theta, y, mu, exp_mu, dxi_dother, ll_dx_dother, ll_d2, env)
 		hessVar = rbind(hessVar, c(h.theta.L, h.theta))
 
-# 		theta = attr(mu, ".theta")
-# 		print(theta)
-		#Jacob.mat est la derivee totale de mu vav de beta (ie avec les dummies)
-# 		hessVar = hessVar + famFuns$hess_theta_part(theta, jacob.mat, y, mu)
 	} else if(family=="tobit"){
 		sigma = coef[".sigma"]
 		h.sigma.L = famFuns$hess.sigmaL(sigma, jacob.mat, y, mu, dxi_dbeta, ll_d2)
@@ -1262,11 +1419,8 @@ ll_glm_hessian <- function(coef, env){
 		hessVar = rbind(hessVar, c(h.sigma.L, h.sigma))
 	}
 
-	# iter = get("iter", env)
-	# if(iter == 6) browser()
-
 	if(anyNA(hessVar)){
-		stop("NaN in the Hessian, can be due to a possible overfitting problem.\nIf so you can change the 'rel.tol' of the nlminb algorithm with the argument 'opt.control'.")
+		stop("NaN in the Hessian, can be due to a possible overfitting problem.\nIf so, to have an idea of what's going on, you can reduce the value of the argument 'rel.tol' of the nlminb algorithm with the argument 'opt.control'.")
 	}
 
 	warn_0_Hessian = get(".warn_0_Hessian", env)
@@ -1277,12 +1431,11 @@ ll_glm_hessian <- function(coef, env){
 		assign(".warn_0_Hessian", TRUE, env)
 	}
 
-	if(debug) cat("\nHessian: ", (proc.time()-ptm)[3], "s")
-	# print(hessVar) ; print(class(hessVar))
+	if(verbose >= 2) cat("\nHessian: ", (proc.time()-ptm)[3], "s")
 	- hessVar
 }
 
-ll_glm_gradient <- function(coef, env){
+femlm_gradient <- function(coef, env){
 	# cat("gradient:\n") ; print(as.vector(coef))
 
 	params = get("params", env)
@@ -1319,7 +1472,7 @@ ll_glm_gradient <- function(coef, env){
 	return(-unlist(res[params]))
 }
 
-ll_glm_scores <- function(coef, env){
+femlm_scores <- function(coef, env){
 	# Computes the scores (Jacobian)
 	params = get("params", env)
 	names(coef) <- params
@@ -1337,37 +1490,28 @@ ll_glm_scores <- function(coef, env){
 		theta = coef[".theta"]
 		score.theta = famFuns$scores.theta(theta, y, mu, exp_mu, env)
 		scores = cbind(scores, score.theta)
-		# DEPREC (theta-conditionned)
-# 		isDummy = get("isDummy", env)
-# 		if(isDummy){
-# 			ll_d2 = famFuns$ll_d2(y, mu, coef)
-# 			dxi_dbeta = deriv_xi(jacob.mat, ll_d2, env, coef)
-# 			jacob.mat = jacob.mat + dxi_dbeta
-# 		}
-# 		theta = attr(mu, ".theta")
-# 		scores = scores + famFuns$scores_theta_part(theta, jacob.mat, y, mu)
 	}
 
 	return(scores)
 }
 
-ll_glm <- function(coef, env){
+femlm_ll <- function(coef, env){
 	# Log likelihood
-	# cat("LL:\n") ; print(coef)
+
 	# misc funs
 	iter = get(".iter", env) + 1
 	assign(".iter", iter, env)
 	pastLL = get(".pastLL", env)
-	debug = get("debug", env)
+	verbose = get(".verbose", env)
 	ptm = proc.time()
-	if(debug) cat("\nIter", iter, "- coef:", sprintf("%1.1e", as.vector(coef)), "\n")
+	if(verbose >= 1) cat("\nIter", iter, "- coef:", sprintf("%1.1e", as.vector(coef)), "\n")
 
 	# computing the LL
 	famFuns = get(".famFuns", env)
 	family = get(".family", env)
 	y <- get(".lhs", env)
 
-	if(any(is.na(coef))) stop("Divergence... (some coefs are NA)\nTry option debug=TRUE to see the problem.")
+	if(any(is.na(coef))) stop("Divergence... (some coefs are NA)\nTry option verbose=2 to figure out the problem.")
 
 	mu_both = get_mu(coef, env)
 	mu = mu_both$mu
@@ -1380,31 +1524,9 @@ ll_glm <- function(coef, env){
 	assign(".evolutionLL", evolutionLL, env)
 	assign(".pastLL", ll, env)
 
-	if(debug) cat("LL =", ll, " (", (proc.time()-ptm)[3], " s)\tevol = ", evolutionLL, sep = "")
+	if(verbose >= 1) cat("LL =", ll, " (", (proc.time()-ptm)[3], " s)\tevol = ", evolutionLL, sep = "")
 	if(ll==(-Inf)) return(1e308)
 	return(-ll) # je retourne -ll car la fonction d'optimisation minimise
-}
-
-ll_glm_TEST_score <- function(coef, env){
-	# Used to compute the scores numerically
-	# Not user oriented
-
-	debug <- get("debug", env)
-	if(debug) print(coef)
-
-	# computing the LL
-	famFuns = get(".famFuns", env)
-	y <- get(".lhs", env)
-
-	if(any(is.na(coef))) stop("Divergence... (some coefs are NA)\nTry option debug=TRUE to see the problem.")
-
-	mu_both = get_mu(coef, env)
-	mu = mu_both$mu
-	exp_mu = mu_both$exp_mu
-
-	ll = famFuns$ll_TEST_score(y, mu, env, coef)
-
-	return(ll)
 }
 
 evalNLpart = function(coef, env){
@@ -1515,6 +1637,28 @@ get_mu = function(coef, env, final = FALSE){
 	} else mu_L = 0
 
 	mu_noDum = muNL + mu_L + offset.value
+
+	# Detection of overfitting issues with the logit model:
+	if(family == "logit"){
+		warn_overfit_logit = get(".warn_overfit_logit", env)
+
+		if(!warn_overfit_logit && max(abs(mu_noDum)) >= 300){
+			# overfitting => now finding the precise cause
+			# browser()
+			if(!isNL || (isLinear && max(abs(mu_L)) >= 100)){
+				# we create the matrix with the coefficients to find out the guy
+				mat_L_coef = linear.mat * matrix(coef[linear.params], nrow(linear.mat), 2, byrow = TRUE)
+				max_var = apply(abs(mat_L_coef), 2, max)
+				best_suspect = linear.params[which.max(max_var)]
+				warning("in femlm(): Likely presence of an overfitting problem. One suspect variable is: ", best_suspect, ".", immediate. = TRUE, call. = FALSE)
+			} else {
+				warning("in femlm(): Likely presence of an overfitting problem due to the non-linear part.", immediate. = TRUE, call. = FALSE)
+			}
+
+			assign(".warn_overfit_logit", TRUE, env)
+		}
+	}
+
 
 	# we create the exp of mu => used for later functions
 	exp_mu_noDum = NULL
@@ -1682,7 +1826,7 @@ get_model_null <- function(env, theta.init){
 	family = get(".family", env)
 	N = get("nobs", env)
 	y = get(".lhs", env)
-	debug = get("debug", env)
+	verbose = get(".verbose", env)
 	ptm = proc.time()
 
 	# one of the elements to be returned
@@ -1744,7 +1888,7 @@ get_model_null <- function(env, theta.init){
 		loglik = -opt$objective
 		theta = opt$par
 
-		if(debug) cat("Null model in", (proc.time()-ptm)[3], "s.\n")
+		if(verbose >= 2) cat("Null model in", (proc.time()-ptm)[3], "s.\n")
 	}
 
 	return(list(loglik=loglik, constant=constant, theta = theta))
@@ -1779,8 +1923,8 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 	mu_dummies = get(".savedDummy", env)
 	family = get(".family", env)
 	eps.cluster = get(".eps.cluster", env)
-	debug = get("debug", env)
-	if(debug) ptm = proc.time()
+	verbose = get(".verbose", env)
+	if(verbose >= 2) ptm = proc.time()
 
 	# Handling precision
 	iterCluster = get(".iterCluster", env)
@@ -1788,8 +1932,8 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 	iter = get(".iter", env)
 	iterLastPrecisionIncrease = get(".iterLastPrecisionIncrease", env)
 	nobs = get("nobs", env)
-	if(!final && eps.cluster > .Machine$double.eps*1000 && iterCluster==1 && evolutionLL/nobs < 1e-10 && (iter - iterLastPrecisionIncrease) >= 2){
-		if(debug) cat("\nPrecision increased")
+	if(!final && eps.cluster > .Machine$double.eps*1000 && iterCluster==1 && evolutionLL/nobs < 1e-10 && (iter - iterLastPrecisionIncrease) >= 3){
+		if(verbose >= 2) cat("\nPrecision increased")
 		eps.cluster = eps.cluster/10
 		assign(".eps.cluster", eps.cluster, env)
 		assign(".iterLastPrecisionIncrease", iter, env)
@@ -2151,7 +2295,7 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 	# we save the dummy:
 	assign(".savedDummy", mu_dummies, env)
 
-	if(debug) cat("\nDummies:  ", (proc.time()-ptm)[3], "s (iter:", iter, ")\t", sep = "")
+	if(verbose >= 2) cat("\nDummies:  ", (proc.time()-ptm)[3], "s (iter:", iter, ")\t", sep = "")
 
 	mu_dummies
 }
@@ -2285,7 +2429,7 @@ dichoNR_Cpp = function(dum, mu, env, coef, sum_y, orderCluster, tableCluster){
 									 epsDicho=eps.NR, lhs=y, mu, borne_inf,
 									 borne_sup, orderCluster, tableCluster)
 	} else {
-		res = cpppar_DichotomyNR(K = nb_cases, family = family_nb, theta,
+		res = cpppar_DichotomyNR(FENmlm_CORES, K = nb_cases, family = family_nb, theta,
 												  epsDicho=eps.NR, lhs=y, mu, borne_inf,
 												  borne_sup, orderCluster, tableCluster)
 	}
@@ -2346,7 +2490,7 @@ deriv_xi = function(jacob.mat, ll_d2, env, coef){
 			tableCluster_vect = unlist(get(".tableCluster", env))
 			orderCluster_mat = do.call("cbind", get(".orderCluster", env))
 
-			dxi_dbeta <- cpppar_PartialDerivative(Q, N, K, eps.deriv, ll_d2, jacob.mat, init, orderCluster_mat, tableCluster_vect, nbCluster)
+			dxi_dbeta <- cpppar_PartialDerivative(FENmlm_CORES, Q, N, K, eps.deriv, ll_d2, jacob.mat, init, orderCluster_mat, tableCluster_vect, nbCluster)
 		} else {
 			if(family == "gaussian"){
 				dxi_dbeta <- RcppPartialDerivative_gaussian(Q, N, K, epsDeriv = eps.deriv, jacob.mat, init, dumMat_cpp, nbCluster)
@@ -2562,7 +2706,7 @@ rpar_exp = function(x, env){
 		return(exp(x))
 	} else {
 		# parallelized one
-		return(cpppar_exp(x))
+		return(cpppar_exp(x, FENmlm_CORES))
 	}
 
 }
@@ -2576,7 +2720,7 @@ rpar_log = function(x, env){
 		return(log(x))
 	} else {
 		# parallelized one
-		return(cpppar_log(x))
+		return(cpppar_log(x, FENmlm_CORES))
 	}
 
 }
@@ -2590,7 +2734,7 @@ rpar_lgamma = function(x, env){
 		return(cpp_lgamma(x))
 	} else {
 		# parallelized one
-		return(cpppar_lgamma(x))
+		return(cpppar_lgamma(x, FENmlm_CORES))
 	}
 
 }
@@ -2603,7 +2747,7 @@ rpar_digamma = function(x, env){
 		return(digamma(x))
 	} else {
 		# parallelized one
-		return(cpppar_digamma(x))
+		return(cpppar_digamma(x, FENmlm_CORES))
 	}
 
 }
@@ -2616,17 +2760,29 @@ rpar_trigamma = function(x, env){
 		return(trigamma(x))
 	} else {
 		# parallelized one
-		return(cpppar_trigamma(x))
+		return(cpppar_trigamma(x, FENmlm_CORES))
 	}
 
 }
 
+rpar_log_a_exp = function(a, mu, exp_mu, env){
+	# compute log_a_exp in a fast way
+	isMulticore = get(".isMulticore", env)
+
+	if(!isMulticore){
+		# cpp is faster
+		return(cpp_log_a_exp(a, mu, exp_mu))
+	} else {
+		# parallelized one
+		return(cpppar_log_a_exp(FENmlm_CORES, a, mu, exp_mu))
+	}
+}
 
 rpar_tapply_vsum = function(K, x, dum, obsCluster, tableCluster, env){
 	isMulticore = get(".isMulticore", env)
 
 	if(isMulticore){
-		res <- cpppar_tapply_vsum(K, x, obsCluster, tableCluster)
+		res <- cpppar_tapply_vsum(FENmlm_CORES, K, x, obsCluster, tableCluster)
 	} else {
 		res <- cpp_tapply_vsum(K, x, dum)
 	}

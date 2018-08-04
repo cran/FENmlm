@@ -93,43 +93,39 @@ new_RcppDichotomyNR <- function(N, K, family, theta, epsDicho, lhs, exp_mu, born
     .Call(`_FENmlm_new_RcppDichotomyNR`, N, K, family, theta, epsDicho, lhs, exp_mu, borne_inf, borne_sup, obsCluster, tableCluster)
 }
 
-set_omp <- function(n_cpu) {
-    invisible(.Call(`_FENmlm_set_omp`, n_cpu))
+cpppar_DichotomyNR <- function(nthreads, K, family, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster, tableCluster) {
+    .Call(`_FENmlm_cpppar_DichotomyNR`, nthreads, K, family, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster, tableCluster)
 }
 
-cpppar_DichotomyNR <- function(K, family, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster, tableCluster) {
-    .Call(`_FENmlm_cpppar_DichotomyNR`, K, family, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster, tableCluster)
+cpppar_tapply_vsum <- function(nthreads, K, x, obsCluster, tableCluster) {
+    .Call(`_FENmlm_cpppar_tapply_vsum`, nthreads, K, x, obsCluster, tableCluster)
 }
 
-cpppar_tapply_vsum <- function(K, x, obsCluster, tableCluster) {
-    .Call(`_FENmlm_cpppar_tapply_vsum`, K, x, obsCluster, tableCluster)
+cpppar_PartialDerivative <- function(nthreads, Q, N, V, epsDeriv, ll_d2, F, init, obsCluster, tableCluster, nbCluster) {
+    .Call(`_FENmlm_cpppar_PartialDerivative`, nthreads, Q, N, V, epsDeriv, ll_d2, F, init, obsCluster, tableCluster, nbCluster)
 }
 
-cpppar_PartialDerivative <- function(Q, N, V, epsDeriv, ll_d2, F, init, obsCluster, tableCluster, nbCluster) {
-    .Call(`_FENmlm_cpppar_PartialDerivative`, Q, N, V, epsDeriv, ll_d2, F, init, obsCluster, tableCluster, nbCluster)
+cpppar_exp <- function(x, nthreads) {
+    .Call(`_FENmlm_cpppar_exp`, x, nthreads)
 }
 
-cpppar_exp <- function(x) {
-    .Call(`_FENmlm_cpppar_exp`, x)
+cpppar_log <- function(x, nthreads) {
+    .Call(`_FENmlm_cpppar_log`, x, nthreads)
 }
 
-cpppar_log <- function(x) {
-    .Call(`_FENmlm_cpppar_log`, x)
+cpppar_log_a_exp <- function(nthreads, a, mu, exp_mu) {
+    .Call(`_FENmlm_cpppar_log_a_exp`, nthreads, a, mu, exp_mu)
 }
 
-cpppar_log_a_exp <- function(a, mu, exp_mu) {
-    .Call(`_FENmlm_cpppar_log_a_exp`, a, mu, exp_mu)
+cpppar_lgamma <- function(x, nthreads) {
+    .Call(`_FENmlm_cpppar_lgamma`, x, nthreads)
 }
 
-cpppar_lgamma <- function(x) {
-    .Call(`_FENmlm_cpppar_lgamma`, x)
+cpppar_digamma <- function(x, nthreads) {
+    .Call(`_FENmlm_cpppar_digamma`, x, nthreads)
 }
 
-cpppar_digamma <- function(x) {
-    .Call(`_FENmlm_cpppar_digamma`, x)
-}
-
-cpppar_trigamma <- function(x) {
-    .Call(`_FENmlm_cpppar_trigamma`, x)
+cpppar_trigamma <- function(x, nthreads) {
+    .Call(`_FENmlm_cpppar_trigamma`, x, nthreads)
 }
 

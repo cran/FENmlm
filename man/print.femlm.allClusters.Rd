@@ -35,3 +35,9 @@ fe_trade
 
 
 }
+\seealso{
+\code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{getFE}}, \code{\link[FENmlm]{plot.femlm.allClusters}}.
+}
+\author{
+Laurent Berge
+}

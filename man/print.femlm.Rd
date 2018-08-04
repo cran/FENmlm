@@ -9,58 +9,29 @@
 \arguments{
 \item{x}{A femlm object. Obtained using \code{\link[FENmlm]{femlm}}.}
 
-\item{...}{Other arguments to be passed to \code{\link[FENmlm]{summary.femlm}}.}
+\item{...}{Other arguments to be passed to \code{\link[FENmlm]{vcov.femlm}}.}
 }
 \description{
 This function is very similar to usual \code{summary} functions as it provides the table of coefficients along with other information on the fit of the estimation.
 }
 \examples{
 
-# The data
-n = 100
-x = rnorm(n, 1, 5)**2
-y = rnorm(n, -1, 5)**2
-z = rpois(n, x*y) + rpois(n, 10)
-base = data.frame(x, y, z)
+# Load trade data
+data(trade)
 
-# Results of the Poisson..
-est_poisson = femlm(z~log(x)+log(y), base, family="poisson")
-# .. and of the Negative Binomial
-est_negbin = femlm(z~log(x)+log(y), base, family="negbin")
+# We estimate the effect of distance on trade => we account for 3 cluster effects
+est_pois = femlm(Euros ~ log(dist_km)|Origin+Destination+Product, trade)
 
-# Displaying the results
-print(est_poisson)
-print(est_negbin)
+# displaying the results
+print(est_pois)
 
-# Changing the way the standard errors are computed:
-summary(est_poisson, se="white") # similar to print(est_poisson, se="white")
-summary(est_negbin, se="white")
+# with other type of standard error:
+print(est_pois, se = "c")
 
-#
-# Now with fixed-effects
-#
-
-# Bilateral network
-nb = 20
-n = nb**2
-k = nb
-id1 = factor(rep(1:k, each=n/k))
-id2 = factor(rep(1:(n/k), times=k))
-x = rnorm(n, 1, 5)**2
-y = rnorm(n, -1, 5)**2
-z = rpois(n, x*y+rnorm(n, sd = 3)**2)
-base = data.frame(x, y, z, id1, id2)
-
-# We want to use the ID's of each observation as a variable: we use the option cluster
-est_poisson = femlm(z~log(x)+log(y), base, family="poisson", cluster=c("id1","id2"))
-# Displaying the results
-est_poisson
-# now with twoway clustered santard-errors
-summary(est_poisson, "twoway")
 
 }
 \seealso{
-See also the main estimation functions \code{\link[FENmlm]{femlm}} and \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
+See also the main estimation functions \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
 }
 \author{
 Laurent Berge

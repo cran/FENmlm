@@ -6,17 +6,17 @@
 \usage{
 res2tex(..., se = c("standard", "white", "cluster", "twoway", "threeway",
   "fourway"), cluster, digits = 4, pseudo = TRUE, title, sdBelow = TRUE,
-  drop, order, dict, file, append = TRUE, convergence = FALSE,
-  signifCode = c(`***` = 0.01, `**` = 0.05, `*` = 0.1), label, aic = FALSE,
-  sqCor = FALSE, subtitles, showClusterSize = FALSE, bic = TRUE,
-  loglik = TRUE, yesNoCluster = c("Yes", "No"), keepFactors = FALSE)
+  drop, order, dict, file, append = TRUE, convergence, signifCode = c(`***`
+  = 0.01, `**` = 0.05, `*` = 0.1), label, aic = FALSE, sqCor = FALSE,
+  subtitles, showClusterSize = FALSE, bic = TRUE, loglik = TRUE,
+  yesNoCluster = c("Yes", "No"), keepFactors = FALSE, family)
 }
 \arguments{
 \item{...}{Used to capture different \code{\link[FENmlm]{femlm}} objects. Note that any other type of element is discarded. Note that you can give a list of \code{\link[FENmlm]{femlm}} objects.}
 
-\item{se}{Character scalar. Which kind of standard error should be prompted: \dQuote{standard} (default), \dQuote{White}, \dQuote{cluster}, \dQuote{twoway}, \dQuote{threeway} or \dQuote{fourway}?}
+\item{se}{Character scalar. Which kind of standard error should be computed: \dQuote{standard} (default), \dQuote{White}, \dQuote{cluster}, \dQuote{twoway}, \dQuote{threeway} or \dQuote{fourway}?}
 
-\item{cluster}{A list of vectors. Used only if \code{se="cluster"}, \dQuote{se=twoway}, \dQuote{se=threeway} or \dQuote{se=fourway}. The vectors should give the cluster of each observation. Note that if the estimation was run using \code{cluster}, the standard error is automatically clustered along the cluster given in \code{\link[FENmlm]{femlm}}. For one-way clustering, this argument can directly be a vector (instead of a list).}
+\item{cluster}{A list of vectors. Used only if \code{se="cluster"}, \dQuote{se=twoway}, \dQuote{se=threeway} or \dQuote{se=fourway}. The vectors should give the cluster of each observation. Note that if the estimation was run using \code{cluster}, the standard error is automatically clustered along the cluster given in \code{\link[FENmlm]{femlm}}. For one-way clustering, this argument can directly be a vector (instead of a list). If the estimation has been done with cluster variables, you can give a character vector of the dimensions over which to cluster the SE.}
 
 \item{digits}{Integer. The number of digits to be displayed.}
 
@@ -36,7 +36,7 @@ res2tex(..., se = c("standard", "white", "cluster", "twoway", "threeway",
 
 \item{append}{Logical, default is \code{TRUE}. Only used if option \code{file} is used. Should the Latex table be appended to the existing file?}
 
-\item{convergence}{Logical, default is \code{TRUE}. Should the convergence state of the algorithm be displayed?}
+\item{convergence}{Logical, default is missing. Should the convergence state of the algorithm be displayed? By default, convergence information is displayed if at least one model did not converge.}
 
 \item{signifCode}{Named numeric vector, used to provide the significance codes with respect to the p-value of the coefficients. Default is \code{c("***"=0.01, "**"=0.05, "*"=0.10)}.}
 
@@ -57,6 +57,8 @@ res2tex(..., se = c("standard", "white", "cluster", "twoway", "threeway",
 \item{yesNoCluster}{A character vector of lenght 2. Default is \code{c("Yes", "No")}. This is the message displayed when a given cluster is (or is not) included in a regression.}
 
 \item{keepFactors}{Logical, default is \code{FALSE}. By default, when factor variables are contained in the estimation, they are printed as if they were a cluster variable. Put to \code{TRUE} to display all the coefficients of the factor variables.}
+
+\item{family}{A logical, default is missing. Whether to display the families of the models. By default this line is displayed when at least two models are from different families.}
 }
 \value{
 There is nothing returned, the result is only displayed on the console or saved in a file.
@@ -66,23 +68,18 @@ This function aggregates the results of multiple estimations and display them in
 }
 \examples{
 
-n = 100
-x = rnorm(n, 1, 5)**2
-y = rnorm(n, -1, 5)**2
-z = rpois(n, x*y) + rpois(n, 2)
-base = data.frame(x, y, z)
+# two fitted models with different expl. variables:
+res1 = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+            Petal.Width | Species, iris)
+res2 = femlm(Sepal.Length ~ Petal.Width | Species, iris)
 
-# Results of the Poisson..
-est_poisson = femlm(z~log(x)+log(y), base, family="poisson")
-# .. and of the Negative Binomial
-est_negbin = femlm(z~log(x)+log(y), base, family="negbin")
-
-# We export the two results in one Latex table:
-res2tex(est_poisson, est_negbin)
+# We export the three results in one Latex table,
+# with clustered standard-errors:
+res2tex(res1, res2, se = "cluster")
 
 # Changing the names & significance codes
-res2tex(est_poisson, est_negbin, dict = c("log(x)" = "First variable (ln)"),
-        signifCode = c("a" = 0.001, "$$" = 0.1))
+res2tex(res1, res2, dict = c(Sepal.Length = "The sepal length", Sepal.Width = "SW"),
+        signifCode = c("**" = 0.1, "*" = 0.2, "n.s."=1))
 
 }
 \seealso{

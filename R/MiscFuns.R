@@ -1,11 +1,6 @@
 
 
-# Checks: getFE (verifier que tout marche bien) // summary => do.unclass (idem)
 
-# URGENT: add possibility to compute or not the SE for lower/upper bounded coef
-
-# ADD other diagnostics (like odd-ratio,  APE,  PAE for probit/logit + other R2)
-# ADD model0 with dummies
 
 #' A print facility for \code{femlm} objects. It can compute different types of standard errors.
 #'
@@ -14,64 +9,36 @@
 #' @method print femlm
 #'
 #' @param x A femlm object. Obtained using \code{\link[FENmlm]{femlm}}.
-#' @param ... Other arguments to be passed to \code{\link[FENmlm]{summary.femlm}}.
+#' @param ... Other arguments to be passed to \code{\link[FENmlm]{vcov.femlm}}.
 #'
 #' @seealso
-#' See also the main estimation functions \code{\link[FENmlm]{femlm}} and \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
+#' See also the main estimation functions \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
 #'
 #' @author
 #' Laurent Berge
 #'
 #' @examples
 #'
-#' # The data
-#' n = 100
-#' x = rnorm(n, 1, 5)**2
-#' y = rnorm(n, -1, 5)**2
-#' z = rpois(n, x*y) + rpois(n, 10)
-#' base = data.frame(x, y, z)
+#' # Load trade data
+#' data(trade)
 #'
-#' # Results of the Poisson..
-#' est_poisson = femlm(z~log(x)+log(y), base, family="poisson")
-#' # .. and of the Negative Binomial
-#' est_negbin = femlm(z~log(x)+log(y), base, family="negbin")
+#' # We estimate the effect of distance on trade => we account for 3 cluster effects
+#' est_pois = femlm(Euros ~ log(dist_km)|Origin+Destination+Product, trade)
 #'
-#' # Displaying the results
-#' print(est_poisson)
-#' print(est_negbin)
+#' # displaying the results
+#' print(est_pois)
 #'
-#' # Changing the way the standard errors are computed:
-#' summary(est_poisson, se="white") # similar to print(est_poisson, se="white")
-#' summary(est_negbin, se="white")
+#' # with other type of standard error:
+#' print(est_pois, se = "c")
 #'
-#' #
-#' # Now with fixed-effects
-#' #
 #'
-#' # Bilateral network
-#' nb = 20
-#' n = nb**2
-#' k = nb
-#' id1 = factor(rep(1:k, each=n/k))
-#' id2 = factor(rep(1:(n/k), times=k))
-#' x = rnorm(n, 1, 5)**2
-#' y = rnorm(n, -1, 5)**2
-#' z = rpois(n, x*y+rnorm(n, sd = 3)**2)
-#' base = data.frame(x, y, z, id1, id2)
-#'
-#' # We want to use the ID's of each observation as a variable: we use the option cluster
-#' est_poisson = femlm(z~log(x)+log(y), base, family="poisson", cluster=c("id1","id2"))
-#' # Displaying the results
-#' est_poisson
-#' # now with twoway clustered santard-errors
-#' summary(est_poisson, "twoway")
-#'
-print.femlm <- print.feNmlm <- function(x, ...){
-	#Ajouter le sandwich estimator des variances dans le print
+print.femlm <- function(x, ...){
 
 	x = summary(x, fromPrint = TRUE, ...)
 
-	# if(!is.null(x$clusterNames)) cat("Standard errors clustered by \"", x$clusterNames[1], "\"\n", sep="")
+	if(!x$convStatus){
+		warning("The optimization algorithm did not converge, the results are not reliable.")
+	}
 
 	coeftable = x$coeftable
 	# The type of SE
@@ -79,7 +46,7 @@ print.femlm <- print.feNmlm <- function(x, ...){
 	family_format = c(poisson="Poisson", negbin="Negative Binomial", logit="Logit", gaussian="Gaussian")
 
 	msg = ifelse(is.null(x$call$NL.fml), "", "Non-linear ")
-	cat(msg, "ML estimation, family = ", family_format[x$family], "\n", sep="")
+	cat(msg, "ML estimation, family = ", family_format[x$family], ", Dep. Var.: ", as.character(x$fml)[[2]], "\n", sep="")
 	cat("Observations:", addCommas(x$n), "\n")
 	if(!is.null(x$clusterSize)) cat("Cluster sizes: ", paste0(x$clusterNames, ": ", x$clusterSize, collapse=",  "), "\n", sep="")
 
@@ -90,51 +57,39 @@ print.femlm <- print.feNmlm <- function(x, ...){
 		# The matrix of coefficients
 		if(x$family=="negbin"){
 			if(nrow(coeftable) == 2){
-				# new_table = matrix(coeftable[1, ], 1, 4)
-				# colnames(new_table) = colnames(coeftable)
-				# rownames(new_table) = rownames(coeftable)[1]
-				# class(new_table) = "coeftest"
 				new_table = coeftable[1, , FALSE]
 			} else {
 				new_table = coeftable[-nrow(coeftable), ]
 			}
 
 			myPrintCoefTable(new_table)
-			# stats::printCoefmat(new_table)
-			cat("\nDispersion parameter: theta =", coeftable[".theta", 1], "\n")
-		} else if(x$family=="tobit"){
-			if(nrow(coeftable) == 2){
-				# new_table = matrix(coeftable[1, ], 1, 4)
-				# colnames(new_table) = colnames(coeftable)
-				# rownames(new_table) = rownames(coeftable)[1]
-				# class(new_table) = "coeftest"
-				new_table = coeftable[1, , FALSE]
-			} else {
-				new_table = coeftable[-nrow(coeftable), ]
-			}
-
-			# stats::printCoefmat(new_table)
-			myPrintCoefTable(new_table)
-			cat("\nSigma =", coeftable[".sigma", 1], "\n")
+			theta = coeftable[".theta", 1]
+			noDispInfo = ifelse(theta > 1000, "(theta >> 0, no sign of overdispersion, you may consider a Poisson model)", "")
+			cat("Over-dispersion parameter: theta =", theta, noDispInfo, "\n")
 		} else {
-			# stats::printCoefmat(coeftable)
 			myPrintCoefTable(coeftable)
 		}
 
-		cat("\n# Evaluations:", x$iterations, "\n")
+		# cat("\n")
 
 	}
 
-	bic <- -2*x$loglik+x$k*log(x$n)
-	# aic <- -2*x$loglik+2*x$k
-	# cat("Log-likelihood:", x$loglik, "\nBIC:", bic, "\nAIC:", aic, "\n")
-	bic_format = numberFormatNormal(bic)
-	LL_format = numberFormatNormal(x$loglik)
+	bic_format = paste0("           BIC: ", numberFormatNormal(BIC(x)))
+	LL_format = paste0("Log-likelihood: ", numberFormatNormal(x$loglik))
 
-	cat("Log-likelihood:", LL_format, "\nBIC:", bic_format, "\n")
-	cat("Pseudo-R2:", x$pseudo_r2, "\n")
-	cat("Squared Cor.:", x$sq.cor, "\n")
-	if(is.null(x$onlyCluster)) cat("Convergence state:", x$message, "\n")
+	sep = "  "
+	myWidth = max(nchar(c(bic_format, LL_format))) + length(sep) + 1
+
+	bic_format = paste0(bic_format, sprintf("% *s", myWidth - nchar(bic_format), sep))
+	LL_format = paste0(LL_format, sprintf("% *s", myWidth - nchar(LL_format), sep))
+
+	cat(LL_format, "   Pseudo-R2:", round(x$pseudo_r2, 5), "\n")
+	cat(bic_format, "Squared Cor.:", round(x$sq.cor, 5), "\n")
+
+	if(!x$convStatus && is.null(x$onlyCluster)){
+		cat("# Evaluations:", x$iterations, "--", x$message, "\n")
+	}
+
 }
 
 ##
@@ -145,17 +100,18 @@ print.femlm <- print.feNmlm <- function(x, ...){
 #'
 #' @method summary femlm
 #'
-#' @param se Character scalar. Which kind of standard error should be prompted: \dQuote{standard} (default), \dQuote{White}, \dQuote{cluster}, \dQuote{twoway}, \dQuote{threeway} or \dQuote{fourway}?
-#' @param cluster A list of vectors. Used only if \code{se="cluster"}, \dQuote{se=twoway}, \dQuote{se=threeway} or \dQuote{se=fourway}. The vectors should give the cluster of each observation. Note that if the estimation was run using \code{cluster}, the standard error is automatically clustered along the cluster given in \code{\link[FENmlm]{femlm}}. For one-way clustering, this argument can directly be a vector (instead of a list).
+#' @param se Character scalar. Which kind of standard error should be computed: \dQuote{standard} (default), \dQuote{White}, \dQuote{cluster}, \dQuote{twoway}, \dQuote{threeway} or \dQuote{fourway}?
+#' @param cluster A list of vectors. Used only if \code{se="cluster"}, \dQuote{se=twoway}, \dQuote{se=threeway} or \dQuote{se=fourway}. The vectors should give the cluster of each observation. Note that if the estimation was run using \code{cluster}, the standard error is automatically clustered along the cluster given in \code{\link[FENmlm]{femlm}}. For one-way clustering, this argument can directly be a vector (instead of a list). If the estimation has been done with cluster variables, you can give a character vector of the dimensions over which to cluster the SE.
 #' @param object A femlm object. Obtained using \code{\link[FENmlm]{femlm}}.
-#' @param dof_correction Logical, default is \code{TRUE}. Should there be a degree of freedom correction to the standard errors of the coefficients?
-#' @param forceCovariance Logical, default is \code{FALSE}. In the peculiar case where the obtained Hessian is not invertible (usually because of collinearity of some variables), use this option force the covariance matrix, by using a generalized inverse of the Hessian. This can be useful to spot where possible problems come from.
-#' @param keepBounded Logical, default is \code{FALSE}. If \code{TRUE}, then the bounded coefficients (if any) are treated as unrestricted coefficients and their S.E. is computed (otherwise it is not).
+#' @param dof_correction Logical, default is \code{FALSE}. Should there be a degree of freedom correction to the standard errors of the coefficients?
+#' @param forceCovariance (Advanced users.) Logical, default is \code{FALSE}. In the peculiar case where the obtained Hessian is not invertible (usually because of collinearity of some variables), use this option force the covariance matrix, by using a generalized inverse of the Hessian. This can be useful to spot where possible problems come from.
+#' @param keepBounded (Advanced users.) Logical, default is \code{FALSE}. If \code{TRUE}, then the bounded coefficients (if any) are treated as unrestricted coefficients and their S.E. is computed (otherwise it is not).
 #' @param ... Not currently used.
 #'
 #' @return
 #' It returns a \code{femlm} object with:
 #' \item{cov.scaled}{The new variance-covariance matrix (computed according to the argument \code{se}).}
+#' \item{se}{The new standard-errors (computed according to the argument \code{se}).}
 #' \item{coeftable}{The table of coefficients with the new standard errors.}
 #'
 #' @seealso
@@ -166,255 +122,72 @@ print.femlm <- print.feNmlm <- function(x, ...){
 #'
 #' @examples
 #'
-#' # The data
-#' n = 100
-#' x = rnorm(n,1,5)**2
-#' y = rnorm(n,-1,5)**2
-#' z = rpois(n,x*y) + rpois(n, 2)
-#' base = data.frame(x,y,z)
+#' # Load trade data
+#' data(trade)
 #'
-#' # Comparing the results of a 'linear' function
-#' est0L = femlm(z~log(x)+log(y), base, family="poisson")
+#' # We estimate the effect of distance on trade (with 3 cluster effects)
+#' est_pois = femlm(Euros ~ log(dist_km)|Origin+Destination+Product, trade)
 #'
-#' # Displaying the summary
-#' summary(est0L, se="white")
-#' myWhiteVcov = summary(est0L, se="white")$cov.scaled
+#' # Comparing different types of standard errors
+#' sum_white = summary(est_pois, se = "white")
+#' sum_oneway = summary(est_pois, se = "cluster")
+#' sum_twoway = summary(est_pois, se = "twoway")
+#' sum_threeway = summary(est_pois, se = "threeway")
 #'
-summary.femlm <- summary.feNmlm <- function(object, se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, dof_correction=FALSE, forceCovariance = FALSE, keepBounded = FALSE, ...){
+#' res2table(sum_white, sum_oneway, sum_twoway, sum_threeway)
+#'
+#' # Alternative ways to cluster the SE:
+#' \dontrun{
+#' # two-way clustering: Destination and Product
+#' summary(est_pois, se = "twoway", cluster = c("Destination", "Product"))
+#' summary(est_pois, se = "twoway", cluster = list(trade$Destination, trade$Product))
+#' }
+#'
+#'
+summary.femlm <- function(object, se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, dof_correction=FALSE, forceCovariance = FALSE, keepBounded = FALSE, ...){
 	# computes the clustered SD and returns the modified vcov and coeftable
-	# computes the BIC/AIC
-	x = object
 
-	if(!is.null(x$onlyCluster)){
+	sd.val = match.arg(se)
+
+	if(!is.null(object$onlyCluster)){
 		# means that the estimation is done without variables
-		return(x)
+		return(object)
 	}
 
 	dots = list(...)
 
-	sd.val = match.arg(se)
-
 	# If cov.scaled exists => means that it has already been computed
-	if(!is.null(x$cov.scaled) && "fromPrint" %in% names(dots)) return(x)
+	if(!is.null(object$cov.scaled) && "fromPrint" %in% names(dots)) return(object)
 
-	# => method to compute the clustered SE:
-	quick = TRUE
-
-	isBounded = object$isBounded
-
-	if(is.null(isBounded)){
-		isBounded = rep(FALSE, length(x$coef))
-	}
-
-	# We handle the bounded parameters:
-
-	# keepBounded = dots$keepBounded
-	# if(is.null(keepBounded)) keepBounded = FALSE
-
-	if(any(isBounded)){
-		if(keepBounded){
-			# we treat the bounded parameters as regular variables
-			myScore = x$score
-			x$cov.unscaled = solve(x$hessian)
-		} else {
-			myScore = x$score[, -which(isBounded), drop = FALSE]
-		}
-	} else {
-		myScore = x$score
-	}
-
-
-	n = x$n
-	k = x$k
-
-	correction.dof = n / (n-k*dof_correction)
-
-	x$bic <- -2*x$loglik + k*log(n)
-	x$aic <- -2*x$loglik + 2*k
-
-	if(anyNA(x$cov.unscaled)){
-		if(!forceCovariance){
-			warning("Standard errors set to NA because of collinearity. You can use option 'forceCovariance' to bypass this message.", call. = FALSE)
-			return(x)
-		} else {
-			x$cov.unscaled = MASS::ginv(x$hessian)
-			if(anyNA(x$cov.unscaled)) stop("The covariance matrix could not be 'forced'.")
-			return(summary(x, se=sd.val, cluster=cluster, dof_correction=dof_correction))
-		}
-	} else if(sd.val == "standard"){
-		vcov = x$cov.unscaled * correction.dof
-	} else if(sd.val == "white"){
-		vcov = crossprod(myScore%*%x$cov.unscaled) * correction.dof
-	} else {
-		# Clustered SD!
-		nway = switch(sd.val, cluster=1, twoway=2, threeway=3, fourway=4)
-
-		#
-		# Controls
-		#
-
-		# Controlling the clusters
-		do.unclass = TRUE
-		if(missing(cluster) || is.null(cluster)){
-			if(is.null(x$id_dummies)){
-				stop("To display clustered standard errors, you must provide the argument 'cluster'.")
-			} else if(length(x$id_dummies) < nway) {
-				stop("Since the result was not clustered with ", nway, " clusters, you need to provide the argument 'cluster' with ", nway, "clusters.")
-			} else {
-				cluster = x$id_dummies[1:nway]
-				if(length(x$clusterNames)>1) warning("Standard-errors clustered w.r.t. ", paste0(x$clusterNames[1:nway], collapse = " & "), call. = FALSE, immediate. = TRUE)
-				# in that specific case, there is no need of doing unclass.factor because already done
-				do.unclass = FALSE
-			}
-		} else {
-
-			isS = ifelse(nway>1, "s, each", "")
-			if(nway == 1){
-				if(!is.list(cluster) && (is.vector(cluster) || is.factor(cluster))){
-					cluster = list(cluster)
-				} else if(! (is.list(cluster) && length(cluster) == 1)){
-					stop("For one way clustering, the argument 'cluster' must be either the vector of cluster ids, or a list containing the vector of cluster ids.")
-				}
-			} else if(! (is.list(cluster) && length(cluster)==nway) ){
-				stop("The 'cluster' must be a list containing ", nway, " element", isS, " being the vector of IDs of each observation.")
-			}
-
-			cluster = as.list(cluster)
-		}
-
-		# now we check the lengths:
-		n_per_cluster = sapply(cluster, length)
-		if(!all(diff(n_per_cluster) == 0)) stop("The vectors of the argument 'cluster' must be of the same length.")
-		# Either they are of the same length of the data
-		if(n_per_cluster[1] != x$n){
-			# Then two cases: either the user introduces the original data and it is OK
-			if(n_per_cluster[1] == (x$n + length(x$obsRemoved))){
-				# We modify the clusters
-				for(i in 1:nway) cluster[[i]] = cluster[[i]][-x$obsRemoved]
-			} else {
-				# If this is not the case: there is a problem
-				stop("The length of the cluster does not match the original data.")
-			}
-		}
-
-		#
-		# Calculus
-		#
-
-		# initialisation
-		vcov = x$cov.unscaled * 0
-
-		if(!quick){
-			for(i in 1:nway){
-
-				myComb = combn(nway, i)
-
-				for(j in 1:ncol(myComb)){
-					if(i > 1){
-						myDots = cluster[myComb[, j]]
-						myDots$sep = "_"
-						index = do.call(paste, myDots)
-					} else {
-						# for i==1, no need of the conversion to character
-						index = cluster[[myComb[, j]]]
-					}
-
-					if(i > 1){
-						do.unclass = TRUE
-					}
-
-					vcov = vcov + (-1)**(i+1) * vcovClust(index, x$cov.unscaled, myScore, dof_correction, do.unclass)
-					# cat(sprintf("i=%i, j=%i\n", i, j))
-					# print(vcovClust(index, x$cov.unscaled, myScore, dof_correction, do.unclass))
-				}
-
-			}
-		} else {
-
-			if(do.unclass){
-				for(i in 1:nway){
-					cluster[[i]] = quickUnclassFactor(cluster[[i]])
-				}
-			}
-
-			for(i in 1:nway){
-
-				myComb = combn(nway, i)
-
-				power = floor(1 + log10(sapply(cluster, max)))
-
-				for(j in 1:ncol(myComb)){
-
-					if(i == 1){
-						index = cluster[[myComb[, j]]]
-					} else if(i > 1){
-
-						vars = myComb[, j]
-
-						if(sum(power[vars]) > 14){
-							myDots = cluster[vars]
-							myDots$sep = "_"
-							index = do.call(paste, myDots)
-						} else {
-							# quicker, but limited by the precision of integers
-							index = cluster[[vars[1]]]
-							for(k in 2:length(vars)){
-								index = index + cluster[[vars[k]]]*10**sum(power[vars[1:(k-1)]])
-							}
-						}
-
-						index = quickUnclassFactor(index)
-
-					}
-
-					vcov = vcov + (-1)**(i+1) * vcovClust(index, x$cov.unscaled, myScore, dof_correction, do.unclass=FALSE)
-
-				}
-			}
-		}
-	}
-
-	# Eigenfix if the vcov is not semi-positive definite
-	if(any(diag(vcov)<0)){
-		e = eigen(vcov)
-		val = e$values
-		if(is.complex(val)){
-			# val = Re(val)
-			warning("Variance is not positive definite. Some S.E. are NA.")
-		} else {
-			vect = e$vectors
-			val[val<0] = 0
-			vcov = vect%*%diag(val)%*%t(vect)
-			warning("Variance was Eigenfixed.")
-		}
-	}
+	# The new VCOV
+	vcov = vcov(object, se=se, cluster=cluster, dof_correction=dof_correction, forceCovariance = forceCovariance, keepBounded = keepBounded, ...)
 
 	sd2 = diag(vcov)
-	sd2[sd2<0] = NA
+	sd2[sd2 < 0] = NA
 	se = sqrt(sd2)
 
 	# used to handle the case of bounded parameters
-	params = names(x$coef)
+	params = names(object$coefficients)
 	if(length(se) != length(params)){
 		se = se[params]
 	}
 	names(se) = params
 
 	# The coeftable is modified accordingly
-	coeftable = x$coeftable
+	coeftable = object$coeftable
 
 	# th z & p values
-	zvalue <- x$coef/se
+	zvalue <- object$coefficients/se
 	pvalue <- 2*pnorm(-abs(zvalue))
 
 	# update of se if bounded
 	se_format = se
-	if(any(isBounded) & !keepBounded){
-		# se[!isBounded] = decimalFormat(se[!isBounded])
-		# boundText = attr(isBounded, "type")
-		# se[isBounded] = boundText
-		se_format[!isBounded] = decimalFormat(se_format[!isBounded])
-		se_format[isBounded] = attr(isBounded, "type")
+	isBounded = object$isBounded
+	if(!is.null(isBounded) && any(isBounded)){
+		if(!keepBounded){
+			se_format[!isBounded] = decimalFormat(se_format[!isBounded])
+			se_format[isBounded] = attr(isBounded, "type")
+		}
 	}
 
 	# modifs of the table
@@ -422,18 +195,14 @@ summary.femlm <- summary.feNmlm <- function(object, se=c("standard", "white", "c
 	coeftable[, 3] = zvalue
 	coeftable[, 4] = pvalue
 
-	# coeftable[, 2:4] = cbind(se, x$coef/se, 2*pnorm(-abs(x$coef/se)))
+	attr(coeftable, "type") = attr(se, "type") = attr(vcov, "type")
 
-	sd.dict = c("standard" = "Standard", "white"="White", "cluster"="Clustered", "twoway"="Two-way", "threeway"="Three-way", "fourway"="Four-way")
-	attr(coeftable, "type") = attr(vcov, "type") = attr(se, "type") = as.vector(sd.dict[sd.val])
-	x$cov.scaled = vcov
-	x$coeftable = coeftable
-	x$se = se
+	object$cov.scaled = vcov
+	object$coeftable = coeftable
+	object$se = se
 
-	return(x)
+	return(object)
 }
-
-##
 
 #' Facility to export the results of multiple \code{femlm} estimations in a Latex table.
 #'
@@ -451,7 +220,7 @@ summary.femlm <- summary.feNmlm <- function(object, se=c("standard", "white", "c
 #' @param dict A named character vector. If provided, it changes the original variable names to the ones contained in the \code{dict}. Example: I want to change my variable named "a" to "$log(a)$" and "b3" to "$bonus^3$", then I used \code{dict=c(a="$log(a)$",b3="$bonus^3$")}.
 #' @param file A character scalar. If provided, the Latex table will be saved in a file whose path is \code{file}.
 #' @param append Logical, default is \code{TRUE}. Only used if option \code{file} is used. Should the Latex table be appended to the existing file?
-#' @param convergence Logical, default is \code{TRUE}. Should the convergence state of the algorithm be displayed?
+#' @param convergence Logical, default is missing. Should the convergence state of the algorithm be displayed? By default, convergence information is displayed if at least one model did not converge.
 #' @param signifCode Named numeric vector, used to provide the significance codes with respect to the p-value of the coefficients. Default is \code{c("***"=0.01, "**"=0.05, "*"=0.10)}.
 #' @param label Character scalar. The label of the Latex table.
 #' @param aic Logical, default is \code{FALSE}. Should the AIC be displayed?
@@ -462,6 +231,7 @@ summary.femlm <- summary.feNmlm <- function(object, se=c("standard", "white", "c
 #' @param bic Logical, default is \code{TRUE}.Should the BIC be reported?
 #' @param loglik Logical, default is \code{TRUE}. Should the log-likelihood be reported?
 #' @param yesNoCluster A character vector of lenght 2. Default is \code{c("Yes", "No")}. This is the message displayed when a given cluster is (or is not) included in a regression.
+#' @param family A logical, default is missing. Whether to display the families of the models. By default this line is displayed when at least two models are from different families.
 #'
 #' @return
 #' There is nothing returned, the result is only displayed on the console or saved in a file.
@@ -474,25 +244,20 @@ summary.femlm <- summary.feNmlm <- function(object, se=c("standard", "white", "c
 #'
 #' @examples
 #'
-#' n = 100
-#' x = rnorm(n, 1, 5)**2
-#' y = rnorm(n, -1, 5)**2
-#' z = rpois(n, x*y) + rpois(n, 2)
-#' base = data.frame(x, y, z)
+#'# two fitted models with different expl. variables:
+#' res1 = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'             Petal.Width | Species, iris)
+#' res2 = femlm(Sepal.Length ~ Petal.Width | Species, iris)
 #'
-#' # Results of the Poisson..
-#' est_poisson = femlm(z~log(x)+log(y), base, family="poisson")
-#' # .. and of the Negative Binomial
-#' est_negbin = femlm(z~log(x)+log(y), base, family="negbin")
-#'
-#' # We export the two results in one Latex table:
-#' res2tex(est_poisson, est_negbin)
+#' # We export the three results in one Latex table,
+#' # with clustered standard-errors:
+#' res2tex(res1, res2, se = "cluster")
 #'
 #' # Changing the names & significance codes
-#' res2tex(est_poisson, est_negbin, dict = c("log(x)" = "First variable (ln)"),
-#'         signifCode = c("a" = 0.001, "$$" = 0.1))
+#' res2tex(res1, res2, dict = c(Sepal.Length = "The sepal length", Sepal.Width = "SW"),
+#'         signifCode = c("**" = 0.1, "*" = 0.2, "n.s."=1))
 #'
-res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, digits=4, pseudo=TRUE, title, sdBelow=TRUE, drop, order, dict, file, append=TRUE, convergence=FALSE, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), label, aic=FALSE, sqCor = FALSE, subtitles, showClusterSize = FALSE, bic = TRUE, loglik = TRUE, yesNoCluster = c("Yes", "No"), keepFactors = FALSE){
+res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, digits=4, pseudo=TRUE, title, sdBelow=TRUE, drop, order, dict, file, append=TRUE, convergence, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), label, aic=FALSE, sqCor = FALSE, subtitles, showClusterSize = FALSE, bic = TRUE, loglik = TRUE, yesNoCluster = c("Yes", "No"), keepFactors = FALSE, family){
 	# drop: a vector of regular expressions
 	# order: a vector of regular expressions
 	# dict: a 'named' vector
@@ -505,7 +270,10 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 		sdType = match.arg(se)
 	}
 
-	info = results2formattedList(..., se=se, cluster=cluster, digits=digits, sdBelow=sdBelow, signifCode=signifCode, subtitles=subtitles, yesNoCluster=yesNoCluster, keepFactors=keepFactors, isTex = TRUE, useSummary=useSummary, sdType=sdType)
+	# to get the model names
+	dots_call = match.call(expand.dots = FALSE)[["..."]]
+
+	info = results2formattedList(..., se=se, cluster=cluster, digits=digits, sdBelow=sdBelow, signifCode=signifCode, subtitles=subtitles, yesNoCluster=yesNoCluster, keepFactors=keepFactors, isTex = TRUE, useSummary=useSummary, sdType=sdType, dots_call=dots_call)
 
 	# browser()
 
@@ -527,6 +295,8 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 	factorNames = info$factorNames
 	isFactor = info$isFactor
 	nbFactor = info$nbFactor
+	family_list = info$family_list
+	theta_list = info$theta_list
 
 	if(!missing(subtitles)){
 		isSubtitles = TRUE
@@ -541,7 +311,7 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 	# Starting the table
 	myTitle = ifelse(!missing(title), title, "no title")
 	if(!missing(label)) myTitle = paste0("\\label{", label, "} ", myTitle)
-	start_table = paste0("\\begin{table}[htbp]\\centering\n\\caption{",  myTitle, "}\n")
+	start_table = paste0("\\begin{table}[htbp]\\centering\n\\caption{",  .cleanPCT(myTitle), "}\n")
 	end_table = "\\end{table}"
 
 	# intro and outro Latex tabular
@@ -600,19 +370,7 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 	model_line = paste0("Model:&", paste0("(", 1:n_models, ")", collapse = "&"), "\\\\\n")
 
 	# a simple line with only "variables" written in the first cell
-	# variable_line = "Variables\\tabularnewline\n\\hline\n"
 	variable_line = "\\hline\n\\emph{Variables}\\tabularnewline\n"
-
-
-	# if(length(unique(depvar_list)) == 1){
-	# 	first_line <- paste0("Dependent Variables:&\\multicolumn{",length(depvar_list), "}{c}{", depvar_list[1], "}\\\\\n", "Variables\\tabularnewline\n\\hline\n")
-	# } else {
-	# 	text_depvar = "Dependent Variables:&"
-	# 	if(n_models == 1) text_depvar = "Dependent Variable:&"
-	#
-	# 	first_line <- paste0(text_depvar, paste0(depvar_list, collapse="&"), "\\\\\n",
-	# 								"Variables\\tabularnewline\n\\hline\n")
-	# }
 
 
 	# Coefficients,  the tricky part
@@ -638,17 +396,16 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 	aliasVars = all_vars
 	names(aliasVars) = all_vars
 	if(!missing(dict)){
-		if(!is.character(dict)|| is.null(names(dict))) stop("the arg. 'dict' must be a named character vector.")
-		# we add the overdispersion parameter
-		dict[".theta"] = "Over-dispersion Parameter"
-	} else {
-		dict = c(".theta" = "Overdispersion Parameter")
+
+		if(!is.character(dict)|| is.null(names(dict))){
+			stop("the arg. 'dict' must be a named character vector.")
+		}
+
+		qui = all_vars %in% names(dict)
+		who = aliasVars[qui]
+		aliasVars[qui] = .cleanPCT(dict[who])
 	}
 
-	# Changing the names
-	qui = which(all_vars%in%names(dict))
-	who = aliasVars[qui]
-	aliasVars[qui] = dict[who]
 
 	coef_mat <- all_vars
 	for(m in 1:n_models) coef_mat <- cbind(coef_mat, coef_list[[m]][all_vars])
@@ -720,10 +477,6 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 	# Fit statistics
 	fit_part <- paste0("\\hline\n\\emph{Fit statistics}& ", paste(rep(" ", n_models), collapse="&"), "\\\\\n")
 	# Misc
-	# browser()
-	# info_aic <- paste0("AIC & ", paste(addCommas(aic_list), collapse="&"), "\\\\\n")
-	# info_loglik <- paste0("Log-Likelihood & ", paste(addCommas(loglik_list), collapse="&"), "\\\\\n")
-	# info_bic <- paste0("BIC & ", paste(addCommas(bic_list), collapse="&"), "\\\\\n")
 	info_aic <- paste0("AIC & ", paste(numberFormatLatex(aic_list), collapse="&"), "\\\\\n")
 	info_loglik <- paste0("Log-Likelihood & ", paste(numberFormatLatex(loglik_list), collapse="&"), "\\\\\n")
 	info_bic <- paste0("BIC & ", paste(numberFormatLatex(bic_list), collapse="&"), "\\\\\n")
@@ -731,16 +484,43 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 	info_obs <- paste0("Observations& ", paste(addCommas(obs_list), collapse="&"), "\\\\\n")
 	info_r2 <- paste0("Adj-pseudo $R^2$ &", paste(r2_list, collapse="&"), "\\\\\n")
 	info_sqCor <- paste0("$R^2$ &", paste(sqCor_list, collapse="&"), "\\\\\n")
-	info_convergence = paste0("Convergence &", paste(convergence_list, collapse="&"), "\\\\\n")
+
+	# Convergence information
+	info_convergence = ""
+	if((missing(convergence) && any(convergence_list == FALSE)) || (!missing(convergence) && convergence)){
+		info_convergence = paste0("Convergence &", paste(convergence_list, collapse="&"), "\\\\\n")
+	}
+
+	info_theta <- paste0("Overdispersion& ", paste(theta_list, collapse="&"), "\\\\\n")
+
+	# information on family
+	if((!missing(family) && family) || (missing(family) && length(unique(family_list)) > 1)){
+		info_family <- paste0("Family& ", paste(family_list, collapse="&"), "\\\\\n")
+	} else {
+		info_family = ""
+	}
+
 
 	# The standard errors
 	isUniqueSD = length(unique(unlist(se_type_list))) == 1
 	if(isUniqueSD){
 		my_se = unique(unlist(se_type_list)) # it comes from summary
 		# every model has the same type of SE
-		nameSD = c("Standard"="Normal", "White"="White-corrected", "Clustered"="Clustered", "Two-way"="Two-way clustered")
+		if(my_se == "Standard") my_se = "Normal"
+		if(my_se == "White") my_se = "White-corrected"
+
+		# Now we modify the names of the clusters if needed
+		if(!missing(dict) && grepl("\\(", my_se)){
+			# we extract the clusters
+			se_cluster = strsplit(gsub("(^.+\\()|(\\))", "", my_se), " & ")[[1]]
+			qui = se_cluster %in% names(dict)
+			se_cluster[qui] = dict[se_cluster[qui]]
+			new_se = gsub("\\(.+", "", my_se)
+			my_se = paste0(new_se, "(", paste0(se_cluster, collapse = " & "), ")")
+		}
+
 		nb_col = length(obs_list)+1
-		info_SD = paste0("\\hline\n\\hline\n\\multicolumn{", nb_col, "}{l}{\\emph{", nameSD[my_se], " standard-errors in parenthesis. Signif Codes: ", paste(names(signifCode), signifCode, sep=": ", collapse = ", "), "}}\\\\\n")
+		info_SD = paste0("\\hline\n\\hline\n\\multicolumn{", nb_col, "}{l}{\\emph{", my_se, " standard-errors in parenthesis. Signif Codes: ", paste(names(signifCode), signifCode, sep=": ", collapse = ", "), "}}\\\\\n")
 		info_muli_se = ""
 	} else {
 		info_muli_se = paste0("Standard-Error type& ", paste(se_type_list, collapse="&"), "\\\\\n")
@@ -753,11 +533,11 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 
 	if(!pseudo) info_r2 <- ""
 	if(!sqCor) info_sqCor <- ""
-	if(!convergence) info_convergence = ""
 	if(!aic) info_aic = ""
 	if(!bic) info_bic = ""
 	if(!loglik) info_loglik = ""
 	if(!showClusterSize) nb_factor_lines = ""
+	if(all(theta_list == "")) info_theta = ""
 
 	if(!missing(file)) sink(file = file, append = append)
 
@@ -767,8 +547,10 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 				  first_line,
 				  info_subtitles,
 				  model_line,
+				  info_family,
 				  variable_line,
 				  coef_lines,
+				  info_theta,
 				  dumIntro,
 				  factor_lines,
 				  fit_part,
@@ -796,6 +578,8 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 #' @inheritParams res2tex
 #' @inheritParams summary.femlm
 #'
+#' @param depvar Logical, default is missing. Whether a first line containing the dependent variables should be shown. By default, the dependent variables are shown only if they differ across models.
+#'
 #' @return
 #' Returns a data.frame containing the formatted results.
 #'
@@ -806,26 +590,28 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 #' Laurent Berge
 #'
 #' @examples
-#' n = 100
-#' x = rnorm(n, 1, 5)**2
-#' y = rnorm(n, -1, 5)**2
-#' z = rpois(n, x*y) + rpois(n, 2)
-#' base = data.frame(x, y, z)
 #'
-#' # Results of the Poisson..
-#' est_poisson = femlm(z~log(x)+log(y), base, family="poisson")
-#' # .. and of the Negative Binomial
-#' est_negbin = femlm(z~log(x)+log(y), base, family="negbin")
+#' # two fitted models with different expl. variables:
+#' res1 = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'             Petal.Width | Species, iris)
+#' # estimation without clusters
+#' res2 = update(res1, . ~ Sepal.Width | 0)
 #'
 #' # We export the two results in one Latex table:
-#' res2table(est_poisson, est_negbin)
+#' res2table(res1, res2)
 #'
-#' # Changing the names & significance codes
-#' res2table(est_poisson, est_negbin, dict = c("log(x)" = "First variable (ln)"),
-#'         signifCode = c("a" = 0.001, "$$" = 0.1))
+#' # With clustered standard-errors + showing the dependent variable
+#' res2table(res1, res2, se = "cluster", cluster = iris$Species, depvar = TRUE)
+#'
+#' # Changing the model names + the order of the variables
+#' # + dropping the intercept.
+#' res2table(model_1 = res1, res2,
+#'           order = c("Width", "Petal"), drop = "Int",
+#'           signifCode = c("**" = 0, "*" = 0.2, "n.s."=1))
 #'
 #'
-res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, digits=4, pseudo=TRUE, drop, order, convergence=FALSE, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), subtitles, keepFactors = FALSE){
+#'
+res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, depvar, drop, order, digits=4, pseudo=TRUE, convergence, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), subtitles, keepFactors = FALSE, family){
 
 	# Need to check for the presence of the se
 	if(missing(se)){
@@ -835,7 +621,10 @@ res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "three
 		sdType = match.arg(se)
 	}
 
-	info = results2formattedList(..., se=se, cluster=cluster, digits=digits, signifCode=signifCode, subtitles=subtitles, keepFactors=keepFactors, useSummary=useSummary, sdType=sdType)
+	# to get the model names
+	dots_call = match.call(expand.dots = FALSE)[["..."]]
+
+	info = results2formattedList(..., se=se, cluster=cluster, digits=digits, signifCode=signifCode, subtitles=subtitles, keepFactors=keepFactors, useSummary=useSummary, sdType=sdType, dots_call=dots_call)
 
 	n_models = length(info$depvar_list)
 	# Getting the information
@@ -856,6 +645,11 @@ res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "three
 	isFactor = info$isFactor
 	nbFactor = info$nbFactor
 	useSummary = info$useSummary
+	depvar_list = info$depvar_list
+	model_names = info$model_names
+	family_list = info$family_list
+	theta_list = info$theta_list
+
 
 	if(!missing(subtitles)){
 		isSubtitles = TRUE
@@ -887,13 +681,19 @@ res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "three
 	coef_mat[is.na(coef_mat)] <- "  "
 	res = coef_mat
 
+	if("Neg. Bin." %in% family_list){
+		theta_line = c("Overdispersion:", unlist(theta_list))
+		res = rbind(res, theta_line)
+	}
+
 	# Used to draw a line
 	myLine = "______________________________________"
 	longueur = apply(res, 2, function(x) max(nchar(as.character(x))))
 	theLine = sapply(longueur, function(x) sprintf("%.*s", x, myLine))
+	theLine[1] = sprintf("%.*s", max(nchar(theLine[1]), 19), myLine)
 
 	if(length(factorNames)>0){
-		# TO REWRITE: from old code
+
 		for(m in 1:n_models) {
 			quoi = isFactor[[m]][factorNames]
 			quoi[is.na(quoi)] = "No"
@@ -904,17 +704,47 @@ res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "three
 		factor_lines <- paste0(paste0(apply(allFactors, 1, paste0, collapse="&"), collapse="\\\\\n"), "\\\\\n")
 
 		myLine = "-------------------------------"
-		# res = rbind(res, theLine)
+
 		res = rbind(res, c("Fixed-Effects:", sprintf("%.*s", longueur[-1], myLine)))
 		factmat = matrix(c(strsplit(strsplit(factor_lines, "\n")[[1]], "&"), recursive = TRUE), ncol=n_models+1, byrow=TRUE)
 		factmat[, ncol(factmat)]=gsub("\\", "", factmat[, ncol(factmat)], fixed = TRUE)
 		res = rbind(res, factmat)
 	}
 
+	# The line with the dependent variable
+	preamble = c()
+	if((missing(depvar) && length(unique(unlist(depvar_list))) > 1) || (!missing(depvar) && depvar)){
+		preamble = rbind(c("Dependent Var.:", unlist(depvar_list)), preamble)
+	}
+
+
+
+	if(length(preamble) > 0){
+		# preamble = rbind(preamble, c("  ", theLine[-1]))
+		preamble = rbind(preamble, rep("   ", length(theLine)))
+		res <- rbind(preamble, res)
+	}
+
 	res <- rbind(res, theLine)
+
+	# the line with the families
+	if((missing(family) && length(unique(unlist(family_list))) > 1) || (!missing(family) && family)){
+		# preamble = rbind(c("Family:", unlist(family_list)), preamble)
+		res = rbind(res, c("Family:", unlist(family_list)))
+	}
+
 	res <- rbind(res, c("Observations", addCommas(obs_list)))
-	if(!useSummary) res <- rbind(res, c("S.E. type", c(se_type_list, recursive = TRUE)))
-	if(convergence) res <- rbind(res, c("Convergence", c(convergence_list, recursive = TRUE)))
+	if(!useSummary){
+		se_type_format = c()
+		for(m in 1:n_models) se_type_format[m] = charShorten(se_type_list[[m]], longueur[[1+m]])
+		res <- rbind(res, c("S.E. type", c(se_type_format, recursive = TRUE)))
+	}
+
+	# convergence status
+	if((missing(convergence) && any(convergence_list == FALSE)) || (!missing(convergence) && convergence)){
+		res <- rbind(res, c("Convergence", c(convergence_list, recursive = TRUE)))
+	}
+
 	res <- rbind(res, c("Squared-Correlation", c(sqCor_list, recursive = TRUE)))
 	res <- rbind(res, c("Adj-pseudo R2", c(r2_list, recursive = TRUE)))
 	# res <- rbind(res, c("AIC", c(aic_list, recursive = TRUE)))
@@ -925,8 +755,12 @@ res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "three
 	if(isSubtitles){
 		modelNames = subtitles
 	} else {
-		modelNames = paste0("model ", 1:n_models)
+		# modelNames = paste0("model ", 1:n_models)
+		modelNames = model_names
 	}
+
+	# we shorten the model names to fit the width
+	for(m in 1:n_models) modelNames[m] = charShorten(modelNames[[m]], longueur[[1+m]])
 
 	res <- as.data.frame(res)
 	names(res) <- c("variables", modelNames)
@@ -940,7 +774,7 @@ res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "three
 	return(res)
 }
 
-results2formattedList = function(..., se=c("standard", "white", "cluster", "twoway"), cluster, digits=4, pseudo=TRUE, sdBelow=TRUE, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), label, subtitles, yesNoCluster = c("Yes", "No"), keepFactors = FALSE, isTex = FALSE, useSummary, sdType){
+results2formattedList = function(..., se=c("standard", "white", "cluster", "twoway"), cluster, digits=4, pseudo=TRUE, sdBelow=TRUE, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), label, subtitles, yesNoCluster = c("Yes", "No"), keepFactors = FALSE, isTex = FALSE, useSummary, sdType, dots_call){
 	# This function is the core of the functions res2table and res2tex
 
 	signifCode = sort(signifCode)
@@ -960,14 +794,29 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 		se = dots$sd
 	}
 
+	# formatting the names of the models
+	dots_names = names(dots_call)
+	if(!is.null(dots_names)){
+
+		for(i in 1:length(dots_call)){
+			if(dots_names[i] != ""){
+				dots_call[[i]] = dots_names[i]
+			} else {
+				dots_call[[i]] = deparse(dots_call[[i]])
+			}
+		}
+	}
+
 	n = length(dots)
 	all_models = list()
+	model_names = list()
 	k = 1
 	for(i in 1:n){
 		di = dots[[i]]
 
 		if(any(allowed_types %in% class(di))){
 			all_models[[k]] = di
+			model_names[[k]] = as.character(dots_call[[i]])
 			k = k+1
 		} else if(length(class(di))==1 && class(di)=="list"){
 			# we get into this list to get the FENmlm objects
@@ -975,6 +824,18 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 			qui = which(types %in% allowed_types)
 			for(m in qui){
 				all_models[[k]] = di[[m]]
+
+				# handling names
+				if(n > 1){
+					if(is.null(names(di)[m]) || names(di)[m]==""){
+						model_names[[k]] = paste0(dots_call[[i]], "[[", m, "]]")
+					} else {
+						model_names[[k]] = paste0(dots_call[[i]], "$", names(di)[m])
+					}
+				} else {
+					model_names[[k]] = as.character(names(di)[m])
+				}
+
 				k = k+1
 			}
 		}
@@ -985,13 +846,18 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 
 	n_models <- length(all_models)
 
+	# formatting the names (if needed)
+	alternative_names = paste0("model ", 1:n_models)
+	who2replace = sapply(model_names, function(x) length(x) == 0 || x == "")
+	model_names[who2replace] = alternative_names[who2replace]
+
 	# we keep track of the SEs
 	se_type_list = list()
 
 	var_list <- coef_list <- coef_below <- sd_below <- list()
 	depvar_list <- obs_list <- list()
 	r2_list <- aic_list <- bic_list <- loglik_list <- convergence_list <- list()
-	sqCor_list = list()
+	sqCor_list = family_list = theta_list = list()
 
 	# To take care of factors
 	factorNames = c()
@@ -1019,6 +885,14 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 		}
 		se_type_list[[m]] = attr(x$se, "type")
 
+		# family
+		family = all_models[[m]]$family
+		family_list[[m]] = switch(family, poisson = "Poisson", negbin = "Neg. Bin.", gaussian = "Gaussian", logit = "Logit")
+
+		# Negbin parameter
+		theta = all_models[[m]]$theta
+		theta_list[[m]] = ifelse(is.null(theta), "", numberFormatNormal(theta))
+
 		# variable dependante:
 		depvar <- gsub(" ", "", as.character(x$fml)[[2]])
 
@@ -1026,6 +900,12 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 		if(!is.data.frame(a)){
 			class(a) <- NULL
 			a = as.data.frame(a)
+		}
+
+		# We drop the .theta coefficient
+		if(family == "negbin"){
+			quiTheta = rownames(a) == ".theta"
+			a = a[!quiTheta, ]
 		}
 
 		#
@@ -1122,7 +1002,7 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 		obs_list[[m]] <- n
 		convergence_list[[m]] = x$convStatus
 
-		K <- x$k #nb params
+		K <- x$nparams
 		ll <- x$loglik
 		bic_list[[m]] <- round(-2*ll+K*log(n), 3)
 		aic_list[[m]] <- round(-2*ll+2*K, 3)
@@ -1132,9 +1012,14 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 
 	}
 
-	res = list(se_type_list=se_type_list, var_list=var_list, coef_list=coef_list, coef_below=coef_below, sd_below=sd_below, depvar_list=depvar_list, obs_list=obs_list, r2_list=r2_list, aic_list=aic_list, bic_list=bic_list, loglik_list=loglik_list, convergence_list=convergence_list, sqCor_list=sqCor_list, factorNames=factorNames, isFactor=isFactor, nbFactor=nbFactor, useSummary=useSummary)
+	res = list(se_type_list=se_type_list, var_list=var_list, coef_list=coef_list, coef_below=coef_below, sd_below=sd_below, depvar_list=depvar_list, obs_list=obs_list, r2_list=r2_list, aic_list=aic_list, bic_list=bic_list, loglik_list=loglik_list, convergence_list=convergence_list, sqCor_list=sqCor_list, factorNames=factorNames, isFactor=isFactor, nbFactor=nbFactor, useSummary=useSummary, model_names=model_names, family_list=family_list, theta_list=theta_list)
 
 	return(res)
+}
+
+.cleanPCT = function(x){
+	# changes % into \% => to escape that character in Latex
+	gsub("%", "\\%", x, fixed = TRUE)
 }
 
 myPrintCoefTable = function(coeftable){
@@ -1171,7 +1056,7 @@ myPrintCoefTable = function(coeftable){
 
 	print(ct)
 
-	cat("---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
+	cat("---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n")
 
 }
 
@@ -1188,6 +1073,12 @@ myPrintCoefTable = function(coeftable){
 #'
 #' @return
 #' It prints the number of fixed-effect coefficients per cluster, as well as the number of fixed-effects used as references for each cluster, and the mean and variance of the cluster coefficients. Finally it reports the first 5 elements of each cluster.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{getFE}}, \code{\link[FENmlm]{plot.femlm.allClusters}}.
 #'
 #' @examples
 #'
@@ -1280,7 +1171,7 @@ print.femlm.cluster = function(x, ...){
 #' If there is more than 1 cluster, then the attribute \dQuote{References} is created. This is a vector of length the number of clusters, each element contains the number of fixed-effects set as references. By construction, the elements of the first clusters are never set as references. In the presence of regular clusters, there should be Q-1 references (with Q the number of clusters).
 #'
 #' @seealso
-#' See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
+#' \code{\link[FENmlm]{plot.femlm.cluster}}, \code{\link[FENmlm]{plot.femlm.allClusters}}. See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
 #'
 #' @author
 #' Laurent Berge
@@ -1511,7 +1402,7 @@ plot.femlm.cluster = function(x, n=5, ...){
 #' If the data are not regular in the cluster coefficients, this means that several \sQuote{reference points} are set to obtain the fixed-effects, thereby impeding their interpretation. In this case a warning is raised.
 #'
 #' @seealso
-#' See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
+#' \code{\link[FENmlm]{getFE}} to extract clouster coefficients. See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
 #'
 #' @author
 #' Laurent Berge
@@ -1573,15 +1464,6 @@ vcovClust <- function (cluster, myBread, scores, dof_correction=FALSE, do.unclas
 	}
 
 	Q <- max(cluster)
-	#ind: the matrix used to create the sum of the scores per cluster (avoid loops)
-	# ind = Matrix::Matrix(0, nid, n, sparse = TRUE)
-	# myIndex = cbind(cluster, 1:n)
-	# ind[myIndex] = 1
-	#
-	# # Compute the chocolate_bar and then the sandwich:
-	# RightScores <- as.matrix(ind %*% scores)
-	# # chocobar <- crossprod(RightScores)
-
 	RightScores = cpp_tapply_sum(Q, scores, cluster)
 
 	# Finite sample correction:
@@ -1589,8 +1471,6 @@ vcovClust <- function (cluster, myBread, scores, dof_correction=FALSE, do.unclas
 	else dof = 1
 
 	return(crossprod(RightScores%*%myBread) * dof)
-
-	# return(myBread %*% chocobar %*% myBread * dof)
 }
 
 addCommas_single = function(x){
@@ -1700,6 +1580,22 @@ numberFormatNormal = function(x){
 	sapply(x, numberFormat_single)
 }
 
+charShorten = function(x, width){
+	# transforms characters => they can't go beyond a certain width
+	# two dots are added to suggest longer character
+	# charShorten("bonjour", 5) => "bon.."
+	n = nchar(x)
+
+	if(n > width){
+		res = substr(x, 1, width - 2)
+		res = paste0(res, "..")
+	} else {
+		res = x
+	}
+
+	res
+}
+
 
 char2num = function(x){
 	# we transform the data to numeric => faster analysis
@@ -1757,153 +1653,1287 @@ getItems = function(x){
 	return(res)
 }
 
-extractCluster = function(fml){
-	# We extract the clusters (ie after the |, if there are any)
-
-	x = as.character(fml)[3]
-
-	x_split = strsplit(x, split = "|", fixed = TRUE)[[1]]
-
-	# To return:
-	# - cluster => vector of clusters
-	# - fml_new => the fml clean of the clusters
-
-	if(length(x_split) == 1){
-		fml_new = fml
-		cluster_vec = NULL
-	} else if(length(x_split) == 2){
-		# means it's OK (more there is a problem), less there is none
-		# check
-		cluster = x_split[2]
-		if(grepl("\\(|\\)|\\*", cluster)){
-			stop("If the formula shall contains the clusters, it should only consists of the variables names.\n(eg 'a~b|cluster_1+cluster_2' is OK, but 'a~b|5*cluster_1+factor(cluster_2)' reports an error.)")
-		}
-
-		fml_cluster = as.formula(paste0("~", cluster))
-		cluster_vec = all.vars(fml_cluster)
-
-		fml_new = as.formula(paste0(fml[2], "~", x_split[1]))
-	} else {
-		stop("The formula must not contain more than one pipe ('|').")
-	}
-
-	list(fml=fml_new, cluster=cluster_vec)
-}
-
 prepare_matrix = function(fml, base){
 	# This function is faster than model.matrix when there is no factor, otherwise model.matrix is faster
+	# The argument fml **MUST** not have factors!
 
 	rhs = fml[c(1,3)]
 	t = terms(rhs, data = base)
 
-	isIntercept = attr(t, "intercept") == 1
+	all_var_names = attr(t, "term.labels")
+	all_vars = gsub(":", "*", all_var_names)
 
-	if(length(all.vars(rhs)) == 0){
-		if(isIntercept){
-			tmp = matrix(1, nrow(base), 1)
-			colnames(tmp) = "(Intercept)"
-			return(tmp)
-		} else {
-			stop("[prepare_matrix] There is no variable, the linear matrix cannot be constructed.")
-		}
+	all_vars_call = parse(text = paste0("list(", paste0(all_vars, collapse = ", "), ")"))
+	data_list <- eval(all_vars_call, base)
+	names(data_list) = all_var_names
+
+	if(attr(t, "intercept") == 1){
+		data_list <- c(list("(Intercept)" = rep(1, nrow(base))), data_list)
 	}
 
-	# Creation of the DF with the variable names
-	vars = attr(t, "variables")
-	varnames <- sapply(vars, function(x) paste(deparse(x, width.cutoff = 500), collapse = " "))[-1L]
-	data_list <- eval(vars, base)
-	names(data_list) = varnames
-	data <- do.call("data.frame", data_list)
-	names(data) = varnames
+	res = do.call("cbind", data_list)
 
-	#
-	# FACTORS
-	#
+	res
+}
 
-	# now we add the factors if necessary
-	isChar = sapply(data, is.character)
-	if(any(isChar)){
-		for(i in which(isChar)){
-			data[[i]] = as.factor(data[[i]])
+
+#### ................... ####
+#### Aditional Functions ####
+####
+
+# Here we add common statistical functions
+
+#' Extract the number of observations form a femlm object
+#'
+#' This function simply extracts the number of obsrvations used to estimate a \code{\link[FENmlm]{femlm}} model.
+#'
+#'
+#' @param object An object of class \code{femlm}. Typically the result of a \code{\link[FENmlm]{femlm}} estimation.
+#' @param ... Not currently used.
+#'
+#' @seealso
+#' See also the main estimation functions \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @return
+#' It returns an interger.
+#'
+#' @examples
+#'
+#' # simple estimation on iris data, clustering by "Species"
+#' res = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'             Petal.Width | Species, iris)
+#'
+#' nobs(res)
+#' logLik(res)
+#'
+#'
+nobs.femlm = function(object, ...){
+	object$n
+}
+
+#' Aikake's an information criterion
+#'
+#' This function computes the AIC (Aikake's, an information criterion) from a \code{\link[FENmlm]{femlm}} estimation.
+#'
+#' @inheritParams nobs.femlm
+#'
+#' @param ... Optionally, more fitted objects.
+#' @param k A numeric, the penalty per parameter to be used; the default k = 2 is the classical AIC (i.e. \code{AIC=-2*LL+k*nparams}).
+#'
+#' @details
+#' The AIC is computed as:
+#' \deqn{AIC = -2\times LogLikelihood + k\times nbParams}
+#' with k the penalty parameter.
+#'
+#' You can have more information on this crtierion on \code{\link[stats]{AIC}}.
+#'
+#' @return
+#' It return a numeric vector, with length the same as the number of objects taken as arguments.
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{AIC.femlm}}, \code{\link[FENmlm]{logLik.femlm}}, \code{\link[FENmlm]{nobs.femlm}}.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @examples
+#'
+#' # two fitted models with different expl. variables:
+#' res1 = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'             Petal.Width | Species, iris)
+#' res2 = femlm(Sepal.Length ~ Petal.Width | Species, iris)
+#'
+#' AIC(res1, res2)
+#' BIC(res1, res2)
+#'
+#'
+AIC.femlm = function(object, ..., k = 2){
+
+	dots = list(...)
+	if(length(dots) > 0){
+		# we check consistency with observations
+		nobs_all = c(nobs(object), sapply(dots, nobs))
+
+		if(any(diff(nobs_all) != 0)){
+			warning("Models are not all fitted to the same number of observations.")
 		}
-	}
 
-	isFact = sapply(data, is.factor)
-
-	# We keep all the information into this big matrix
-	if(isIntercept){
-		data_intercept = data.frame("Intercept" = rep(1, nrow(data)))
-		data_all_list = list(data_intercept, data[!isFact])
+		otherAIC = sapply(dots, AIC)
 	} else {
-		data_all_list = list(data[!isFact])
+		otherAIC = c()
 	}
 
-	# now we create the factor matrix
-	if(any(isFact)){
-		cpt = length(data_all_list)
-		nb_contrast = 1
-		for(i in which(isFact)){
+	all_AIC = c(-2*object$loglik + k*object$nparams, otherAIC)
 
-			if(!isIntercept && nb_contrast == 1){
-				# we add no reference only to the first contrast
-				addRef = FALSE
-			} else {
-				addRef = TRUE
+	all_AIC
+}
+
+#' Bayesian information criterion
+#'
+#' This function computes the BIC (Bayesian information criterion) from a \code{\link[FENmlm]{femlm}} estimation.
+#'
+#'
+#' @inheritParams nobs.femlm
+#'
+#' @param ... Optionally, more fitted objects.
+#'
+#' @details
+#' The BIC is computed as follows:
+#' \deqn{BIC = -2\times LogLikelihood + \log(nobs)\times nbParams}
+#' with k the penalty parameter.
+#'
+#' You can have more information on this crtierion on \code{\link[stats]{BIC}}.
+#'
+#' @return
+#' It return a numeric vector, with length the same as the number of objects taken as arguments.
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{AIC.femlm}}, \code{\link[FENmlm]{logLik.femlm}}.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @examples
+#'
+#' # two fitted models with different expl. variables:
+#' res1 = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'             Petal.Width | Species, iris)
+#' res2 = femlm(Sepal.Length ~ Petal.Width | Species, iris)
+#'
+#' AIC(res1, res2)
+#' BIC(res1, res2)
+#'
+BIC.femlm = function(object, ...){
+
+	dots = list(...)
+	if(length(dots) > 0){
+		# we check consistency with observations
+		nobs_all = c(nobs(object), sapply(dots, nobs))
+
+		if(any(diff(nobs_all) != 0)){
+			warning("Models are not all fitted to the same number of observations.")
+		}
+
+		otherBIC = sapply(dots, BIC)
+	} else {
+		otherBIC = c()
+	}
+
+	all_BIC = c(-2*object$loglik + 2*object$nparams*log(object$n), otherBIC)
+
+	all_BIC
+}
+
+#' Extracts the log-likelihood
+#'
+#' This function extracts the log-likelihood from a \code{\link[FENmlm]{femlm}} estimation.
+#'
+#' @inheritParams nobs.femlm
+#'
+#' @param ... Not currently used.
+#'
+#' @details
+#' This function extracts the log-likelihood based on the model fit. You can have more information on the likelihoods in the details of the function \code{\link[FENmlm]{femlm}}.
+#'
+#' @return
+#' It returns a numeric scalar.
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{AIC.femlm}}, \code{\link[FENmlm]{BIC.femlm}}, \code{\link[FENmlm]{nobs.femlm}}.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @examples
+#'
+#' # simple estimation on iris data, clustering by "Species"
+#' res = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'             Petal.Width | Species, iris)
+#'
+#' nobs(res)
+#' logLik(res)
+#'
+#'
+logLik.femlm = function(object, ...){
+	ll = object$loglik
+	ll
+}
+
+#' Extracts the coefficients from a femlm fit
+#'
+#' This function extracts the coefficients obtained from a model estimated with \code{\link[FENmlm]{femlm}}.
+#'
+#' @inheritParams nobs.femlm
+#'
+#' @param ... Not currently used.
+#'
+#' @details
+#' The coefficients are the ones that have been found to maximize the log-likelihood of the specified model. More information can be found on \code{\link[FENmlm]{femlm}} help page.
+#'
+#' Note that if the model has been estimated with clusters, to obtain the cluster coefficients, you need to use the function \code{\link[FENmlm]{getFE}}.
+#'
+#' @return
+#' This function returns a named numeric vector.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{summary.femlm}}, \code{\link[FENmlm]{confint.femlm}}, \code{\link[FENmlm]{vcov.femlm}}, \code{\link[FENmlm]{res2table}}, \code{\link[FENmlm]{res2tex}}, \code{\link[FENmlm]{getFE}}.
+#'
+#' @examples
+#'
+#' # simple estimation on iris data, clustering by "Species"
+#' res = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'             Petal.Width | Species, iris)
+#'
+#' # the coefficients of the variables:
+#' coef(res)
+#'
+#' # the cluster coefficients:
+#' getFE(res)
+#'
+#'
+coef.femlm = coefficients.femlm = function(object, ...){
+	object$coefficients
+}
+
+#' @rdname coef.femlm
+"coefficients.femlm"
+
+
+#' Extracts fitted values from a femlm fit
+#'
+#' This function extracts the fitted values from a model estimated with \code{\link[FENmlm]{femlm}}. The fitted values that are returned are the \emph{expected predictor}.
+#'
+#' @inheritParams nobs.femlm
+#'
+#' @param type Character either equal to \code{"response"} (default) or \code{"link"}. If \code{type="response"}, then the output is at the level of the response variable, i.e. it is the expected predictor \eqn{E(Y|X)}. If \code{"link"}, then the output is at the level of the explanatory variables, i.e. the linear predictor \eqn{X\cdot \beta}.
+#' @param ... Not currently used.
+#'
+#' @details
+#' This function returns the \emph{expected predictor} of a \code{\link[FENmlm]{femlm}} fit. The likelihood functions are detailed in \code{\link[FENmlm]{femlm}} help page.
+#'
+#' @return
+#' It returns a numeric vector of length the number of observations used to estimate the model.
+#'
+#' If \code{type = "response"}, the value returned is the expected predictor, i.e. the expected value of the dependent variable for the fitted model: \eqn{E(Y|X)}.
+#' If \code{type = "link"}, the value returned is the linear predictor of the fitted model, that is \eqn{X\cdot \beta} (remind that \eqn{E(Y|X) = f(X\cdot \beta)}).
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{resid.femlm}}, \code{\link[FENmlm]{predict.femlm}}, \code{\link[FENmlm]{summary.femlm}}, \code{\link[FENmlm]{vcov.femlm}}, \code{\link[FENmlm]{getFE}}.
+#'
+#' @examples
+#'
+#' # simple estimation on iris data, clustering by "Species"
+#' res_poisson = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'                     Petal.Width | Species, iris)
+#'
+#' # we extract the fitted values
+#' y_fitted_poisson = fitted(res_poisson)
+#'
+#' # Same estimation but in OLS (Gaussian family)
+#' res_gaussian = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'                     Petal.Width | Species, iris, family = "gaussian")
+#'
+#' y_fitted_gaussian = fitted(res_gaussian)
+#'
+#' # comparison of the fit for the two families
+#' plot(iris$Sepal.Length, y_fitted_poisson)
+#' points(iris$Sepal.Length, y_fitted_gaussian, col = 2, pch = 2)
+#'
+#'
+fitted.femlm = fitted.values.femlm = function(object, type = c("response", "link"), ...){
+
+	type = match.arg(type)
+
+	if(type == "response"){
+		res = object$fitted.values
+	} else {
+		family = object$family
+		famFuns = switch(family,
+							  poisson = ml_poisson(),
+							  negbin = ml_negbin(),
+							  logit = ml_logit(),
+							  gaussian = ml_gaussian())
+
+		res = famFuns$linearFromExpected(object$fitted.values)
+	}
+
+	res
+}
+
+#' @rdname fitted.femlm
+"fitted.values.femlm"
+
+#' Extracts residuals from a femlm object
+#'
+#' This function extracts residuals from a fitted model estimated with \code{\link[FENmlm]{femlm}}.
+#'
+#' @inheritParams nobs.femlm
+#'
+#' @param ... Not currently used.
+#'
+#' @details
+#' The residuals returned are the difference between the dependent variable and the expected predictor.
+#'
+#' @return
+#' It returns a numeric vector of the length the number of observations used for the estimation.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{fitted.femlm}}, \code{\link[FENmlm]{predict.femlm}}, \code{\link[FENmlm]{summary.femlm}}, \code{\link[FENmlm]{vcov.femlm}}, \code{\link[FENmlm]{getFE}}.
+#'
+#' @examples
+#'
+#' # simple estimation on iris data, clustering by "Species"
+#' res_poisson = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'                     Petal.Width | Species, iris)
+#'
+#' # we plot the residuals
+#' plot(resid(res_poisson))
+#'
+resid.femlm = residuals.femlm = function(object, ...){
+	object$residuals
+}
+
+#' @rdname resid.femlm
+"residuals.femlm"
+
+#' Predict method for femlm fits
+#'
+#' This function obtains prediction from a fitted model estimated with \code{\link[FENmlm]{femlm}}.
+#'
+#' @inheritParams nobs.femlm
+#' @inheritParams fitted.femlm
+#'
+#' @param newdata A data.frame containing the variables used to make the prediction. If not provided, the fitted expected (or linear if \code{type = "link"}) predictors are returned.
+#' @param ... Not currently used.
+#'
+#' @return
+#' It returns a numeric vector of length equal to the number of observations in argument \code{newdata}.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{update.femlm}}, \code{\link[FENmlm]{summary.femlm}}, \code{\link[FENmlm]{vcov.femlm}}, \code{\link[FENmlm]{getFE}}.
+#'
+#' @examples
+#'
+#' # Estimation on iris data
+#' res = femlm(Sepal.Length ~ Petal.Length | Species, iris)
+#'
+#' # what would be the prediction if the data was all setosa?
+#' newdata = data.frame(Petal.Length = iris$Petal.Length, Species = "setosa")
+#' pred_setosa = predict(res, newdata = newdata)
+#'
+#' # Let's look at it graphically
+#' plot(c(1, 7), c(3, 11), type = "n", xlab = "Petal.Length",
+#'      ylab = "Sepal.Length")
+#'
+#' newdata = iris[order(iris$Petal.Length), ]
+#' newdata$Species = "setosa"
+#' lines(newdata$Petal.Length, predict(res, newdata))
+#'
+#' # versicolor
+#' newdata$Species = "versicolor"
+#' lines(newdata$Petal.Length, predict(res, newdata), col=2)
+#'
+#' # virginica
+#' newdata$Species = "virginica"
+#' lines(newdata$Petal.Length, predict(res, newdata), col=3)
+#'
+#' # The original data
+#' points(iris$Petal.Length, iris$Sepal.Length, col = iris$Species, pch = 18)
+#' legend("topleft", lty = 1, col = 1:3, legend = levels(iris$Species))
+#'
+predict.femlm = function(object, newdata, type = c("response", "link"), ...){
+
+	# Controls
+	type = match.arg(type)
+
+	# if newdata is missing
+	if(missing(newdata)){
+		if(type == "response"){
+			return(object$fitted.values)
+		} else {
+			family = object$family
+			famFuns = switch(family,
+								  poisson = ml_poisson(),
+								  negbin = ml_negbin(),
+								  logit = ml_logit(),
+								  gaussian = ml_gaussian())
+
+			return(famFuns$linearFromExpected(object$fitted.values))
+		}
+	}
+
+	if(!is.matrix(newdata) && !"data.frame" %in% class(newdata)){
+		stop("Argument 'newdata' must be a data.frame.")
+	}
+
+	# we ensure it really a clean data.frame
+	newdata = as.data.frame(newdata)
+
+	# We deconstruct it in four steps:
+	# 1) cluster
+	# 2) linear
+	# 3) non-linear
+	# 4) offset
+
+	n = nrow(newdata)
+
+	# 1) Cluster
+
+	# init cluster values
+	value_cluster = 0
+
+	clusterNames = object$clusterNames
+	if(!is.null(clusterNames)){
+
+		n_cluster = length(clusterNames)
+
+		# Extraction of the clusters
+		id_cluster = list()
+		for(i in 1:n_cluster){
+			# checking if the variable is in the newdata
+			variable = all.vars(parse(text = clusterNames[i]))
+			isNotHere = !variable %in% names(newdata)
+			if(any(isNotHere)){
+				stop("The variable ", variable[isNotHere][1], " is absent from the 'newdata' but is needed for prediction (it is a cluster variable).")
 			}
 
-			cpt = cpt + 1
-			nb_contrast = nb_contrast + 1
-			data_all_list[[cpt]] = make_contrast(data[[i]], prefix = varnames[i], addRef)
+			# Obtaining the unclassed vector of clusters
+			cluster_current = eval(parse(text = clusterNames[i]), newdata)
+			cluster_current_unik = unique(cluster_current)
+
+			cluster_values_possible = attr(object$id_dummies[[i]],"clust_names")
+			valueNotHere = setdiff(cluster_current_unik, cluster_values_possible)
+			if(length(valueNotHere) > 0){
+				stop("The cluster value ", valueNotHere[1], " (cluster ", clusterNames[i], ") was not used in the initial estimation, prediction cannot be done for observations with that value. Prediction can be done only for cluster values present in the main estimation.")
+			}
+
+			cluster_current_num = unclass(factor(cluster_current, levels = cluster_values_possible))
+			id_cluster[[i]] = cluster_current_num
+		}
+
+		# Value of the cluster coefficients
+		cluster_coef = getFE(object)
+		for(i in 1:n_cluster){
+			cluster_current_num = id_cluster[[i]]
+			cluster_coef_current = cluster_coef[[i]]
+
+			value_cluster = value_cluster + cluster_coef_current[cluster_current_num]
+		}
+	}
+
+	# 2) Linear values
+
+	coef = object$coefficients
+
+	# intercept
+	if("(Intercept)" %in% names(coef)){
+		value_linear = rep(coef["(Intercept)"], n)
+	} else {
+		value_linear = 0
+	}
+
+	rhs_fml = formula(Formula(object$fml), lhs = 0, rhs = 1)
+	if(length(all.vars(rhs_fml)) > 0){
+		# Checking all variables are there
+		varNotHere = setdiff(all.vars(rhs_fml), names(newdata))
+		if(length(varNotHere) > 0){
+			stop("Some variables used to estimate the model (in fml) are missing from argument 'newdata': ", paste0(varNotHere, collapse = ", "), ".")
+		}
+
+		# we create the matrix
+		matrix_linear = model.matrix(rhs_fml, newdata)
+
+		keep = intersect(names(coef), colnames(matrix_linear))
+		value_linear = value_linear + as.vector(matrix_linear[, keep, drop = FALSE] %*% coef[keep])
+	}
+
+	# 3) Non linear terms
+
+	value_NL = 0
+	NL_fml = object$NL.fml
+	if(!is.null(NL_fml)){
+		# controlling that we can evaluate that
+		NL_vars = all.vars(NL_fml)
+		varNotHere = setdiff(NL_vars, c(names(coef), names(newdata)))
+		if(length(varNotHere) > 0){
+			stop("Some variables used to estimate the model (in the non-linear formula) are missing from argument 'newdata': ", paste0(varNotHere, collapse = ", "), ".")
+		}
+
+		var2send = intersect(NL_vars, names(newdata))
+		env = new.env()
+		for(var in var2send){
+			assign(var, newdata[[var]], env)
+		}
+
+		coef2send = setdiff(NL_vars, names(newdata))
+		for(iter_coef in coef2send){
+			assign(iter_coef, coef[iter_coef], env)
+		}
+
+		# Evaluation of the NL part
+		value_NL = eval(NL_fml[[2]], env)
+	}
+
+	# 4) offset value
+
+	value_offset = 0
+	offset = object$offset
+	if(!is.null(offset)){
+		# evaluation of the offset
+		varNotHere = setdiff(all.vars(offset), names(newdata))
+		if(length(varNotHere) > 0){
+			stop("Some variables used to estimate the model (in the offset) are missing from argument 'newdata': ", paste0(varNotHere, collapse = ", "), ".")
+		}
+
+		value_offset = eval(offset[[length(offset)]], newdata)
+	}
+
+	value_predicted = value_cluster + value_linear + value_NL + value_offset
+
+	if(type == "link"){
+		return(value_predicted)
+	}
+
+	# Now the expected predictor
+	family = object$family
+	famFuns = switch(family,
+						  poisson = ml_poisson(),
+						  negbin = ml_negbin(),
+						  logit = ml_logit(),
+						  gaussian = ml_gaussian())
+
+	if(family == "gaussian"){
+		exp_value = 0
+	} else {
+		exp_value = exp(value_predicted)
+	}
+
+	expected.predictor = famFuns$expected.predictor(value_predicted, exp_value)
+
+	expected.predictor
+}
+
+#' Extract the variance/covariance of a femlm fit
+#'
+#' This function extracts the variance-covariance of estimated parameters from a model estimated with \code{\link[FENmlm]{femlm}}.
+#'
+#' @inheritParams summary.femlm
+#' @inheritParams nobs.femlm
+#'
+#' @param ... Other arguments to be passed to \code{\link[FENmlm]{summary.femlm}}.
+#'
+#' The computation of the VCOV matrix is first done in \code{\link[FENmlm]{summary.femlm}}.
+#'
+#' @return
+#' It returns a \eqn{N\times N} square matrix where \eqn{N} is the number of variables of the fitted model.
+#' This matrix has an attribute \dQuote{type} specifying how this variance/covariance matrix has been commputed (i.e. was it created using White correction, or was it clustered along a specific factor, etc).
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{summary.femlm}}, \code{\link[FENmlm]{confint.femlm}}, \code{\link[FENmlm]{resid.femlm}}, \code{\link[FENmlm]{predict.femlm}}, \code{\link[FENmlm]{getFE}}.
+#'
+#' @examples
+#'
+#' # Load trade data
+#' data(trade)
+#'
+#' # We estimate the effect of distance on trade (with 3 fixed-effects)
+#' est_pois = femlm(Euros ~ log(dist_km) + log(Year) | Origin + Destination +
+#'                  Product, trade)
+#'
+#' # "normal" VCOV
+#' vcov(est_pois)
+#'
+#' # "white" VCOV
+#' vcov(est_pois, se = "white")
+#'
+#' # "clustered" VCOV (with respect to the Origin factor)
+#' vcov(est_pois, se = "cluster")
+#'
+#' # "clustered" VCOV (with respect to the Product factor)
+#' vcov(est_pois, se = "cluster", cluster = trade$Product)
+#' # another way to make the same request:
+#' vcov(est_pois, se = "cluster", cluster = "Product")
+#'
+#' # Another estimation without cluster:
+#' est_pois_simple = femlm(Euros ~ log(dist_km) + log(Year), trade)
+#'
+#' # We can still get the clustered VCOV,
+#' # but we need to give the cluster-vector:
+#' vcov(est_pois_simple, se = "cluster", cluster = trade$Product)
+#'
+#'
+vcov.femlm = function(object, se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, dof_correction=FALSE, forceCovariance = FALSE, keepBounded = FALSE, ...){
+	# computes the clustered vcov
+
+	if(!is.null(object$onlyCluster)){
+		# means that the estimation is done without variables
+		stop("No explanatory variable was used: vcov cannot be applied.")
+	}
+
+	sd.val = match.arg(se)
+
+	#
+	# non-linear: handling bounded parameters
+	#
+
+	# We handle the bounded parameters:
+	isBounded = object$isBounded
+	if(is.null(isBounded)){
+		isBounded = rep(FALSE, length(object$coefficients))
+	}
+
+	if(any(isBounded)){
+		if(keepBounded){
+			# we treat the bounded parameters as regular variables
+			myScore = object$score
+			object$cov.unscaled = solve(object$hessian)
+		} else {
+			myScore = object$score[, -which(isBounded), drop = FALSE]
+		}
+	} else {
+		myScore = object$score
+	}
+
+
+	#
+	# Core function
+	#
+
+	n = object$n
+	k = object$nparams
+
+	correction.dof = n / (n-k*dof_correction)
+
+	VCOV_raw = object$cov.unscaled
+
+	#??? information on the variable used for the clustering
+	type_info = ""
+
+	if(anyNA(VCOV_raw)){
+
+		if(!forceCovariance){
+			warning("Standard errors are NA because of likely presence of collinearity. You can use option 'forceCovariance' to try to force the computation of the vcov matrix (to see what's wrong).", call. = FALSE)
+			return(VCOV_raw)
+		} else {
+			VCOV_raw_forced = MASS::ginv(object$hessian)
+			if(anyNA(VCOV_raw_forced)) {
+				stop("The covariance matrix could not be 'forced'.")
+			}
+
+			object$cov.unscaled = VCOV_raw_forced
+			return(vcov(object, se=sd.val, cluster=cluster, dof_correction=dof_correction))
+		}
+
+	} else if(sd.val == "standard"){
+
+		vcov = VCOV_raw * correction.dof
+
+	} else if(sd.val == "white"){
+
+		vcov = crossprod(myScore %*% VCOV_raw) * correction.dof
+
+	} else {
+		# Clustered SD!
+		nway = switch(sd.val, cluster=1, twoway=2, threeway=3, fourway=4)
+
+		#
+		# Controls
+		#
+
+		# Controlling the clusters
+		do.unclass = TRUE
+		if(missing(cluster) || is.null(cluster)){
+
+			if(is.null(object$id_dummies)){
+				stop("To display clustered standard errors, you must provide the argument 'cluster'.")
+
+			} else if(length(object$id_dummies) < nway) {
+				stop("Since the result was not clustered with ", nway, " clusters, you need to provide the argument 'cluster' with ", nway, "clusters.")
+
+			} else {
+				cluster = object$id_dummies[1:nway]
+
+				type_info = paste0(" (", paste0(object$clusterNames[1:nway], collapse = " & "), ")")
+
+				# in that specific case, there is no need of doing unclass.factor because already done
+				do.unclass = FALSE
+			}
+
+		} else {
+
+			isS = ifelse(nway>1, "s, each", "")
+			if(length(cluster) == nway && is.character(cluster)){
+				if(any(!cluster %in% object$clusterNames)){
+					stop("Cannot apply ", nway, "-way clustering with the current argument 'cluster'.")
+				}
+
+				type_info = paste0(" (", paste0(cluster, collapse = " & "), ")")
+				cluster = object$id_dummies[cluster]
+
+			} else if(nway == 1){
+				if(!is.list(cluster) && (is.vector(cluster) || is.factor(cluster))){
+					cluster = list(cluster)
+
+				} else if(! (is.list(cluster) && length(cluster) == 1)){
+					stop("For one way clustering, the argument 'cluster' must be either the vector of cluster ids, or a list containing the vector of cluster ids.")
+
+				}
+			} else if(! (is.list(cluster) && length(cluster)==nway) ){
+				stop("The 'cluster' must be a list containing ", nway, " element", isS, " being the vector of IDs of each observation.")
+
+			}
+
+			cluster = as.list(cluster)
+		}
+
+		# now we check the lengths:
+		n_per_cluster = sapply(cluster, length)
+		if(!all(diff(n_per_cluster) == 0)){
+			stop("The vectors of the argument 'cluster' must be of the same length.")
+		}
+
+		# Either they are of the same length of the data
+		if(n_per_cluster[1] != object$n){
+			# Then two cases: either the user introduces the original data and it is OK
+			if(n_per_cluster[1] == (object$n + length(object$obsRemoved))){
+				# We modify the clusters
+				for(i in 1:nway) cluster[[i]] = cluster[[i]][-object$obsRemoved]
+			} else {
+				# If this is not the case: there is a problem
+				stop("The length of the cluster does not match the original data.")
+			}
+		}
+
+		#
+		# Calculus
+		#
+
+		# initialisation
+		vcov = VCOV_raw * 0
+
+		if(do.unclass){
+			for(i in 1:nway){
+				cluster[[i]] = quickUnclassFactor(cluster[[i]])
+			}
+		}
+
+		for(i in 1:nway){
+
+			myComb = combn(nway, i)
+
+			power = floor(1 + log10(sapply(cluster, max)))
+
+			for(j in 1:ncol(myComb)){
+
+				if(i == 1){
+					index = cluster[[myComb[, j]]]
+				} else if(i > 1){
+
+					vars = myComb[, j]
+
+					if(sum(power[vars]) > 14){
+						myDots = cluster[vars]
+						myDots$sep = "_"
+						index = do.call("paste", myDots)
+					} else {
+						# quicker, but limited by the precision of integers
+						index = cluster[[vars[1]]]
+						for(k in 2:length(vars)){
+							index = index + cluster[[vars[k]]]*10**sum(power[vars[1:(k-1)]])
+						}
+					}
+
+					index = quickUnclassFactor(index)
+
+				}
+
+				vcov = vcov + (-1)**(i+1) * vcovClust(index, VCOV_raw, myScore, dof_correction, do.unclass=FALSE)
+
+			}
+		}
+	}
+
+	if(any(diag(vcov)<0)){
+		warning("Some variances are negative (likely problem in the model).")
+	}
+
+	sd.dict = c("standard" = "Standard", "white"="White", "cluster"="Clustered", "twoway"="Two-way", "threeway"="Three-way", "fourway"="Four-way")
+	attr(vcov, "type") = paste0(as.vector(sd.dict[sd.val]), type_info)
+
+	vcov
+}
+
+
+#' Confidence interval for parameters estimated with femlm
+#'
+#' This function computes the confidence interval of parameter estimates obtained from a model estimated with \code{\link[FENmlm]{femlm}}.
+#'
+#' @inheritParams nobs.femlm
+#' @inheritParams vcov.femlm
+#'
+#' @param parm The parameters for which to compute the confidence interval (either an integer vector OR a character vector with the parameter name). If missing, all parameters are used.
+#' @param level The confidence level. Default is 0.95.
+#'
+#' @return
+#' Returns a data.frame with two columns giving respectively the lower and upper bound of the confidence interval. There is as many rows as parameters.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @examples
+#'
+#' # Load trade data
+#' data(trade)
+#'
+#' # We estimate the effect of distance on trade (with 3 cluster effects)
+#' est_pois = femlm(Euros ~ log(dist_km) + log(Year) | Origin + Destination +
+#'                  Product, trade)
+#'
+#' # confidence interval with "normal" VCOV
+#' confint(est_pois)
+#'
+#' # confidence interval with "clustered" VCOV (w.r.t. the Origin factor)
+#' confint(est_pois, se = "cluster")
+#'
+#'
+confint.femlm = function(object, parm, level = 0.95, se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, dof_correction=FALSE, ...){
+
+	# Control
+	if(!is.numeric(level) || !length(level) == 1 || level >= 1 || level <= .50){
+		stop("The argument 'level' must be a numeric scalar greater than 0.50 and strictly lower than 1.")
+	}
+
+	# the parameters for which we should compute the confint
+	all_params = names(object$coefficients)
+
+	if(missing(parm)){
+		parm_use = all_params
+	} else if(is.numeric(parm)){
+		if(any(parm %% 1 != 0)){
+			stop("If the argument 'parm' is numeric, it must be integers.")
+		}
+
+		parm_use = unique(na.omit(all_params[parm]))
+		if(length(parm_use) == 0){
+			stop("There are ", length(all_params), " coefficients, the argument 'parm' does not correspond to any of them.")
+		}
+	} else if(is.character(parm)){
+		parm_pblm = setdiff(parm, all_params)
+		if(length(parm_pblm) > 0){
+			stop("some parameters of 'parm' have no estimated coefficient: ", paste0(parm_pblm, collapse=", "), ".")
+		}
+
+		parm_use = intersect(parm, all_params)
+	}
+
+	# The proper SE
+	sum_object = summary(object, se = se, cluster = cluster, dof_correction = dof_correction, ...)
+
+	se_all = sum_object$se
+	coef_all = object$coefficients
+
+	# multiplicative factor
+	val = (1 - level) / 2
+	fact <- abs(qnorm(val))
+
+	# The confints
+	lower_bound = coef_all[parm_use] - fact * se_all[parm_use]
+	upper_bound = coef_all[parm_use] + fact * se_all[parm_use]
+
+	res = data.frame(lower_bound, upper_bound, row.names = parm_use)
+	names(res) = paste0(round(100*c(val, 1-val), 1), " %")
+
+	res
+}
+
+#' Updates a femlm estimation
+#'
+#' Updates and re-estimates a \code{\link[FENmlm]{femlm}} model. This function updates the formulas and use previous starting values to estimate a new \code{\link[FENmlm]{femlm}} model. The data is obtained from the original \code{call}.
+#'
+#' @method update femlm
+#'
+#' @inheritParams nobs.femlm
+#'
+#' @param fml.update Changes to be made to the original argument \code{fml}. See more information on \code{\link[stats]{update.formula}}. You can add/withdraw both variables and clusters. E.g. \code{. ~ . + x2 | . + z2} would add the variable \code{x2} and the cluster \code{z2} to the former estimation.
+#' @param ... Other arguments to be passed to the function \code{\link[FENmlm]{femlm}}.
+#'
+#' @return
+#' It returns a \code{\link[FENmlm]{femlm}} object (see details in \code{\link[FENmlm]{femlm}}.
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{predict.femlm}}, \code{\link[FENmlm]{summary.femlm}}, \code{\link[FENmlm]{vcov.femlm}}, \code{\link[FENmlm]{getFE}}.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @examples
+#'
+#' # Example using trade data
+#' data(trade)
+#'
+#' # main estimation
+#' est_pois <- femlm(Euros ~ log(dist_km) | Origin + Destination, trade)
+#'
+#' # we add the variable log(Year)
+#' est_2 <- update(est_pois, . ~ . + log(Year))
+#'
+#' # we add another cluster: "Product"
+#' est_3 <- update(est_2, . ~ . | . + Product)
+#'
+#' # we remove the cluster "Origin" and the variable log(dist_km)
+#' est_4 <- update(est_3, . ~ . - log(dist_km) | . - Origin)
+#'
+#' # Quick look at the 4 estimations
+#' res2table(est_pois, est_2, est_3, est_4)
+#'
+update.femlm = function(object, fml.update, ...){
+	# Update method
+	# fml.update: update the formula
+	# If 1) SAME DATA and 2) SAME dep.var, then we make initialisation
+
+
+	if(missing(fml.update)){
+		fml.update = . ~ .
+	} else {
+		if(!"formula" %in% class(fml.update)){
+			stop("The argument 'fml.update' is required.")
+		}
+	}
+
+	FML = Formula(fml.update)
+	call_new = match.call()
+	dots = list(...)
+
+	dot_names = names(dots)
+	if("cluster" %in% dot_names){
+		stop("Argument 'cluster' is not accepted in the 'update.femlm' method. Please make modifications to clusters directly in the argument 'fml.update'. (E.g. .~.|.+v5 to add variable v5 as a cluster.)")
+	}
+
+	if(any(dot_names == "")){
+		call_new_names = names(call_new)
+		problems = call_new[call_new_names == ""][-1]
+		stop("In 'update.femlm' the arguments of '...' are passed to the function femlm, and must be named. Currently there are un-named arguments (e.g. '", deparse(problems[[1]]), "').")
+	}
+
+
+
+	#
+	# I) Linear formula update
+	#
+
+	fml_old = object$fml
+	fml = update(fml_old, formula(FML, lhs = 1, rhs = 1))
+	fml_char = as.character(fml)
+
+	useInit = TRUE
+	if(fml[[2]] != fml_old[[2]]){
+		# means different dependent variables
+		# 	=> initialisation with past parameters is useless
+		useInit = FALSE
+	}
+
+	if(!is.null(dots$family)){
+		family_new = match.arg(dots$family, c("poisson", "negbin", "gaussian", "logit"))
+		if(family_new != object$family){
+			# if different families: initialisation is useless
+			useInit = FALSE
 		}
 	}
 
 	#
-	# Other vars
+	# II) evaluation data
 	#
 
-	# Now we add the other variables (i.e. if ~ a*b => we compute a:b, etc)
-	other_vars = setdiff(attr(t, "term.labels"), varnames)
-	if(length(other_vars) > 0){
-		other_vars_call = parse(text = paste0("list(", paste0(gsub(":", "*", other_vars), collapse = ", "), ")"))
-		data_other_list = eval(other_vars_call, base)
-		# data_other <- as.matrix(do.call("data.frame", data_other_list))
-		data_other <- do.call("data.frame", data_other_list)
-		names(data_other) = other_vars
+	# We find out if it is the same data
+	#	=> only to find out if init is useful
+	if(useInit){
+		# we test if we can use the initialisation of the parameters
 
-		cpt = length(data_all_list) + 1
-		data_all_list[[cpt]] = data_other
+		if(is.null(dots$data)){
+			# evaluation
+			data = NULL
+			try(data <- eval(object$call$data, parent.frame()))
+
+			if(is.null(data)){
+				dataName = object$call$data
+				stop("To apply 'update.femlm', we fetch the original database in the parent.frame -- but it doesn't seem to be there anymore (btw it was ", deparse(dataName), ").")
+			}
+		} else {
+			if(!"data.frame" %in% class(dots$data)){
+				stop("The argument 'data' must be a data.frame.")
+			}
+			data = dots$data
+		}
+
+		# if same data => we apply init
+		n_old = object$n + length(object$obsRemoved)
+		n_new = nrow(data)
+		if(n_old != n_new){
+			useInit = FALSE
+		}
 	}
 
-	# final big cbind
-	if(isIntercept){
-		tmp = as.matrix(do.call("cbind", data_all_list))
-		colnames(tmp)[1] = "(Intercept)"
-		return(tmp)
+	#
+	# III) cluster updates
+	#
+
+	clusterNames = object$clusterNames
+	clusterStart = NULL
+	clusterFromUpdate = FALSE
+	if(length(FML)[2] > 1){
+		# modification of the clusters
+		cluster_old = as.formula(paste0("~", paste0(c(1, clusterNames), collapse = "+")))
+		cluster_new = update(cluster_old, formula(FML, lhs = 0, rhs = 2))
+
+		if(useInit){
+			# Only if we use the init => the starting cluster values
+			isThere = sapply(clusterNames, function(x) grepl(x, as.character(cluster_new)[2]))
+			if(is.null(object$obsRemoved)){
+				# ONLY when there is no cluster removed (otherwise computationaly too complex to be worth)
+				if(all(isThere)){
+					# we just have to put the old
+					clusterStart = object$sumFE
+				} else if(any(isThere)){
+					# we use the dummies only for the ones that are there
+					my_fe = getFE(object)
+					clusterStart = 0
+					for(i in which(isThere)){
+						clusterStart = clusterStart + my_fe[[i]][object$id_dummies[[i]]]
+					}
+				}
+			}
+		}
+
+		if(length(all.vars(cluster_new)) > 0){
+			# means there is a cluster
+			fml_new = as.formula(paste0(fml_char[2], "~", fml_char[3], "|", as.character(cluster_new)[2]))
+		} else {
+			# there is no cluster
+			fml_new = fml
+		}
+
+	} else if(!is.null(clusterNames)){
+		# Means we keep the same clusters
+		clusterFromUpdate = TRUE
+
+		# the starting value:
+		clusterStart = object$sumFE
+
+		# the formula updated:
+		fml_new = as.formula(paste0(fml_char[2], "~", fml_char[3], "|", paste0(clusterNames, collapse = "+")))
+
 	} else {
-		return(as.matrix(do.call("cbind", data_all_list)))
+		# there is no cluster in the initial model
+		fml_new = fml
 	}
 
+
+	#
+	# The call
+	#
+
+	call_old = object$call
+
+	# we drop the argument cluster from old call (now it's in the fml_new)
+	call_old$cluster = NULL
+
+	# new call: call_clear
+	call_clear = call_old
+	for(arg in names(call_new)[-1]){
+		call_clear[[arg]] = call_new[[arg]]
+	}
+
+	call_clear$fml = as.call(fml_new)
+
+	if(useInit){
+		# we can use the initialisation of parameters
+		if(is.null(dots$linear.start) &&  is.null(object$onlyCluster)){
+			# I do that to inform the "future" call about the init
+			linear.start = c(list(name="c"), lapply(object$coefficients, signif))
+			call_clear$linear.start = do.call("call", linear.start)
+		}
+
+		if(object$family == "negbin"){
+			if(is.null(dots$theta.init)){
+				theta.init = object$theta.init
+				call_clear$theta.init = theta.init
+			}
+		}
+
+		call_clear$clusterFromUpdate = clusterFromUpdate
+		call_clear$clusterStart = as.name("clusterStart")
+	}
+
+	# The variable "clusterStart" must be evaluated here!
+	res = eval(call_clear, list(clusterStart=clusterStart), parent.frame())
+
+	res
 }
 
-make_contrast = function(my_fact, prefix = "", addRef = TRUE){
-	# we create a matrix of constrast
-	fact_num = quickUnclassFactor(my_fact)
 
-	K = max(fact_num)
-	N = length(fact_num)
+#' Extract the formula of a femlm fit
+#'
+#' This function extracts the formula from a \code{\link[FENmlm]{femlm}} estimation. If the estimation was done with fixed-effects, they are added in the formula after a pipe (\dQuote{|}). If the estimation was done with a non linear in parameters part, then this will be added in the formula in between \code{I()}.
+#'
+#' @inheritParams nobs.femlm
+#'
+#' @param x An object of class \code{femlm}. Typically the result of a \code{\link[FENmlm]{femlm}} estimation.
+#' @param type A character scalar. Default is \code{type = "full"} which gives back a formula containing the linear part of the model along with the clusters (if any) and the non-linear in parameters part (if any). If \code{type = "linear"} then only the linear formula is returned. If \code{type = "NL"} then only the non linear in parameters part is returned.
+#' @param ... Not currently used.
+#'
+#' @return
+#' It returns a formula.
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{model.matrix.femlm}}, \code{\link[FENmlm]{update.femlm}}, \code{\link[FENmlm]{summary.femlm}}, \code{\link[FENmlm]{vcov.femlm}}.
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @examples
+#'
+#' # simple estimation on iris data, clustering by "Species"
+#' res = femlm(Sepal.Length ~ Sepal.Width + Petal.Length +
+#'             Petal.Width | Species, iris)
+#'
+#' # formula with the cluster variable
+#' formula(res)
+#' # linear part without the cluster variable
+#' formula(res, "linear")
+#'
+#'
+formula.femlm = function(x, type = c("full", "linear", "NL"), ...){
+	# Extract the formula from the object
+	# we add the clusters in the formula if needed
 
-	mat = cpp_make_contrast(N, K, fact_num, addRef)
+	type = match.arg(type)
 
-	if(addRef){
-		colnames(mat) = paste0(prefix, getItems(my_fact)[-1])
-	} else {
-		colnames(mat) = paste0(prefix, getItems(my_fact))
+	if(type == "linear"){
+		return(x$fml)
+	} else if(type == "NL"){
+		NL.fml = x$NL.fml
+		if(is.null(NL.fml)){
+			stop("There was no nonlinear part estimated, option type = 'NL' cannot be used.")
+		}
+
+		return(NL.fml)
 	}
 
-	mat
+	res = x$fml
+
+	NL.fml = x$NL.fml
+	if(!is.null(NL.fml)){
+		fml_char = as.character(res)
+		nl_char = as.character(NL.fml)
+		res = as.formula(paste(fml_char[2], "~", fml_char[3], "+ I(", nl_char[2], ")"))
+	}
+
+	clusterNames = x$clusterNames
+	if(length(clusterNames) > 0){
+		fml_char = as.character(res)
+		res = as.formula(paste(fml_char[2], "~", fml_char[3], "|", paste0(clusterNames, collapse = "+")))
+	}
+
+	res
 }
 
-####
+
+#' Design matrix of a femlm model
+#'
+#' This function creates a design matrix of the linear part of a \code{\link[FENmlm]{femlm}} estimation. Note that it is only the linear part and the cluster variables (which can be considered as factors) are excluded from the matrix.
+#'
+#' @method model.matrix femlm
+#'
+#' @inheritParams nobs.femlm
+#'
+#' @param data If missing (default) then the original data is obtained by evaluating the \code{call}. Otherwise, it should be a \code{data.frame}.
+#' @param ... Not currently used.
+#'
+#' @return
+#' It returns a design matrix.
+#'
+#' @seealso
+#' \code{\link[FENmlm]{femlm}}, \code{\link[FENmlm]{formula.femlm}}, \code{\link[FENmlm]{update.femlm}}, \code{\link[FENmlm]{summary.femlm}}, \code{\link[FENmlm]{vcov.femlm}}.
+#'
+#'
+#' @author
+#' Laurent Berge
+#'
+#' @examples
+#'
+#' # simple estimation on iris data, clustering by "Species"
+#' res = femlm(Sepal.Length ~ Sepal.Width*Petal.Length +
+#'             Petal.Width | Species, iris)
+#'
+#' head(model.matrix(res))
+#'
+#'
+#'
+model.matrix.femlm = function(object, data, ...){
+	# We evaluate the formula with the past call
+
+	# I) we obtain the right formula
+	fml = object$fml
+
+	# we kick out the intercept if there is presence of clusters
+	if(attr(terms(fml), "intercept") == 1 && !is.null(object$clusterNames)){
+		fml = update(fml, . ~ . - 1)
+	}
+
+	# II) evaluation with the data
+	if(missing(data)){
+		call_old = object$call
+
+		data = NULL
+		try(data <- eval(object$call$data, parent.frame()))
+
+		if(is.null(data)){
+			dataName = deparse(object$call$data)
+			stop("To apply 'model.matrix.femlm', we fetch the original database in the parent.frame -- but it doesn't seem to be there anymore (btw it was ", dataName, ").")
+		}
+
+	}
+
+	# control of the data
+	if(is.matrix(data)){
+		if(is.null(colnames(data))){
+			stop("If argument data is to be a matrix, its columns must be named.")
+		}
+		data = as.data.frame(data)
+	}
+	# The conversion of the data (due to data.table)
+	if(!"data.frame" %in% class(data)){
+		stop("The argument 'data' must be a data.frame or a matrix.")
+	}
+
+	data = as.data.frame(data)
+
+	res = model.matrix(fml, data)
+
+	res
+}
+
+
+
+#### .................. ####
 #### DOCUMENTATION DATA ####
 ####
 
@@ -1935,9 +2965,6 @@ make_contrast = function(my_fact, prefix = "", addRef = TRUE){
 #'
 #'
 "trade"
-
-
-
 
 
 

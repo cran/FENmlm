@@ -4,7 +4,7 @@ author: "Laurent Berge"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Fixed-Effects ML Estimation}
+  %\VignetteIndexEntry{FENmlm introduction}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -18,6 +18,8 @@ knitr::opts_chunk$set(
 
 <!-- Help on vignette writing here: http://r-pkgs.had.co.nz/vignettes.html. -->
 
+<!-- Ajouter example simple et intuitif fixed-effects  -->
+
 The package `FENmlm` is devoted to the estimation of maximum likelihood (ML) models with fixed-effects. 
 The function `femlm` is the workhorse of the package: it performs efficient ML estimations with *any number* of fixed-effects and also allows for non-linear in parameters right-hand-sides. Four likelihood models are supported: Poisson, Negative Binomial, Gaussian and Logit. 
 
@@ -25,7 +27,7 @@ The standard-errors of the estimates can be very easily clustered (up to four-wa
 
 Two specific functions are implemented to seamlessly export the results of multiple estimations into either a data.frame (function `res2table`), or a Latex table of "article-like" quality (function `res2tex`).
 
-The main feautres of the package are illustrated in this vignette.
+The main features of the package are illustrated in this vignette. For the theory behind this method, see Berge (2018), "*Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm.*" CREA Discussion Papers, 13 (<https://wwwen.uni.lu/content/download/110162/1299525/file/2018_13>).
 
 # Complete example using Trade data
 
@@ -37,7 +39,13 @@ data(trade)
 
 ```
 
-This data set focuses on the levels of bilateral importations between EU15 countries from 2007 and 2016. The data is further broken down according to 20 product categories.
+This data is a sample of bilateral importations between EU15 countries from 2007 and 2016. The data is further broken down according to 20 product categories. Here is a sample of the data:
+
+```{r, echo=FALSE, results='asis'}
+tab = head(trade)
+knitr::kable(tab)
+```
+
 
 The dependent variable of the estimation will be the level of trade between two countries while the independent variable is the geographic distance between the two countries. To obtain the elasticity of geographic distance net of the effects of the four clusters, we estimate the following:
 
@@ -45,7 +53,7 @@ $E\left(Trade_{i,j,p,t}\right)=\gamma_{i}^{Exporter}\times\gamma_{j}^{Importer}\
 
 where the subscripts $i$, $j$, $p$ and $t$ stand respectively for the exporting country, the importing country, the type of product and the year, and the $\gamma_{v}^{c}$ are fixed-effects for these groups. Here $\beta$ is the elasticity of interest. 
 
-Note that when you use the Poisson/Negative Binomial families, this relationship is in fact linear because the right hand side is exponentialized to avoid negative values for the Poisson parameter. This leads to the equivalent relation:
+Note that when you use the Poisson/Negative Binomial families, this relationship is in fact linear because the right hand side is exponentialized to avoid negative values for the Poisson parameter. This leads to the equivalent relation:^[Since the $\gamma$ are parameters, I omit to put them in logarithmic form.]
 
 $E\left(Trade_{i,j,p,t}\right)=\exp\left(\gamma_{i}^{Exporter}+\gamma_{j}^{Importer}+\gamma_{p}^{Product}+\gamma_{t}^{Year}+\beta\times \ln Distance_{ij}\right)$.
 
@@ -234,13 +242,13 @@ z = rpois(n, 2*x + 3*y) + rpois(n, 1)
 base = data.frame(x, y, z)
 ```
 
-To estimate the non-linear relationship, we need to use the argument `NL.fml` where we put the non-linear part. We also have to provide starting values with the argument `start`. Finally, to ensure the RHS can be evaluated in any situation, we add lower bounds for the parameters with the argument `lower`.
+To estimate the non-linear relationship, we need to use the argument `NL.fml` where we put the non-linear part. We also have to provide starting values with the argument `NL.start`. Finally, to ensure the RHS can be evaluated in any situation, we add lower bounds for the parameters with the argument `lower`.
 
 ```{r}
-result_NL = femlm(z~0, base, NL.fml = ~ log(a*x + b*y), start = list(a=1, b=1), lower = list(a=0, b=0))
+result_NL = femlm(z~0, base, NL.fml = ~ log(a*x + b*y), NL.start = list(a=1, b=1), lower = list(a=0, b=0))
 ```
 
-Note that the arguments `start` and `lower` are named lists. Setting `lower = list(a=0, b=0)` means that the optimization algorithm will never explores parameters for $a$ and $b$ that are lower than 0.
+Note that the arguments `NL.start` and `lower` are named lists. Setting `lower = list(a=0, b=0)` means that the optimization algorithm will never explores parameters for $a$ and $b$ that are lower than 0.
 The results obtained can be interpreted similarly to results with linear RHS. We can see them with a print:
 
 ```{r}
@@ -259,7 +267,11 @@ where $id_i$ is the class of observation $i$ and $\gamma$ is the vector of fixed
 
 $E\left(z_i\right) = \exp\left(\gamma_{id_i}+\log\left(a\times x_i + b\times y_i\right)\right)$.
 
-Further, because $\gamma_{id_i} \left( a\times x_i + b\times y_i \right)$ is equivalent to $a\times \gamma_{id_i} \left(x_i + b/a\times y_i \right)$, estimating the first relation directly will lead to a problem to uniquely identify the estimates (i.e. there is an infinity of $\gamma_{id_i}$, $a$ and $b$ that will solve it). We will fix one of the coefficient to uniquely identify them. 
+Further, remark that there exists an infinity of values of $\gamma^{\prime}$, $a^{\prime}$ and $b^{\prime}$ such that:
+
+$\gamma_{k} \left( a\times x_i + b\times y_i \right) = \gamma_{k}^{\prime} \left(a^{\prime}\times x_i + b^{\prime}\times y_i \right),\forall i,k$.
+
+An example is $\gamma^{\prime}_{k} = 2\times \gamma_k$, $a^{\prime} = a/2$ and $b^{\prime} = b/2$. Thus estimating this relation directly will lead to a problem to uniquely identify the coefficients. To circumvent this problem, we just have to fix one of the coefficient, this will ensure that we uniquely identify them. 
 
 Let's generate this relation:
 
@@ -278,7 +290,7 @@ Now we estimate it with the fixed-effects while fixing one of the coefficients (
 
 ```{r}
 # we add the fixed-effect in the formula
-result_NL_fe = femlm(z_bis~0|id, base, NL.fml = ~ log(2*x + b*y), start = list(b=1), lower = list(b=0))
+result_NL_fe = femlm(z_bis~0|id, base, NL.fml = ~ log(2*x + b*y), NL.start = list(b=1), lower = list(b=0))
 # The coef should be around 3
 result_NL_fe$coef
 # the gamma and the exponential of the fixed-effects should be similar

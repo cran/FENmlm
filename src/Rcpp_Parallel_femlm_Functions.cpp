@@ -9,14 +9,6 @@ using namespace Rcpp;
 
 // This file contains femlm functions that will be parallelized with the omp library
 
-// [[Rcpp::export]]
-void set_omp(int n_cpu){
-	// function used to set the number of threads used by omp
-	// it avoids using it again later on
-	omp_set_dynamic(0);
-	omp_set_num_threads(n_cpu);
-}
-
 double cpppar_abs(double x){
 	//simple function to compute the absolute value
 	if(x > 0){
@@ -27,7 +19,7 @@ double cpppar_abs(double x){
 }
 
 // [[Rcpp::export]]
-NumericVector cpppar_DichotomyNR(int K, int family, double theta, double epsDicho, NumericVector lhs, NumericVector mu, NumericVector borne_inf, NumericVector borne_sup, IntegerVector obsCluster, IntegerVector tableCluster){
+NumericVector cpppar_DichotomyNR(int nthreads, int K, int family, double theta, double epsDicho, NumericVector lhs, NumericVector mu, NumericVector borne_inf, NumericVector borne_sup, IntegerVector obsCluster, IntegerVector tableCluster){
 	// ARGUMENTS:
 	// N: number of observations
 	// K: number of clusters classes
@@ -63,7 +55,7 @@ NumericVector cpppar_DichotomyNR(int K, int family, double theta, double epsDich
 		}
 	}
 
-	#pragma omp parallel
+	#pragma omp parallel num_threads(nthreads)
 	{
 		double x1, x0;
 		bool ok;
@@ -174,7 +166,7 @@ NumericVector cpppar_DichotomyNR(int K, int family, double theta, double epsDich
 
 
 // [[Rcpp::export]]
-NumericVector cpppar_tapply_vsum(int K, NumericVector x, IntegerVector obsCluster, IntegerVector tableCluster){
+NumericVector cpppar_tapply_vsum(int nthreads, int K, NumericVector x, IntegerVector obsCluster, IntegerVector tableCluster){
 	// K: nber of classes
 	// x: a vector
 	// dum: the N vector of clusters
@@ -195,7 +187,7 @@ NumericVector cpppar_tapply_vsum(int K, NumericVector x, IntegerVector obsCluste
 		}
 	}
 
-	#pragma omp parallel
+	#pragma omp parallel num_threads(nthreads)
 	{
 		int k, i;
 		#pragma omp for private(i)
@@ -210,7 +202,7 @@ NumericVector cpppar_tapply_vsum(int K, NumericVector x, IntegerVector obsCluste
 }
 
 // [[Rcpp::export]]
-NumericMatrix cpppar_PartialDerivative(int Q, int N, int V, double epsDeriv, NumericVector ll_d2,	NumericMatrix F, NumericVector init, IntegerMatrix obsCluster, IntegerVector tableCluster, IntegerVector nbCluster){
+NumericMatrix cpppar_PartialDerivative(int nthreads, int Q, int N, int V, double epsDeriv, NumericVector ll_d2,	NumericMatrix F, NumericVector init, IntegerMatrix obsCluster, IntegerVector tableCluster, IntegerVector nbCluster){
 	// takes in:
 	// init: the initialisation of the sum of derivatives vector
 	// ll_d2: the second derivative
@@ -266,7 +258,7 @@ NumericMatrix cpppar_PartialDerivative(int Q, int N, int V, double epsDeriv, Num
 	// Creation of the sum_lld2
 	for(q=0 ; q<Q ; q++){
 		K = end_cluster[q] - start_cluster[q];
-		#pragma omp parallel
+		#pragma omp parallel num_threads(nthreads)
 		{
 			double value_thread;
 			int obs, k, index, i;
@@ -284,7 +276,7 @@ NumericMatrix cpppar_PartialDerivative(int Q, int N, int V, double epsDeriv, Num
 		}
 	}
 
-	#pragma omp parallel
+	#pragma omp parallel num_threads(nthreads)
 	{
 		// initialisation of S
 		#pragma omp for collapse(2)
@@ -296,7 +288,7 @@ NumericMatrix cpppar_PartialDerivative(int Q, int N, int V, double epsDeriv, Num
 	}
 
 
-	#pragma omp parallel
+	#pragma omp parallel num_threads(nthreads)
 	{
 
 		// variables
@@ -382,13 +374,13 @@ NumericMatrix cpppar_PartialDerivative(int Q, int N, int V, double epsDeriv, Num
 }
 
 // [[Rcpp::export]]
-NumericVector cpppar_exp(NumericVector x){
+NumericVector cpppar_exp(NumericVector x, int nthreads){
 	// parallel exponentiation using omp
 
 	int n = x.length();
 	NumericVector res(n);
 
-	#pragma omp parallel
+	#pragma omp parallel num_threads(nthreads)
 	{
 		#pragma omp for
 		for(int i = 0 ; i < n ; i++) {
@@ -400,13 +392,13 @@ NumericVector cpppar_exp(NumericVector x){
 }
 
 // [[Rcpp::export]]
-NumericVector cpppar_log(NumericVector x){
+NumericVector cpppar_log(NumericVector x, int nthreads){
 	// parallel exponentiation using omp
 
 	int n = x.length();
 	NumericVector res(n);
 
-	#pragma omp parallel
+	#pragma omp parallel num_threads(nthreads)
 	{
 		#pragma omp for
 		for(int i = 0 ; i < n ; i++) {
@@ -418,13 +410,13 @@ NumericVector cpppar_log(NumericVector x){
 }
 
 // [[Rcpp::export]]
-NumericVector cpppar_log_a_exp(double a, NumericVector mu, NumericVector exp_mu){
+NumericVector cpppar_log_a_exp(int nthreads, double a, NumericVector mu, NumericVector exp_mu){
 	// faster this way
 
 	int n = mu.length();
 	NumericVector res(n);
 
-	#pragma omp parallel
+	#pragma omp parallel num_threads(nthreads)
 	{
 		#pragma omp for
 		for(int i=0 ; i<n ; i++) {
@@ -440,13 +432,13 @@ NumericVector cpppar_log_a_exp(double a, NumericVector mu, NumericVector exp_mu)
 }
 
 // [[Rcpp::export]]
-NumericVector cpppar_lgamma(NumericVector x){
+NumericVector cpppar_lgamma(NumericVector x, int nthreads){
 	// parallel lgamma using omp
 
 	int n = x.length();
 	NumericVector res(n);
 
-	#pragma omp parallel
+	#pragma omp parallel num_threads(nthreads)
 	{
 		#pragma omp for
 		for(int i = 0 ; i < n ; i++) {
@@ -458,13 +450,13 @@ NumericVector cpppar_lgamma(NumericVector x){
 }
 
 // [[Rcpp::export]]
-NumericVector cpppar_digamma(NumericVector x){
+NumericVector cpppar_digamma(NumericVector x, int nthreads){
 	// parallel digamma using omp
 
 	int n = x.length();
 	NumericVector res(n);
 
-	#pragma omp parallel
+	#pragma omp parallel num_threads(nthreads)
 	{
 		#pragma omp for
 		for(int i = 0 ; i < n ; i++) {
@@ -476,13 +468,13 @@ NumericVector cpppar_digamma(NumericVector x){
 }
 
 // [[Rcpp::export]]
-NumericVector cpppar_trigamma(NumericVector x){
+NumericVector cpppar_trigamma(NumericVector x, int nthreads){
 	// parallel trigamma using omp
 
 	int n = x.length();
 	NumericVector res(n);
 
-	#pragma omp parallel
+	#pragma omp parallel num_threads(nthreads)
 	{
 		#pragma omp for
 		for(int i = 0 ; i < n ; i++) {
