@@ -45,13 +45,14 @@ gravity_results_gaussian <- femlm(log(Euros) ~ log(dist_km)|Origin+Destination+P
 
 ## ---- echo=FALSE, results='asis'-----------------------------------------
 tab = res2table(gravity_results, gravity_results_negbin, gravity_results_gaussian, se = "twoway", subtitles = c("Poisson", "Negative Binomial", "Gaussian"))
-knitr::kable(tab)
+# problem to display the second empty line in markdown
+knitr::kable(tab[-2, ])
 
 ## ------------------------------------------------------------------------
 gravity_subcluster = list()
 all_clusters = c("Year", "Destination", "Origin", "Product")
-for(i in 0:4){
-	gravity_subcluster[[i+1]] = femlm(Euros ~ log(dist_km), trade, cluster = all_clusters[0:i])
+for(i in 1:4){
+	gravity_subcluster[[i]] = femlm(Euros ~ log(dist_km), trade, cluster = all_clusters[1:i])
 }
 
 ## ---- eval=FALSE---------------------------------------------------------
@@ -128,5 +129,6 @@ rbind(gamma, exp(getFE(result_NL_fe)$id))
 base_coll = trade
 base_coll$constant_variable = 1
 res <- femlm(Euros ~ log(dist_km) + constant_variable|Origin+Destination+Product+Year, base_coll)
+diagnostic(res)
 
 

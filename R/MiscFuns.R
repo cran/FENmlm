@@ -37,7 +37,7 @@ print.femlm <- function(x, ...){
 	x = summary(x, fromPrint = TRUE, ...)
 
 	if(!x$convStatus){
-		warning("The optimization algorithm did not converge, the results are not reliable.")
+		warning("The optimization algorithm did not converge, the results are not reliable. Use function diagnostic() to see what's wrong.")
 	}
 
 	coeftable = x$coeftable
@@ -1473,6 +1473,7 @@ vcovClust <- function (cluster, myBread, scores, dof_correction=FALSE, do.unclas
 	return(crossprod(RightScores%*%myBread) * dof)
 }
 
+
 addCommas_single = function(x){
 
 	if (!is.finite(x)) return(as.character(x))
@@ -1676,9 +1677,464 @@ prepare_matrix = function(fml, base){
 	res
 }
 
+#' Finds observations to be removed from ML estimation with factors/clusters
+#'
+#' For Poisson, Negative Binomial or Logit estimations with fixed-effects, when the dependent variable is only equal to 0 (or 1 for Logit) for one cluster value this leads to a perfect fit for that cluster value by setting its associated cluster coefficient to \code{-Inf}. Thus these observations need to be removed before estimation. This function gives the observations to be removed. Not that by default the function \code{\link[FENmlm]{femlm}} drops them before performing the estimation.
+#'
+#' @param fml A formula contaning the dependent variable and the clusters. It can be of the type: \code{y ~ cluster_1 + cluster_2} or \code{y ~ x1 | cluster_1 + cluster_1} (in which case variables before the pipe are ignored).
+#' @param data A data.frame containing the variables in the formula.
+#' @param family Character scalar: either \dQuote{poisson} (default), \dQuote{negbin} or \dQuote{logit}.
+#'
+#' @return
+#' It returns an integer vector of observations to be removed. If no observations are to be removed, an empty integer vector is returned. In both cases, it is of class \code{femlm.obs2remove}.
+#' The vector has an attribut \code{cluster} which is a list giving the IDs of the clusters that have been removed, for each cluster dimension.
+#'
+#' @examples
+#'
+#' base = iris
+#' # v6: Petal.Length with only 0 values for 'setosa'
+#' base$v6 = base$Petal.Length
+#' base$v6[base$Species == "setosa"] = 0
+#'
+#' (x = obs2remove(v6 ~ Species, base))
+#' attr(x, "cluster")
+#'
+#' # The two results are identical:
+#' res_1 = femlm(v6 ~ Petal.Width | Species, base)
+#' # => warning + obsRemoved is created
+#'
+#' res_2 = femlm(v6 ~ Petal.Width | Species, base[-x, ])
+#' # => no warning because observations are removed before
+#'
+#' res2table(res_1, res_2)
+#'
+#' all(res_1$obsRemoved == x)
+#'
+obs2remove = function(fml, data, family = c("poisson", "negbin", "logit")){
+	# in the formula, the clusters must be there:
+	# either y ~ cluster_1 + cluster_2
+	# either y ~ x1 + x2 | cluster_1 + cluster_2
 
-#### ................... ####
-#### Aditional Functions ####
+	#
+	# CONTROLS
+	#
+
+	# FAMILY
+
+	family = match.arg(family)
+
+	# FML
+
+	if(!"formula" %in% class(fml) || length(fml) != 3){
+		stop("Argument 'fml' must be a formula of the type: 'y ~ x1 | cluster_1 + cluster_1' or of the type 'y ~ cluster_1 + cluster_2'.")
+	}
+
+	FML = Formula::Formula(fml)
+	n_rhs = length(FML)[2]
+
+	if(n_rhs > 2){
+		stop("Argument 'fml' must be a formula of the type: 'y ~ x1 | cluster_1 + cluster_1' or of the type 'y ~ cluster_1 + cluster_2'.")
+	}
+
+	# DATA
+
+	if(is.matrix(data)){
+		if(is.null(colnames(data))){
+			stop("If argument data is to be a matrix, its columns must be named.")
+		}
+		data = as.data.frame(data)
+	}
+	# The conversion of the data (due to data.table)
+	if(!"data.frame" %in% class(data)){
+		stop("The argument 'data' must be a data.frame or a matrix.")
+	}
+	if("data.table" %in% class(data)){
+		# this is a local change only
+		class(data) = "data.frame"
+	}
+
+	dataNames = names(data)
+
+	# Extracting the variables
+	vars_left = all.vars(formula(FML, lhs=1, rhs=0))
+	cluster_fml = formula(FML, lhs=0, rhs=n_rhs)
+	vars_clusters = all.vars(cluster_fml)
+
+	if(length(left_missing <- setdiff(vars_left, dataNames)) > 0){
+		stop("Left hand side could not be evaluated, following variables are missing from the data: ", paste0(left_missing, collapse = ", "), ".")
+	}
+
+	if(length(right_missing <- setdiff(vars_clusters, dataNames)) > 0){
+		stop("The clsuters could not be evaluated, following variables are missing from the data: ", paste0(right_missing, collapse = ", "), ".")
+	}
+
+	# Evaluation variables
+	lhs = as.vector(eval(fml[[2]], data))
+	cluster_mat = model.frame(cluster_fml, data)
+	cluster_name = names(cluster_mat)
+
+	#
+	# -- CORE --
+	#
+
+	Q = length(cluster_name)
+	dummyOmises = list()
+	obs2remove = c()
+	for(q in 1:Q){
+
+		dum_raw = cluster_mat[, q]
+
+		thisNames = getItems(dum_raw)
+		dum = quickUnclassFactor(dum_raw)
+		k = length(thisNames)
+
+		# We delete "all zero" outcome
+		sum_y_clust = cpp_tapply_vsum(k, lhs, dum)
+		n_perClust = cpp_table(k, dum)
+
+		if(family %in% c("poisson", "negbin")){
+			qui = which(sum_y_clust == 0)
+		} else if(family == "logit"){
+			qui = which(sum_y_clust == 0 | sum_y_clust == n_perClust)
+		}
+
+		if(length(qui > 0)){
+			# We first delete the data:
+			dummyOmises[[q]] = thisNames[qui]
+			obs2remove = unique(c(obs2remove, which(dum %in% qui)))
+		} else {
+			dummyOmises[[q]] = character(0)
+		}
+	}
+
+	names(dummyOmises) = cluster_name
+
+	if(length(obs2remove) == 0){
+		print("No observation to be removed.")
+		obs2remove = integer(0)
+		class(obs2remove) = "femlm.obs2remove"
+		return(invisible(obs2remove))
+	}
+
+	class(obs2remove) = "femlm.obs2remove"
+	attr(obs2remove, "family") = family
+	attr(obs2remove, "cluster") = dummyOmises
+
+	return(obs2remove)
+}
+
+
+
+#' Print method for femlm.obs2remove objects
+#'
+#' This function show synthetizes the information of function \code{\link[FENmlm]{obs2remove}}. It reports the number of observations to be removed as well as the number of clusters removed per cluster dimension.
+#'
+#' @method print femlm.obs2remove
+#'
+#' @param x A \code{femlm.obs2remove} object obtained from function \code{\link[FENmlm]{obs2remove}}.
+#' @param ... Not currently used.
+#'
+#'
+#' @examples
+#' base = iris
+#' # v6: Petal.Length with only 0 values for 'setosa'
+#' base$v6 = base$Petal.Length
+#' base$v6[base$Species == "setosa"] = 0
+#'
+#' (x = obs2remove(v6 ~ Species, base))
+#' attr(x, "cluster")
+#'
+print.femlm.obs2remove = function(x, ...){
+
+	if(length(x) == 0){
+		print("No observation to be removed.")
+	} else {
+		cat(length(x), " observations removed because of only zero", ifelse(attr(x, "family") == "logit", ", or only one,", ""), " outcomes.\n", sep = "")
+		cluster = attr(x, "cluster")
+		cat("# clusters removed: ", paste0(names(cluster), ": ", lengths(cluster), collapse = ", "), ".", sep = "")
+	}
+
+}
+
+#' Collinearity diagnostics for femlm objects
+#'
+#' In some occasions, the optimization algorithm of \code{\link[FENmlm]{femlm}} may fail to converge, or the variance-covariance matrix may not be available. The most common reason of why this happens is colllinearity among variables. This function helps to find out which variable is problematic.
+#'
+#' @param x A \code{femlm} object obtained from function \code{\link[FENmlm]{femlm}}.
+#'
+#' @details
+#' This function tests: 1) collinearity with the cluster variables, 2) perfect multi-collinearity between the variables, and 3) identification issues when there are non-linear in parameters parts.
+#'
+#' @return
+#' It returns a text message with the identified diagnostics.
+#'
+#' @examples
+#'
+#' # Creating an example data base:
+#' cluster_1 = sample(3, 100, TRUE)
+#' cluster_2 = sample(20, 100, TRUE)
+#' x = rnorm(100, cluster_1)**2
+#' y = rnorm(100, cluster_2)**2
+#' z = rnorm(100, 3)**2
+#' dep = rpois(100, x*y*z)
+#' base = data.frame(cluster_1, cluster_2, x, y, z, dep)
+#'
+#' # creating collinearity problems:
+#' base$v1 = base$v2 = base$v3 = base$v4 = 0
+#' base$v1[base$cluster_1 == 1] = 1
+#' base$v2[base$cluster_1 == 2] = 1
+#' base$v3[base$cluster_1 == 3] = 1
+#' base$v4[base$cluster_2 == 1] = 1
+#'
+#' # Estimations:
+#'
+#' # Collinearity with the cluster variables:
+#' res_1 = femlm(dep ~ log(x) + v1 + v2 + v4 | cluster_1 + cluster_2, base)
+#' diagnostic(res_1)
+#' # => collinearity with cluster identified, we drop v1 and v2
+#' res_1bis = femlm(dep ~ log(x) + v4 | cluster_1 + cluster_2, base)
+#' diagnostic(res_1bis)
+#'
+#' # Multi-Collinearity:
+#' res_2 =  femlm(dep ~ log(x) + v1 + v2 + v3 + v4, base)
+#' diagnostic(res_2)
+#'
+#' # In non-linear part:
+#' res_3 = femlm(dep ~ log(z), base, NL.fml = ~log(a*x + b*y),
+#'               NL.start = list(a=1, b=1), lower = list(a=0, b=0))
+#' diagnostic(res_3)
+#'
+#'
+diagnostic = function(x){
+	# x: femlm estimation
+
+	if(class(x) != "femlm"){
+		stop("Argument 'x' must be a femlm object.")
+	}
+
+	# I) (linear) collinearity with clusters
+	# II) (linear) multi collinearity
+	# III) (non-linear) overidentification
+
+	# flags
+	isCluster = !is.null(x$id_dummies)
+	linear_fml = formula(Formula(formula(x, "linear")), lhs=0, rhs=1)
+	isLinear = length(all.vars(linear_fml)) > 0
+	NL_fml = x$NL.fml
+	isNL = !is.null(NL_fml)
+	coef = x$coefficients
+
+	# Getting the data
+	data = NULL
+	try(data <- eval(x$call$data, parent.frame()))
+
+	if(is.null(data)){
+		dataName = x$call$data
+		stop("To apply 'diagnostic', we fetch the original database in the parent.frame -- but it doesn't seem to be there anymore (btw it was ", deparse(dataName), ").")
+	}
+
+
+	if(isCluster){
+		linear_fml = update(linear_fml, ~ . + 1)
+	}
+
+	if(isLinear || isCluster || "(Intercept)" %in% names(coef)){
+		linear.matrix = model.matrix(linear_fml, data)
+	}
+
+	#
+	# I) collinearity with clusters
+	#
+
+	if(isCluster && isLinear){
+		# We project each variable onto the cluster subspace
+		linear_mat_noIntercept = linear.matrix[, -1, drop = FALSE]
+
+		cluster = x$id_dummies
+		Q = length(cluster)
+		for(q in 1:Q){
+			dum = cluster[[q]]
+			k = max(dum)
+			value = cpp_tapply_sum(Q = k, x = linear_mat_noIntercept, dum = dum)
+			nb_per_cluster = cpp_table(Q = k, dum = dum)
+
+			# residuals of the linear projection on the cluster space
+			residuals = linear_mat_noIntercept - (value/nb_per_cluster)[dum, ]
+
+			sum_residuals = colSums(abs(residuals))
+
+			if(any(sum_residuals < 1e-4)){
+				varnames = colnames(linear_mat_noIntercept)
+				collin_var = varnames[sum_residuals < 1e-4]
+				if(length(collin_var) == 1){
+					message = paste0("Variable '", collin_var, "' is collinear with cluster ", names(cluster)[q], ".")
+				} else {
+					message = paste0("Variables ", show_vars_limited_width(collin_var), " are collinear with cluster '", names(cluster)[q], "'.")
+				}
+
+				print(message)
+				return(invisible(message))
+
+			}
+
+		}
+	}
+
+	#
+	# II) perfect multicollinearity
+	#
+
+	linearVars = setdiff(colnames(linear.matrix), "(Intercept)")
+	if(isLinear && length(linearVars) >= 2){
+
+		linear_df = as.data.frame(linear.matrix)
+
+		for(v in linearVars){
+			fml2estimate = as.formula(paste0(v, "~", paste0(setdiff(linearVars, v), collapse = "+")))
+
+			res = lm(fml2estimate, data)
+
+			sum_resid = sum(abs(resid(res)))
+			if(sum_resid < 1e-4){
+				coef_lm = coef(res)
+				collin_var = names(coef_lm)[!is.na(coef_lm) & abs(coef_lm) > 1e-6]
+				message = paste0("Variable '", v, "' is collinear with variable(s): ", paste0(collin_var, collapse = ", "), ".")
+
+				print(message)
+				return(invisible(message))
+			}
+		}
+	}
+
+	#
+	# III) NL problem
+	#
+
+	if(isNL){
+		NL_vars = all.vars(NL_fml)
+		varNotHere = setdiff(NL_vars, c(names(coef), names(data)))
+		if(length(varNotHere) > 0){
+			stop("Some variables used to estimate the model (in the non-linear formula) are missing from the original data: ", paste0(varNotHere, collapse = ", "), ".")
+		}
+
+		var2send = intersect(NL_vars, names(data))
+		env = new.env()
+		for(var in var2send){
+			assign(var, data[[var]], env)
+		}
+	}
+
+	if(isNL && (length(coef) >= 2 || isCluster)){
+
+		if(isCluster){
+			# we add the constant
+			coef["CONSTANT"] = 1
+			data$CONSTANT = 1
+			linear.matrix = model.matrix(update(linear_fml, ~.-1+CONSTANT), data)
+		}
+
+		coef_name = names(coef)
+
+		NL_coef = setdiff(all.vars(NL_fml), names(data))
+		# L_coef = setdiff(coef_name, NL_coef)
+		L_coef = colnames(linear.matrix)
+
+		#
+		# We compute mu:
+		#
+
+		mu = 0
+		if(length(L_coef) > 0){
+			mu = linear.matrix %*% coef[L_coef]
+		}
+
+		for(iter_coef in NL_coef){
+			assign(iter_coef, coef[iter_coef], env)
+		}
+
+		# Evaluation of the NL part
+		value_NL = eval(NL_fml[[2]], env)
+		mu = mu + value_NL
+		data$mu = mu
+
+		if(var(mu) == 0){
+			message = "Variance of the NL part is 0."
+			print(message)
+			return(invisible(message))
+		}
+
+		#
+		# The loop
+		#
+
+		for(var in coef_name){
+			# we modify the coef of var, then we fix it:
+			# if we can find a set of other parameters that give the same fit,
+			# then there is an identification issue
+
+			if(var %in% L_coef){
+				# if linear coef: we modify the fml and add an offset
+				if(length(L_coef) == 1){
+					fml = mu ~ 0
+				} else {
+					fml = as.formula(paste0("mu ~ 0+", paste0(setdiff(L_coef, var), collapse = "+")))
+				}
+
+				# offset with the new value
+				offset = as.formula(paste0("~", coef[var] + 1, "*", var))
+
+				res = femlm(fml, data = data, family = "gaussian", NL.fml = NL_fml, NL.start = as.list(coef), offset = offset)
+
+			} else {
+				# NL case:
+				# we modify both fml and NL.fml
+
+				if(isCluster){
+					fml = update(x$fml, mu ~ . - 1 + CONSTANT)
+				} else {
+					fml = update(x$fml, mu ~ .)
+				}
+
+				# the new formula with the new variable
+				NL_fml_char = as.character(NL_fml)[2]
+				NL_fml_new = as.formula(paste0("~", gsub(paste0("\\b", var, "\\b"), 1 + coef[var], NL_fml_char)))
+
+				if(length(NL_coef) == 1){
+					# there is no more parameter to estimate => offset
+					res = femlm(fml, data = data, family = "gaussian", offset = NL_fml_new)
+				} else {
+					res = femlm(fml, data = data, family = "gaussian", NL.fml = NL_fml_new, NL.start = as.list(coef))
+				}
+
+			}
+
+			# browser()
+			sum_resids = sum(abs(resid(res)))
+			if(sum_resids < 1e-4){
+				coef_esti = coef(res)
+				coef_diff = abs(coef_esti - coef[names(coef_esti)])
+				collin_var = names(coef_diff)[coef_diff > 1e-3]
+				message = paste0("Coefficients ", show_vars_limited_width(c(var, collin_var)), " are not uniquely identifed.")
+
+				print(message)
+				return(invisible(message))
+			}
+
+		}
+
+	}
+
+	message = "No visible collinearity problem."
+	print(message)
+	return(invisible(message))
+
+}
+
+
+
+
+#### ................. ####
+#### Aditional Methods ####
 ####
 
 # Here we add common statistical functions
@@ -2324,13 +2780,14 @@ vcov.femlm = function(object, se=c("standard", "white", "cluster", "twoway", "th
 
 	VCOV_raw = object$cov.unscaled
 
-	#??? information on the variable used for the clustering
+	# information on the variable used for the clustering
 	type_info = ""
 
 	if(anyNA(VCOV_raw)){
 
 		if(!forceCovariance){
-			warning("Standard errors are NA because of likely presence of collinearity. You can use option 'forceCovariance' to try to force the computation of the vcov matrix (to see what's wrong).", call. = FALSE)
+			# warning("Standard errors are NA because of likely presence of collinearity. You can use option 'forceCovariance' to try to force the computation of the vcov matrix (to see what's wrong).", call. = FALSE)
+			warning("Standard errors are NA because of likely presence of collinearity. Use function diagnostic() to see what's wrong.", call. = FALSE)
 			return(VCOV_raw)
 		} else {
 			VCOV_raw_forced = MASS::ginv(object$hessian)

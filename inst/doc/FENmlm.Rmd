@@ -2,7 +2,14 @@
 title: "Efficient Maximum Likelihood Estimation with Multiple Fixed-Effects"
 author: "Laurent Berge"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
 vignette: >
   %\VignetteIndexEntry{FENmlm introduction}
   %\VignetteEngine{knitr::rmarkdown}
@@ -29,7 +36,7 @@ Two specific functions are implemented to seamlessly export the results of multi
 
 The main features of the package are illustrated in this vignette. For the theory behind this method, see Berge (2018), "*Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm.*" CREA Discussion Papers, 13 (<https://wwwen.uni.lu/content/download/110162/1299525/file/2018_13>).
 
-# Complete example using Trade data
+# Simple example using Trade data
 
 This example deals with international trade, which is a setup that usually requires performing estimations with many fixed-effects. We estimate a very simple gravity model in which we are interested in finding out the negative effect of geographic distance on trade. The sample data consists of European trade extracted from Eurostat. Let's load the data contained in the package:
 
@@ -128,7 +135,8 @@ res2table(gravity_results, gravity_results_negbin, gravity_results_gaussian, se 
 ```
 ```{r, echo=FALSE, results='asis'}
 tab = res2table(gravity_results, gravity_results_negbin, gravity_results_gaussian, se = "twoway", subtitles = c("Poisson", "Negative Binomial", "Gaussian"))
-knitr::kable(tab)
+# problem to display the second empty line in markdown
+knitr::kable(tab[-2, ])
 ```
 
 We added the argument `se="twoway"` to cluster the standard-errors for all estimations. As can be seen this function gives an overview of the estimates and standard-errors, as well as some quality of fit measures. The argument `subtitles` is used to add information on each estimation column.
@@ -139,8 +147,8 @@ Let's give an example. Say you want to see the influence of the introduction of 
 ```{r}
 gravity_subcluster = list()
 all_clusters = c("Year", "Destination", "Origin", "Product")
-for(i in 0:4){
-	gravity_subcluster[[i+1]] = femlm(Euros ~ log(dist_km), trade, cluster = all_clusters[0:i])
+for(i in 1:4){
+	gravity_subcluster[[i]] = femlm(Euros ~ log(dist_km), trade, cluster = all_clusters[1:i])
 }
 ```
 
@@ -332,16 +340,17 @@ This section deals with possible error/warning messages stemming from the estima
 
 The user ought to estimate the coefficient of variables that are not collinear: 1) among each other, nor 2) with the fixed-effects. In such cases, the algorithm raise a warning and point to the collinear variable.
 
-Let's take an example in which we want to estimate the coefficient of a variable which is constant. Of course it makes no sense, so a warning will be raised and the suspicious variable will be named.
+Let's take an example in which we want to estimate the coefficient of a variable which is constant. Of course it makes no sense, so a warning will be raised suggesting to use the function `diagnostic` to figure out what is wrong.
 
 ```{r}
 base_coll = trade
 base_coll$constant_variable = 1
 res <- femlm(Euros ~ log(dist_km) + constant_variable|Origin+Destination+Product+Year, base_coll)
+diagnostic(res)
 
 ```
 
-In such situation, just remove the collinear variables. Their identification is eased by the detailed warning. Even in more elaborate cases of collinearity, the algorithm tries to find out the culprit and inform the user accordingly. 
+As we can see, the function `diagnostic` spots the collinear variables and name them. Even in more elaborate cases of collinearity, the algorithm tries to find out the culprit and informs the user accordingly. 
 
 ### Precision
 

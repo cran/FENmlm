@@ -3,6 +3,26 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
+\section{Changes in version 2.2.1 (2018-09-15)}{
+	\subsection{New features}{
+		\itemize{
+			\item Function diagnostic() is created to quickly spot where possible estimation problem come from. Ususally, perfect collinearity (between the explanatory variables or with the cluster variables) leads to false convergence of the optimization algorithm. This function helps figure out which variables that are collinear.
+			\item Function obs2remove() is created to obtain the observations that need to be withdrawn from a Poisson, Negative Binomial or Logit estimation (because of only 0 or 1 outcomes for some clusters). The function femlm automatically removes such observations before performing the estimation; this function simply allows the user to clean the data before the estimation is done, if needed.
+		}
+	}
+	\subsection{Bug fix}{
+		\itemize{
+			\item [femlm] Correction of a bug regarding the constuction of the cluster matrix when the clusters were complex variables in the formula and some observations had to be removed.
+		}
+	}
+	\subsection{Vignette}{
+		\itemize{
+			\item Bug in displaying one table of the vignette has been corrected.
+			\item Some parts of the vignette have been rewritten.
+		}
+	}
+}
+
 \section{Changes in version 2.2.0 (2018-08-03)}{
 	\subsection{New features}{
 		\itemize{

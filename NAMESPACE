@@ -4,7 +4,7 @@ useDynLib(FENmlm, .registration = TRUE)
 # EXPORT
 #
 
-export(femlm, res2tex, res2table, getFE)
+export(femlm, res2tex, res2table, getFE, diagnostic, obs2remove)
 
 # Base methods
 S3method(print, femlm)

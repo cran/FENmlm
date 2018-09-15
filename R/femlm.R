@@ -497,7 +497,8 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			stop("The argument 'cluster' must be a variable name!\nCluster(s) not in the data: ", paste0(var_problem, collapse = ", "), ".")
 		} else if(!is.character(cluster)){
 			# means the cluster is a formula
-			cluster_mat = model.frame(cluster, data)
+			cluster_fml = cluster
+			cluster_mat = model.frame(cluster_fml, data)
 			# we change cluster to become a vector of characters
 			cluster = names(cluster_mat)
 			isClusterFml = TRUE
@@ -561,9 +562,18 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 			lhs = eval(fml[[2]], data)
 
+			if(isClusterFml){
+				cluster_mat = model.frame(cluster_fml, data)
+			}
+
 			# Then we recreate the dummies
 			for(i in 1:Q){
-				dum_raw = data[[cluster[i]]]
+
+				if(isClusterFml){
+					dum_raw = cluster_mat[[cluster[i]]]
+				} else {
+					dum_raw = data[[cluster[i]]]
+				}
 
 				dum_names[[i]] = getItems(dum_raw)
 				dum = quickUnclassFactor(dum_raw)
@@ -658,36 +668,32 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	}
 
 	#
-	# Controls: The upper and lower limits
+	# The upper and lower limits
 	#
 
-	if(!missing(lower)){
-		if(typeof(lower)!="list") stop("'lower' MUST be a list.")
-		if(any(!names(lower)%in%params)){
-			text <- paste("Some parameters in 'lower' are not in the formula:\n", paste(names(lower)[!names(lower)%in%params], collapse=", "), ".", sep="")
-			stop(text)
-		}
-	}
-	if(!missing(upper)){
-		if(typeof(upper)!="list") stop("'upper' MUST be a list.")
-		if(any(!names(upper)%in%params)){
-			text <- paste("Some parameters in 'upper' are not in the formula:\n", paste(names(upper)[!names(upper)%in%params], collapse=", "), ".", sep="")
-			stop(text)
-		}
-	}
+	if(!missing(lower) && !is.null(lower)){
 
-	# Now setting upper and lower
+		if(typeof(lower)!="list"){
+			stop("'lower' MUST be a list.")
+		}
 
-	if(!missing(lower)){
-		lower[params[!params%in%names(lower)]] <- -Inf
+		lower[params[!params %in% names(lower)]] <- -Inf
 		lower <- unlist(lower[params])
+
 	}	else {
 		lower <- rep(-Inf, lparams)
 		names(lower) <- params
 	}
-	if(!missing(upper)){
-		upper[params[!params%in%names(upper)]] <- Inf
+
+	if(!missing(upper) && !is.null(upper)){
+
+		if(typeof(upper)!="list"){
+			stop("'upper' MUST be a list.")
+		}
+
+		upper[params[!params %in% names(upper)]] <- Inf
 		upper <- unlist(upper[params])
+
 	}	else {
 		upper <- rep(Inf, lparams)
 		names(upper) <- params
@@ -968,10 +974,11 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			stop("The non-linear part (NL.fml) could not be evaluated. There may be a problem in 'NL.fml'.")
 		}
 
-		# the special case of the constant
-		if(length(mu) == 1){
-			mu = rep(mu, nrow(data))
-		}
+		# DEPREC: the NL part should return stg the same length
+		# # the special case of the constant
+		# if(length(mu) == 1){
+		# 	mu = rep(mu, nrow(data))
+		# }
 
 		# No numeric vectors
 		if(!is.vector(mu) || !is.numeric(mu)){
@@ -1040,8 +1047,10 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	}
 
 	convStatus = TRUE
-	if(!opt$message %in% c("relative convergence (4)", "both X-convergence and relative convergence (5)")){
-		warning("The optimization algorithm did not converge, the results are not reliable.", call. = FALSE)
+	warningMessage = ""
+	if(!opt$message %in% c("X-convergence (3)", "relative convergence (4)", "both X-convergence and relative convergence (5)")){
+		# warning("[femlm] The optimization algorithm did not converge, the results are not reliable. Use function diagnostic() to see what's wrong.", call. = FALSE)
+		warningMessage = " The optimization algorithm did not converge, the results are not reliable."
 		convStatus = FALSE
 	}
 
@@ -1103,31 +1112,40 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	try(var <- solve(hessian_noBounded), silent = TRUE)
 	if(is.null(var)){
 		#var <- MASS::ginv(hessian_noBounded)
-		if(!isDummy){
-			Qr = qr(hessian_noBounded)
-			collvar = params[Qr$pivot[-(1:Qr$rank)]]
-			var <- MASS::ginv(hessian_noBounded)
-			warning("Could not achieve to get the covariance matrix. The information matrix was singular.\nTry to manually suppress some collinear variables. FYI the suspects are:\n", paste(collvar, collapse=", "), call. = FALSE)
-		} else {
-			var <- MASS::ginv(hessian_noBounded)
-			collvar = params[diag(var)==0]
-			if(length(collvar)>0){
-				warning("Could not achieve to get the covariance matrix. The information matrix was singular.\nTry to manually suppress some collinear variables. FYI the suspects (collinear with the clusters) are:\n", paste(collvar, collapse=", "), call. = FALSE)
-			} else {
-				warning("Could not achieve to get the covariance matrix. The information matrix was singular.\nTry to manually suppress some collinear variables. They may be collinear with the clusters.", call. = FALSE)
-			}
-		}
+		# if(!isDummy){
+		# 	Qr = qr(hessian_noBounded)
+		# 	collvar = params[Qr$pivot[-(1:Qr$rank)]]
+		# 	var <- MASS::ginv(hessian_noBounded)
+		# 	warning("Could not achieve to get the covariance matrix. The information matrix was singular.\nTry to manually suppress some collinear variables. FYI the suspects are: ", paste(collvar, collapse=", "), call. = FALSE)
+		# } else {
+		# 	var <- MASS::ginv(hessian_noBounded)
+		# 	collvar = params[diag(var)==0]
+		# 	if(length(collvar)>0){
+		# 		warning("Could not achieve to get the covariance matrix. The information matrix was singular.\nTry to manually suppress some collinear variables. FYI the suspects (collinear with the clusters) are: ", paste(collvar, collapse=", "), call. = FALSE)
+		# 	} else {
+		# 		warning("Could not achieve to get the covariance matrix. The information matrix was singular.\nTry to manually suppress some collinear variables. They may be collinear with the clusters.", call. = FALSE)
+		# 	}
+		# }
 
 		# WARNING: we DO NOT give the covariance matrix => too dangerous ! and it is not interpretable anyway
 		# => we add a message in "summary" and an option to compute the generalized inverse of the hessian
 
-		var = var*NA
+		# warning("[femlm] The information matrix is singular (likely presence of collinearity). Use function diagnostic() to see what's wrong.", call. = FALSE)
+		warningMessage = paste(warningMessage, "The information matrix is singular (likely presence of collinearity).")
+
+		# var = var*NA
+		var = hessian_noBounded*NA
 		se = diag(var)
 	} else {
 		se = diag(var)
 		se[se<0] = NA
 		# if(anyNA(se)) warning("CAUTION: Variance needs to be 'eigenfixed'.", call. = FALSE)
 		se = sqrt(se)
+	}
+
+	# Warning message
+	if(nchar(warningMessage) > 0){
+		warning("[femlm]:", warningMessage, " Use function diagnostic() to see what's wrong.")
 	}
 
 	# To handle the bounded coefficient, we set its SE to NA
@@ -1420,16 +1438,16 @@ femlm_hessian <- function(coef, env){
 	}
 
 	if(anyNA(hessVar)){
-		stop("NaN in the Hessian, can be due to a possible overfitting problem.\nIf so, to have an idea of what's going on, you can reduce the value of the argument 'rel.tol' of the nlminb algorithm with the argument 'opt.control'.")
+		stop("NaN in the Hessian, can be due to a possible overfitting problem.\nIf so, to have an idea of what's going on, you can reduce the value of the argument 'rel.tol' of the nlminb algorithm using the argument 'opt.control = list(rel.tol=?)' with ? the new value.")
 	}
 
-	warn_0_Hessian = get(".warn_0_Hessian", env)
-	if(!warn_0_Hessian && any(diag(hessVar) == 0)){
-		# We apply the warning only once
-		var_problem = params[diag(hessVar) == 0]
-		warning("Some elements of the diagonal of the hessian are equal to 0: likely presence of collinearity. FYI the problematic variables are: ", paste0(var_problem, collapse = ", "), ".", immediate. = TRUE)
-		assign(".warn_0_Hessian", TRUE, env)
-	}
+	# warn_0_Hessian = get(".warn_0_Hessian", env)
+	# if(!warn_0_Hessian && any(diag(hessVar) == 0)){
+	# 	# We apply the warning only once
+	# 	var_problem = params[diag(hessVar) == 0]
+	# 	warning("Some elements of the diagonal of the hessian are equal to 0: likely presence of collinearity. FYI the problematic variables are: ", paste0(var_problem, collapse = ", "), ".", immediate. = TRUE)
+	# 	assign(".warn_0_Hessian", TRUE, env)
+	# }
 
 	if(verbose >= 2) cat("\nHessian: ", (proc.time()-ptm)[3], "s")
 	- hessVar
@@ -1541,12 +1559,21 @@ evalNLpart = function(coef, env){
 	nbMaxSave = get(".nbMaxSave", env)
 	savedCoef = get(".savedCoef", env)
 	savedValue = get(".savedValue", env)
-	if(!is.null(names(coef))) coef = coef[nonlinear.params]
-	else if (length(coef)!=length(nonlinear.params)) stop("Problem with the length of the NL coefficients.")
+	if(!is.null(names(coef))){
+		coef = coef[nonlinear.params]
+	} else if (length(coef) != length(nonlinear.params)){
+		stop("Problem with the length of the NL coefficients.")
+	}
 
 	if(nbMaxSave == 0){
 		for(var in nonlinear.params) assign(var, coef[var], env)
 		y_nl <- eval(nl.call, envir= env)
+
+		# we check problems
+		if(anyNA(y_nl)){
+			stop("Evaluation of non-linear part returns NAs. The coefficients were: ", paste0(nonlinear.params, " = ", signif(coef[nonlinear.params], 3)), ".")
+		}
+
 		return(y_nl)
 	}
 
@@ -1561,6 +1588,11 @@ evalNLpart = function(coef, env){
 	#on met les valeurs les plus recentes en derniere position
 	for(var in nonlinear.params) assign(var, coef[var], env)
 	y_nl = eval(nl.call, envir = env)
+
+	# we check problems
+	if(anyNA(y_nl)){
+		stop("Evaluation of non-linear part returns NAs. The coefficients were: ", paste0(nonlinear.params, " = ", signif(coef[nonlinear.params], 3)), ".")
+	}
 
 	if(nbSave<nbMaxSave){
 		savedCoef[[nbSave+1]] = coef
