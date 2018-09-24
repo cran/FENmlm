@@ -2124,7 +2124,7 @@ diagnostic = function(x){
 
 	}
 
-	message = "No visible collinearity problem."
+	message = "No visible collinearity problem. Maybe try setting the argument 'precision.cluster' to a lower value to solve the problem."
 	print(message)
 	return(invisible(message))
 

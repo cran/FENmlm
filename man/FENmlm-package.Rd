@@ -9,9 +9,9 @@
 Efficient estimation of multiple fixed-effects maximum likelihood models with, possibly, non-linear in parameters right hand sides. Standard-errors can easily be clustered. It also includes tools to seamlessly export (to Latex) the results of various estimations.
 }
 \details{
-This package intends to efficiently estimate maximum likelihood models with multiple fixed-effect (i.e. large factor variables).
+This package efficiently estimates maximum likelihood models with multiple fixed-effect (i.e. large factor variables).
 
-The core function is \code{\link[FENmlm]{femlm}} which estimates maximum likelihood models with, possibly, non-linear in parameters right hand sides. The ML families currently available are: poisson, negative binomial, logit and Gaussian.
+The core function is \code{\link[FENmlm]{femlm}} which estimates maximum likelihood models with, possibly, non-linear in parameters right hand sides. The ML families available are: poisson, negative binomial, logit and Gaussian.
 
 Several features are also included such as the possibility to easily compute different types of standard-errors (including multi-way clustering).
 

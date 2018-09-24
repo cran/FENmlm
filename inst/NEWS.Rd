@@ -3,6 +3,34 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
+\section{Changes in version 2.2.2 (2018-09-15)}{
+	\subsection{Bug Fixes}{
+		\itemize{
+			\item [femlm/cores, reported by Valerio Leone Sciabolazza] Multi-core estimations did not work anymore since version 2.2.0. This has been corrected.
+		}
+	}
+	\subsection{New arguments}{
+		\itemize{
+			\item Arguments \sQuote{itermax.cluster} and \sQuote{itermax.deriv} are added to the function femlm. They control the number of iterations in the step used to obtain the cluster coefficients and the step used to obtain the derivatives of the cluster coefficients.
+		}
+	}
+	\subsection{Improvements}{
+		\itemize{
+			\item For 2+ clusters, the algorithm to obtain the cluster coefficients has been improved. Convergence is usually faster.
+			\item For the Gaussian and Poisson models, and in the case of two clusters, the algorithm getting the cluster coefficients has been improved. Now it is much more efficient when dealing with difficult cases.
+			\item For 2 clusters, the algorithm to obtain the derivative of the cluster coefficients has been improved. Convergence is usually faster for difficult cases.
+			\item Information displayed when verbose > 0 is more detailed.
+			\item Better handling of the dynamic precision leading to (usually) faster convergence.
+		}
+	}
+	\subsection{Other}{
+		\itemize{
+			\item Dependence to package Matrix has been removed.
+			\item Slight modifications in the vignette.
+		}
+	}
+}
+
 \section{Changes in version 2.2.1 (2018-09-15)}{
 	\subsection{New features}{
 		\itemize{

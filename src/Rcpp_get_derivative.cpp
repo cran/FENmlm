@@ -59,14 +59,14 @@ NumericVector cpp_log_a_exp(double a, NumericVector mu, NumericVector exp_mu){
 
 
 // [[Rcpp::export]]
-NumericMatrix RcppPartialDerivative(int Q, int N, int K, double epsDeriv, NumericVector ll_d2,	NumericMatrix F, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster){
+NumericMatrix RcppPartialDerivative(int iterMax, int Q, int N, int K, double epsDeriv, NumericVector ll_d2,	NumericMatrix F, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster){
 	// takes in:
 	// dumMat: the matrix of dummies (n X c) each obs => cluster
 	// init: the initialisation of the sum of derivatives vector
 	// ll_d2: the second derivative
 	// F: the jacobian matrix
 
-	int iter, iterMax = 1000;
+	int iter;
 
 	int i, q, k, c;
 	int index;
@@ -157,7 +157,7 @@ NumericMatrix RcppPartialDerivative(int Q, int N, int K, double epsDeriv, Numeri
 				}
 			}
 
-			Rprintf("[Getting cluster deriv.] Max iterations reached (%i) (max diff.: %0.6f)\n", iterMax, max_diff);
+			Rprintf("[(cpp loop) Getting cluster deriv.] Max iterations reached (%i) (max diff.: %0.6f)\n", iterMax, max_diff);
 		}
 
 	}
@@ -166,14 +166,14 @@ NumericMatrix RcppPartialDerivative(int Q, int N, int K, double epsDeriv, Numeri
 }
 
 // [[Rcpp::export]]
-NumericMatrix RcppPartialDerivative_gaussian(int Q, int N, int K, double epsDeriv, NumericMatrix F, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster){
+NumericMatrix RcppPartialDerivative_gaussian(int iterMax, int Q, int N, int K, double epsDeriv, NumericMatrix F, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster){
 	// takes in:
 	// dumMat: the matrix of dummies (n X c) each obs => cluster
 	// init: the initialisation of the sum of derivatives vector
 	// ll_d2: the second derivative
 	// F: the jacobian matrix
 
-	int iter, iterMax = 2000;
+	int iter;
 
 	int i, q, k, c;
 	int index;
@@ -274,14 +274,14 @@ NumericMatrix RcppPartialDerivative_gaussian(int Q, int N, int K, double epsDeri
 }
 
 // [[Rcpp::export]]
-NumericVector RcppPartialDerivative_other(int Q, int N, double epsDeriv, NumericVector ll_d2,	NumericVector dx_dother, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster){
+NumericVector RcppPartialDerivative_other(int iterMax, int Q, int N, double epsDeriv, NumericVector ll_d2,	NumericVector dx_dother, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster){
 	// takes in:
 	// dumMat: the matrix of dummies (n X c) each obs => cluster // must be in cpp index!!!
 	// init: the initialisation of the sum of derivatives vector
 	// ll_d2: the second derivative
 	// dx_dother: the vector of dx_dother
 
-	int iter, iterMax = 1000;
+	int iter;
 
 	int i, q, c;
 	int index;
@@ -1802,12 +1802,132 @@ NumericVector new_RcppDichotomyNR(int N, int K, int family, double theta, double
 }
 
 
+// [[Rcpp::export]]
+List sum_double_index(int n_i, int n_j, IntegerVector index_i, IntegerVector index_j, NumericVector x){
+	// ARGUMENTS:
+	// n_i (= length(unique(index_i)))
+	// index_i, index_j, two indexes that MUST be sorted before hand
+	// x and the other mindexes must be of the same length
+	// WHAT:
+	// it sums all x per combinaison of indexes
 
 
+	int n = x.length();
+
+	// we first put the results into a list
+	int i;
+	int index_current = 0;
+	double value = 0;
+
+	NumericVector col_1(n), col_2(n), col_value(n);
+
+	value = x[0];
+
+	for(i=1 ; i<n ; i++){
+		if(index_j[i] != index_j[i-1] || index_i[i] != index_i[i-1]){
+			// save the value if we change index
+			col_1(index_current) = index_i[i-1];
+			col_2(index_current) = index_j[i-1];
+			col_value(index_current) = value;
+
+			// new row
+			index_current++;
+
+			// the new value
+			value = x[i];
+		} else {
+			value += x[i];
+		}
+	}
+
+	// last save
+	col_1(index_current) = index_i[i-1];
+	col_2(index_current) = index_j[i-1];
+	col_value(index_current) = value;
+
+	// we fill the matrix
+	List res;
+
+	int n_row = index_current + 1;
+
+	IntegerVector index_i_out(n_row), index_j_out(n_row);
+	NumericVector sum_x(n_row);
+
+	for(i=0 ; i < n_row ; i++){
+		index_i_out(i) = col_1(i) - 1;
+		index_j_out(i) = col_2(i) - 1;
+		sum_x(i) = col_value(i);
+	}
+
+	res["index_i"] = index_i_out;
+	res["index_j"] = index_j_out;
+	res["coefmat"] = sum_x;
+	res["n_i"] = n_i;
+	res["n_j"] = n_j;
+
+	return(res);
+}
 
 
+// [[Rcpp::export]]
+NumericVector matmult(IntegerVector index_i, IntegerVector index_j, NumericVector matcoef, NumericVector x){
+	// suppprimer => use mmmult instead, this one is SLOW
 
+	int n_obs = matcoef.length();
+	int n = index_i[n_obs - 1] + 1;
 
+	int obs;
 
+	NumericVector res(n);
 
+	for(obs=0 ; obs<n_obs ; obs++){
+		res[index_i[obs]] += matcoef[obs] * x[index_j[obs]];
+	}
+
+	return(res);
+}
+
+// [[Rcpp::export]]
+SEXP mmult(int n, SEXP index_i, SEXP index_j, SEXP coefmat, SEXP x){
+	// I don't know why: lots of overheads in Rcpp (~20ms)
+	// this way is MUCH faster
+	// ARGS:
+	// index_i, index_j: must be cpp indexes
+
+	int n_obs = Rf_length(coefmat);
+	int obs;
+
+	// pointers
+	double *pcoefmat, *px, *pres;
+	int *pindex_i, *pindex_j;
+
+	SEXP res = PROTECT(Rf_allocVector(REALSXP, n));
+
+	pcoefmat = REAL(coefmat);
+	px = REAL(x);
+	pres = REAL(res);
+
+	pindex_i = INTEGER(index_i);
+	pindex_j = INTEGER(index_j);
+
+	// double mysum = 0;
+
+	// init
+	for(obs=0 ; obs<n ; obs++){
+		pres[obs] = 0;
+	}
+
+	for(obs=0 ; obs<n_obs ; obs++){
+		pres[pindex_i[obs]] += pcoefmat[obs] * px[pindex_j[obs]];
+		// if(pindex_i[obs] == 1){
+		// 	int k = pindex_j[obs];
+		// 	mysum += px[k] * pcoefmat[obs];
+		// 	Rprintf("k = %i, coefmat = %3.2f, px = %3.2f, sum = %3.2f, res = %3.2f\n", k, pcoefmat[obs], px[k], mysum, pres[pindex_i[obs]]);
+		// }
+	}
+
+	UNPROTECT(1);
+
+	return(res);
+}
 

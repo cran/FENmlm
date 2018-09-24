@@ -4,11 +4,13 @@
 \alias{femlm}
 \title{Fixed effects maximum likelihood models}
 \usage{
-femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"), NL.fml,
-  cluster, useAcc = TRUE, NL.start, lower, upper, env, NL.start.init, offset,
-  nl.gradient, linear.start = 0, jacobian.method = c("simple",
-  "Richardson"), useHessian = TRUE, opt.control = list(), cores = 1,
-  verbose = 0, theta.init, precision.cluster, ...)
+femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"),
+  NL.fml, cluster, useAcc = TRUE, NL.start, lower, upper, env,
+  NL.start.init, offset, nl.gradient, linear.start = 0,
+  jacobian.method = c("simple", "Richardson"), useHessian = TRUE,
+  opt.control = list(), cores = 1, verbose = 0, theta.init,
+  precision.cluster, itermax.cluster = 10000, itermax.deriv = 5000,
+  ...)
 }
 \arguments{
 \item{fml}{A formula. This formula gives the linear formula to be estimated (it is similar to a \code{lm} formula), for example: \code{fml = z~x+y}. To include cluster variables, you can 1) either insert them in this formula using a pipe (e.g. \code{fml = z~x+y|cluster1+cluster2}), or 2) either use the argment \code{cluster}. To include a non-linear in parameters element, you must use the argment \code{NL.fml}.}
@@ -51,7 +53,11 @@ femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"), NL.fml,
 
 \item{theta.init}{Positive numeric scalar. The starting value of the dispersion parameter if \code{family="negbin"}. By default, the algorithm uses as a starting value the theta obtained from the model with only the intercept.}
 
-\item{precision.cluster}{Precision used to obtain the fixed-effects (ie cluster coefficients). Defaults to \code{1e-5}. It corresponds to the maximum absolute difference allowed between two iterations.}
+\item{precision.cluster}{Precision used to obtain the fixed-effects (ie cluster coefficients). Defaults to \code{1e-5}. It corresponds to the maximum absolute difference allowed between two iterations. Argument \code{precision.cluster} cannot be lower than \code{10000*.Machine$double.eps}.}
+
+\item{itermax.cluster}{Maximum number of iterations in the step obtaining the fixed-effects (only in use for 2+ clusters). Default is 10000.}
+
+\item{itermax.deriv}{Maximum number of iterations in the step obtaining the derivative of the fixed-effects (only in use for 2+ clusters). Default is 5000.}
 
 \item{...}{Not currently used.}
 }

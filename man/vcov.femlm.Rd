@@ -4,8 +4,8 @@
 \alias{vcov.femlm}
 \title{Extract the variance/covariance of a femlm fit}
 \usage{
-\method{vcov}{femlm}(object, se = c("standard", "white", "cluster", "twoway",
-  "threeway", "fourway"), cluster, dof_correction = FALSE,
+\method{vcov}{femlm}(object, se = c("standard", "white", "cluster",
+  "twoway", "threeway", "fourway"), cluster, dof_correction = FALSE,
   forceCovariance = FALSE, keepBounded = FALSE, ...)
 }
 \arguments{

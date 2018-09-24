@@ -152,7 +152,7 @@ for(i in 1:4){
 }
 ```
 
-The previous code performs 5 estimations with an increasing number of fixed-effects and store their results into the list named `gravity_subcluster`. To show the results of all 5 estimations, it's easy:
+The previous code performs 4 estimations with an increasing number of fixed-effects and store their results into the list named `gravity_subcluster`. To show the results of all 4 estimations, it's easy:
 
 ```{r, eval=FALSE}
 res2table(gravity_subcluster, se = "twoway", cluster = trade[, c("Origin", "Destination")])
@@ -201,16 +201,21 @@ To change the variable names in the Latex table, we use the argument `dict`. The
 In the first export, the coefficient of the intercept is dropped by using `drop = "Int"` (could be anything such that `grepl(drop[1], "(Intercept)")` is TRUE). In the second, the coefficient of the distance is put before the intercept (which is kept). Note that the actions performed by the arguments `drop` or `order` are performed **before** the renaming takes place with the argument `dict`.
 
 
-## Looking at the fixed-effects
+## Extracting the fixed-effects
 
-To obtain the fixed-effects of the estimation, the function `getFE` must be performed on the results. The `print` method helps to have a quick overview:
+To obtain the fixed-effects of the estimation, the function `getFE` must be performed on the results. This function returns a list containing the fixed-effects for each cluster. The `print` method helps to have a quick overview:
 
 ```{r}
 fixedEffects <- getFE(gravity_results)
 fixedEffects
 ```
 
-We can see that the fixed-effects are balanced across clusters. Indeed, apart from the first cluster, only one fixed-effect per cluster needs to be set as reference (i.e. fixed to 0) to avoid collinearity across the fixed-effects of the different clusters. This ensures that the fixed-effects coefficients can be compared within cluster. Had there be strictly more than one reference per cluster, their interpretation would have been not possible at all. If this was the case though, a warning message would have been prompted. Note that the mean values are meaningless per se, but give a reference points to which compare the fixed-effects within a cluster. 
+We can see that the fixed-effects are balanced across clusters. Indeed, apart from the first cluster, only one fixed-effect per cluster needs to be set as reference (i.e. fixed to 0) to avoid collinearity across the fixed-effects of the different clusters. This ensures that the fixed-effects coefficients can be compared within cluster. Had there be strictly more than one reference per cluster, their interpretation would have not been possible at all. If this was the case though, a warning message would have been prompted. Note that the mean values are meaningless per se, but give a reference points to which compare the fixed-effects within a cluster.
+Let's look specifically at the `Year` fixed-effects: 
+
+```{r}
+fixedEffects$Year
+```
 
 Finally, the `plot` method helps to distinguish the most notable fixed-effects:
 
@@ -338,7 +343,7 @@ This section deals with possible error/warning messages stemming from the estima
 
 ### Collineartiy
 
-The user ought to estimate the coefficient of variables that are not collinear: 1) among each other, nor 2) with the fixed-effects. In such cases, the algorithm raise a warning and point to the collinear variable.
+The user ought to estimate the coefficient of variables that are **not** collinear: neither among each other, neither with the fixed-effects. Estimation with collinear variables either leads the algorithm to not converge, either leads to a non invertible Hessian (leading to the absence of Variance-Covariance matrix for the coefficients). In such cases, `femlm` will raise a warning and suggest to use the function `diagnostic` to spot the problem.
 
 Let's take an example in which we want to estimate the coefficient of a variable which is constant. Of course it makes no sense, so a warning will be raised suggesting to use the function `diagnostic` to figure out what is wrong.
 
@@ -352,11 +357,13 @@ diagnostic(res)
 
 As we can see, the function `diagnostic` spots the collinear variables and name them. Even in more elaborate cases of collinearity, the algorithm tries to find out the culprit and informs the user accordingly. 
 
-### Precision
+### A note on precision
 
 When there is more than one fixed-effect, the "optimal" fixed-effects are computed according to a fixed-point algorithm. This algorithm has a stopping criterion which is equal to the argument `precision.cluster`. By default, it stops when the maximum absolute difference between two iterations is lower than $10^{-5}$.
 
-However, in very specific cases: for large data sets and very "similar" fixed-effects (ie fixed-effects with many overlap), the algorithm may not converge because because the fixed-effects are not computed with enough precision (although they'll be very close to optimality). 
+Further, the algorithm implements a dynamic setting of the precision. This means that it increases the precision (i.e. sets `precision.cluster` to a *lower* value) when some condition occur in order to unblock the optimization algorithm. Thus, thanks to the dynamic handling of the precision, the default value `precision.cluster` should be enough for most situations. 
 
-In such cases, just set the stopping criterion with the argument `precision.cluster` to a lower value (the algorithm will take more time to run though because there will be more iterations).
+However, in some very *very* specific cases (for large data sets where small errors can lead to large differences, or with very "similar" fixed-effects (ie fixed-effects with many overlap)), the algorithm may not converge because the fixed-effects are not computed with enough precision (although they'll be very close to optimality). Said differently, in such situations the dynamic handling of the precision is not enough because the initial rounding errors when obtaining the cluster coefficients led the optimization algorithm astray.
+
+In such cases, setting the argument `precision.cluster` to a lower value may help the algorithm to converge. Again, such situation should be rare and the default value should work for the large majority of cases. Finally, note that increasing the precision leads to significantly increase the running time of the algorithm.
 

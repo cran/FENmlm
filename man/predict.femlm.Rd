@@ -4,7 +4,8 @@
 \alias{predict.femlm}
 \title{Predict method for femlm fits}
 \usage{
-\method{predict}{femlm}(object, newdata, type = c("response", "link"), ...)
+\method{predict}{femlm}(object, newdata, type = c("response", "link"),
+  ...)
 }
 \arguments{
 \item{object}{An object of class \code{femlm}. Typically the result of a \code{\link[FENmlm]{femlm}} estimation.}

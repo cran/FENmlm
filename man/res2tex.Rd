@@ -5,11 +5,12 @@
 \title{Facility to export the results of multiple \code{femlm} estimations in a Latex table.}
 \usage{
 res2tex(..., se = c("standard", "white", "cluster", "twoway", "threeway",
-  "fourway"), cluster, digits = 4, pseudo = TRUE, title, sdBelow = TRUE,
-  drop, order, dict, file, append = TRUE, convergence, signifCode = c(`***`
-  = 0.01, `**` = 0.05, `*` = 0.1), label, aic = FALSE, sqCor = FALSE,
-  subtitles, showClusterSize = FALSE, bic = TRUE, loglik = TRUE,
-  yesNoCluster = c("Yes", "No"), keepFactors = FALSE, family)
+  "fourway"), cluster, digits = 4, pseudo = TRUE, title,
+  sdBelow = TRUE, drop, order, dict, file, append = TRUE, convergence,
+  signifCode = c(`***` = 0.01, `**` = 0.05, `*` = 0.1), label,
+  aic = FALSE, sqCor = FALSE, subtitles, showClusterSize = FALSE,
+  bic = TRUE, loglik = TRUE, yesNoCluster = c("Yes", "No"),
+  keepFactors = FALSE, family)
 }
 \arguments{
 \item{...}{Used to capture different \code{\link[FENmlm]{femlm}} objects. Note that any other type of element is discarded. Note that you can give a list of \code{\link[FENmlm]{femlm}} objects.}

@@ -9,16 +9,16 @@ cpp_log_a_exp <- function(a, mu, exp_mu) {
     .Call(`_FENmlm_cpp_log_a_exp`, a, mu, exp_mu)
 }
 
-RcppPartialDerivative <- function(Q, N, K, epsDeriv, ll_d2, F, init, dumMat, nbCluster) {
-    .Call(`_FENmlm_RcppPartialDerivative`, Q, N, K, epsDeriv, ll_d2, F, init, dumMat, nbCluster)
+RcppPartialDerivative <- function(iterMax, Q, N, K, epsDeriv, ll_d2, F, init, dumMat, nbCluster) {
+    .Call(`_FENmlm_RcppPartialDerivative`, iterMax, Q, N, K, epsDeriv, ll_d2, F, init, dumMat, nbCluster)
 }
 
-RcppPartialDerivative_gaussian <- function(Q, N, K, epsDeriv, F, init, dumMat, nbCluster) {
-    .Call(`_FENmlm_RcppPartialDerivative_gaussian`, Q, N, K, epsDeriv, F, init, dumMat, nbCluster)
+RcppPartialDerivative_gaussian <- function(iterMax, Q, N, K, epsDeriv, F, init, dumMat, nbCluster) {
+    .Call(`_FENmlm_RcppPartialDerivative_gaussian`, iterMax, Q, N, K, epsDeriv, F, init, dumMat, nbCluster)
 }
 
-RcppPartialDerivative_other <- function(Q, N, epsDeriv, ll_d2, dx_dother, init, dumMat, nbCluster) {
-    .Call(`_FENmlm_RcppPartialDerivative_other`, Q, N, epsDeriv, ll_d2, dx_dother, init, dumMat, nbCluster)
+RcppPartialDerivative_other <- function(iterMax, Q, N, epsDeriv, ll_d2, dx_dother, init, dumMat, nbCluster) {
+    .Call(`_FENmlm_RcppPartialDerivative_other`, iterMax, Q, N, epsDeriv, ll_d2, dx_dother, init, dumMat, nbCluster)
 }
 
 RcppGetFE <- function(Q, N, S, dumMat, nbCluster, obsCluster) {
@@ -91,6 +91,18 @@ new_cpp_NB_dum_dfx <- function(theta, lhs, exp_mu, x1, obsCluster, start, end) {
 
 new_RcppDichotomyNR <- function(N, K, family, theta, epsDicho, lhs, exp_mu, borne_inf, borne_sup, obsCluster, tableCluster) {
     .Call(`_FENmlm_new_RcppDichotomyNR`, N, K, family, theta, epsDicho, lhs, exp_mu, borne_inf, borne_sup, obsCluster, tableCluster)
+}
+
+sum_double_index <- function(n_i, n_j, index_i, index_j, x) {
+    .Call(`_FENmlm_sum_double_index`, n_i, n_j, index_i, index_j, x)
+}
+
+matmult <- function(index_i, index_j, matcoef, x) {
+    .Call(`_FENmlm_matmult`, index_i, index_j, matcoef, x)
+}
+
+mmult <- function(n, index_i, index_j, coefmat, x) {
+    .Call(`_FENmlm_mmult`, n, index_i, index_j, coefmat, x)
 }
 
 cpppar_DichotomyNR <- function(nthreads, K, family, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster, tableCluster) {

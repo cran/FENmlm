@@ -4,10 +4,10 @@
 \alias{res2table}
 \title{Facility to display the results of multiple \code{femlm} estimations.}
 \usage{
-res2table(..., se = c("standard", "white", "cluster", "twoway", "threeway",
-  "fourway"), cluster, depvar, drop, order, digits = 4, pseudo = TRUE,
-  convergence, signifCode = c(`***` = 0.01, `**` = 0.05, `*` = 0.1),
-  subtitles, keepFactors = FALSE, family)
+res2table(..., se = c("standard", "white", "cluster", "twoway",
+  "threeway", "fourway"), cluster, depvar, drop, order, digits = 4,
+  pseudo = TRUE, convergence, signifCode = c(`***` = 0.01, `**` = 0.05,
+  `*` = 0.1), subtitles, keepFactors = FALSE, family)
 }
 \arguments{
 \item{...}{Used to capture different \code{\link[FENmlm]{femlm}} objects. Note that any other type of element is discarded. Note that you can give a list of \code{\link[FENmlm]{femlm}} objects.}

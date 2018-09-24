@@ -3,9 +3,6 @@
 # roxygen2::roxygenise(roclets = "rd")
 # devtools::install(args = "--no-multiarch", build_vignettes = TRUE) # To build the vignettes
 
-# Global to handle number of cores:
-FENmlm_CORES = 1
-
 
 #' Fixed effects maximum likelihood models
 #'
@@ -31,7 +28,9 @@ FENmlm_CORES = 1
 #' @param cores Integer, default is 1. Number of threads to be used (accelerates the algorithm via the use of openMP routines). This is particularly efficient for the negative binomial and logit models, less so for the Gaussian and Poisson likelihoods (unless for very large datasets).
 #' @param verbose Integer, default is 0. It represents the level of information that should be reported during the optimisation process. If \code{verbose=0}: nothing is reported. If \code{verbose=1}: the value of the coefficients and the likelihood are reported. If \code{verbose=2}: \code{1} + information on the computing tiime of the null model, the cluster coefficients and the hessian are reported.
 #' @param theta.init Positive numeric scalar. The starting value of the dispersion parameter if \code{family="negbin"}. By default, the algorithm uses as a starting value the theta obtained from the model with only the intercept.
-#' @param precision.cluster Precision used to obtain the fixed-effects (ie cluster coefficients). Defaults to \code{1e-5}. It corresponds to the maximum absolute difference allowed between two iterations.
+#' @param precision.cluster Precision used to obtain the fixed-effects (ie cluster coefficients). Defaults to \code{1e-5}. It corresponds to the maximum absolute difference allowed between two iterations. Argument \code{precision.cluster} cannot be lower than \code{10000*.Machine$double.eps}.
+#' @param itermax.cluster Maximum number of iterations in the step obtaining the fixed-effects (only in use for 2+ clusters). Default is 10000.
+#' @param itermax.deriv Maximum number of iterations in the step obtaining the derivative of the fixed-effects (only in use for 2+ clusters). Default is 5000.
 #' @param ... Not currently used.
 #'
 #' @details
@@ -211,11 +210,10 @@ FENmlm_CORES = 1
 #'                      NL.start = list(a=1,b=2), nl.gradient = ~myGrad(a,x,b,y))
 #'
 #'
-femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, useAcc=TRUE, NL.start, lower, upper, env, NL.start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), cores = 1, verbose=0, theta.init, precision.cluster, ...){
+femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, useAcc=TRUE, NL.start, lower, upper, env, NL.start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), cores = 1, verbose=0, theta.init, precision.cluster, itermax.cluster = 10000, itermax.deriv = 5000, ...){
 
 	# use of the conjugate gradient in the gaussian case to get
 	# the cluster coefficients
-	useCG = FALSE
 	accDeriv = TRUE
 
 	jacobian.method <- match.arg(jacobian.method)
@@ -228,6 +226,12 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	# DOTS
 	dots = list(...)
+
+	# Future parameter in development: method.cluster
+	# authorized values: auto / normal / fixedcost
+	method.cluster = ifelse(is.null(dots$method.cluster), "auto", dots$method.cluster)
+
+	ptm = proc.time()
 
 	# DEPRECATED INFORMATION
 	# I initially called the cluster dummies... I keep it for compatibility
@@ -269,6 +273,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	#
 	# cores argument
+	FENmlm_CORES = 1
 	if(!length(cores) == 1 || !is.numeric(cores) || !(cores%%1) == 0 || cores < 0){
 		stop("The argument 'cores' must be an integer greater than 0 and lower than the number of threads of the computer.")
 	} else if(cores == 1){
@@ -280,7 +285,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	} else if(cores > parallel::detectCores()){
 		stop("The argument 'cores' must be lower or equal to the number of possible threads (equal to ", parallel::detectCores(), ") in this computer.")
 	} else {
-		FENmlm_CORES <<- cores
+		FENmlm_CORES = cores
 		isMulticore = TRUE
 	}
 
@@ -759,12 +764,21 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	n = length(lhs)
 	# The main precision
 	if (!missing(precision.cluster) && !is.null(precision.cluster)){
-		if(!length(precision.cluster)==1 || !is.numeric(precision.cluster) || precision.cluster<=0 || precision.cluster >1){
+		if(!length(precision.cluster)==1 || !is.numeric(precision.cluster) || precision.cluster <= 0 || precision.cluster >1){
 			stop("If provided, argument 'precision.cluster' must be a strictly positive scalar lower than 1.")
+		} else if(precision.cluster < 10000*.Machine$double.eps){
+			stop("Argument 'precision.cluster' cannot be lower than ", signif(10000*.Machine$double.eps))
 		}
 		eps.cluster = precision.cluster
 	} else {
 		eps.cluster = 1e-5 # min(10**-(log10(n) + Q/3), 1e-5)
+	}
+
+	if(!is.numeric(itermax.cluster) || length(itermax.cluster) > 1 || itermax.cluster < 1){
+		stop("Argument itermax.cluster must be an integer greater than 0.")
+	}
+	if(!is.numeric(itermax.deriv) || length(itermax.deriv) > 1 || itermax.deriv < 1){
+		stop("Argument itermax.deriv must be an integer greater than 0.")
 	}
 
 	# other precisions
@@ -807,6 +821,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	assign("nobs", length(lhs), env)
 	assign(".lhs", lhs, env)
 	assign(".isMulticore", isMulticore, env)
+	assign(".CORES", FENmlm_CORES, env)
 	assign(".verbose", verbose, env)
 
 	if(missing(theta.init)){
@@ -833,26 +848,6 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	for(i in varnames) assign(i, data[[i]], env)
 	if(isLinear) assign("linear.mat", linear.mat, env)
 	if(isGradient) assign(".call_gradient", nl.gradient[[2]], env)
-
-	####
-	#### Dummy Special cases ####
-	####
-
-	if( (family == "poisson" && Q==2) ){
-		# Creation of the matrices
-
-		n = length(lhs)
-		mat_all = list()
-
-		for(q in 1:Q){
-			mat = Matrix(0, nbCluster[q], n, sparse = TRUE)
-			mat[cbind(dum_all[[q]], 1:n)] = 1
-			mat_all[[q]] = mat
-		}
-
-		assign(".mat_all", mat_all, env)
-	}
-
 
 	####
 	#### Sending to the env ####
@@ -897,8 +892,6 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			# orderCluster_mat = do.call("cbind", orderCluster_all)
 			assign(".orderCluster", orderCluster_all, env)
 		}
-
-		assign(".useCG", useCG, env)
 	}
 	# other
 	assign(".nl.call", nl.call, env)
@@ -929,19 +922,25 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	assign(".eps.cluster", eps.cluster, env)
 	assign(".eps.NR", eps.NR, env)
 	assign(".eps.deriv", eps.deriv, env)
+	# ITERATIONS
+	assign(".itermax.cluster", itermax.cluster, env)
+	assign(".itermax.deriv", itermax.deriv, env)
 	# OTHER
 	assign(".useAcc", useAcc, env)
 	assign(".warn_0_Hessian", FALSE, env)
 	assign(".warn_overfit_logit", FALSE, env)
 
 	# To monitor how the clusters are computed (if the problem is difficult or not)
-	assign(".firstIterCluster", 1e10, env)
-	assign(".iterCluster", 1e10, env)
-	assign(".iterDeriv", 1e10, env)
-	assign(".accDeriv", accDeriv, env)
-	assign(".evolutionLL", Inf, env)
+	assign(".firstIterCluster", 1e10, env) # the number of iterations in the first run
+	assign(".iterCluster", 1e10, env) # the previous number of cluster iterations
+	assign(".iterDeriv", 1e10, env) # the previous number of deriv iterations
+	assign(".accDeriv", accDeriv, env) # Logical: flag for accelerating deriv
+	assign(".evolutionLL", Inf, env) # diff b/w two successive LL
 	assign(".pastLL", 0, env)
-	assign(".iterLastPrecisionIncrease", 0, env)
+	assign(".iterLastPrecisionIncrease", 0, env) # the last iteration when precision was increased
+	assign(".nbLowIncrease", 0, env) # number of successive evaluations with very low LL increments
+	assign(".nbIterOne", 0, env) # nber of successive evaluations with only 1 iter to get the clusters
+	assign(".method.cluster", method.cluster, env)
 
 	#
 	# if there is only the intercept and cluster => we estimate only the clusters
@@ -1035,6 +1034,8 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	# GIVE PARAMS
 	if(!is.null(dots$give.params) && dots$give.params) return(list(coef=start, env=env))
 
+	if(verbose >= 2) cat("Setup in ", (proc.time() - ptm)[3], "s\n", sep="")
+
 	#
 	# Maximizing the likelihood
 	#
@@ -1111,35 +1112,13 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	var <- NULL
 	try(var <- solve(hessian_noBounded), silent = TRUE)
 	if(is.null(var)){
-		#var <- MASS::ginv(hessian_noBounded)
-		# if(!isDummy){
-		# 	Qr = qr(hessian_noBounded)
-		# 	collvar = params[Qr$pivot[-(1:Qr$rank)]]
-		# 	var <- MASS::ginv(hessian_noBounded)
-		# 	warning("Could not achieve to get the covariance matrix. The information matrix was singular.\nTry to manually suppress some collinear variables. FYI the suspects are: ", paste(collvar, collapse=", "), call. = FALSE)
-		# } else {
-		# 	var <- MASS::ginv(hessian_noBounded)
-		# 	collvar = params[diag(var)==0]
-		# 	if(length(collvar)>0){
-		# 		warning("Could not achieve to get the covariance matrix. The information matrix was singular.\nTry to manually suppress some collinear variables. FYI the suspects (collinear with the clusters) are: ", paste(collvar, collapse=", "), call. = FALSE)
-		# 	} else {
-		# 		warning("Could not achieve to get the covariance matrix. The information matrix was singular.\nTry to manually suppress some collinear variables. They may be collinear with the clusters.", call. = FALSE)
-		# 	}
-		# }
-
-		# WARNING: we DO NOT give the covariance matrix => too dangerous ! and it is not interpretable anyway
-		# => we add a message in "summary" and an option to compute the generalized inverse of the hessian
-
-		# warning("[femlm] The information matrix is singular (likely presence of collinearity). Use function diagnostic() to see what's wrong.", call. = FALSE)
 		warningMessage = paste(warningMessage, "The information matrix is singular (likely presence of collinearity).")
 
-		# var = var*NA
 		var = hessian_noBounded*NA
 		se = diag(var)
 	} else {
 		se = diag(var)
-		se[se<0] = NA
-		# if(anyNA(se)) warning("CAUTION: Variance needs to be 'eigenfixed'.", call. = FALSE)
+		se[se < 0] = NA
 		se = sqrt(se)
 	}
 
@@ -1449,7 +1428,7 @@ femlm_hessian <- function(coef, env){
 	# 	assign(".warn_0_Hessian", TRUE, env)
 	# }
 
-	if(verbose >= 2) cat("\nHessian: ", (proc.time()-ptm)[3], "s")
+	if(verbose >= 2) cat("Hessian: ", (proc.time()-ptm)[3], "s\n", sep="")
 	- hessVar
 }
 
@@ -1522,7 +1501,11 @@ femlm_ll <- function(coef, env){
 	pastLL = get(".pastLL", env)
 	verbose = get(".verbose", env)
 	ptm = proc.time()
-	if(verbose >= 1) cat("\nIter", iter, "- coef:", sprintf("%1.1e", as.vector(coef)), "\n")
+	if(verbose >= 1){
+		coef_names = sapply(names(coef), charShorten, width = 10)
+		coef_line = paste0(coef_names, ": ", signif(coef), collapse = " -- ")
+		cat("\nIter", iter, "- Coefficients:", coef_line, "\n")
+	}
 
 	# computing the LL
 	famFuns = get(".famFuns", env)
@@ -1542,7 +1525,9 @@ femlm_ll <- function(coef, env){
 	assign(".evolutionLL", evolutionLL, env)
 	assign(".pastLL", ll, env)
 
-	if(verbose >= 1) cat("LL =", ll, " (", (proc.time()-ptm)[3], " s)\tevol = ", evolutionLL, sep = "")
+	if(iter == 1) evolutionLL = "--"
+
+	if(verbose >= 1) cat("LL = ", ll, " (", (proc.time()-ptm)[3], "s)\tevol = ", evolutionLL, "\n", sep = "")
 	if(ll==(-Inf)) return(1e308)
 	return(-ll) # je retourne -ll car la fonction d'optimisation minimise
 }
@@ -1665,7 +1650,7 @@ get_mu = function(coef, env, final = FALSE){
 	if(isLinear){
 		linear.params = get("linear.params", env)
 		linear.mat = get("linear.mat", env)
-		mu_L = c(linear.mat%*%coef[linear.params])
+		mu_L = c(linear.mat %*% coef[linear.params])
 	} else mu_L = 0
 
 	mu_noDum = muNL + mu_L + offset.value
@@ -1919,9 +1904,9 @@ get_model_null <- function(env, theta.init){
 
 		loglik = -opt$objective
 		theta = opt$par
-
-		if(verbose >= 2) cat("Null model in", (proc.time()-ptm)[3], "s.\n")
 	}
+
+	if(verbose >= 2) cat("Null model in ", (proc.time()-ptm)[3], "s. ", sep ="")
 
 	return(list(loglik=loglik, constant=constant, theta = theta))
 }
@@ -1958,19 +1943,45 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 	verbose = get(".verbose", env)
 	if(verbose >= 2) ptm = proc.time()
 
-	# Handling precision
+	#
+	# Dynamic precision
+	#
+
 	iterCluster = get(".iterCluster", env)
 	evolutionLL = get(".evolutionLL", env)
+	nobs = get("nobs", env)
 	iter = get(".iter", env)
 	iterLastPrecisionIncrease = get(".iterLastPrecisionIncrease", env)
-	nobs = get("nobs", env)
-	if(!final && eps.cluster > .Machine$double.eps*1000 && iterCluster==1 && evolutionLL/nobs < 1e-10 && (iter - iterLastPrecisionIncrease) >= 3){
-		if(verbose >= 2) cat("\nPrecision increased")
+
+	nbIterOne = get(".nbIterOne", env)
+	if(iterCluster == 1){
+		nbIterOne = nbIterOne + 1
+	} else { # we reinitialise
+		nbIterOne = 0
+	}
+	assign(".nbIterOne", nbIterOne, env)
+
+	nbLowIncrease = get(".nbLowIncrease", env)
+	if(evolutionLL/nobs < 1e-8){
+		nbLowIncrease = nbLowIncrease + 1
+	} else { # we reinitialise
+		nbLowIncrease = 0
+	}
+	assign(".nbLowIncrease", nbLowIncrease, env)
+
+	if(!final && eps.cluster > .Machine$double.eps*10000 && iterCluster==1 && nbIterOne >= 2 && nbLowIncrease >= 2 && (iter - iterLastPrecisionIncrease) >= 3){
 		eps.cluster = eps.cluster/10
+		if(verbose >= 2) cat("Precision increased to", eps.cluster, "\n")
 		assign(".eps.cluster", eps.cluster, env)
 		assign(".iterLastPrecisionIncrease", iter, env)
 
 		# If the precision increases, we must also increase the precision of the dummies!
+		if(family %in% c("negbin", "logit")){
+			assign(".eps.NR", eps.cluster / 100, env)
+		}
+	} else if(final){
+		# we don't need ultra precision for these last dummies
+		eps.cluster = eps.cluster * 10**(iterLastPrecisionIncrease != 0)
 		if(family %in% c("negbin", "logit")){
 			assign(".eps.NR", eps.cluster / 100, env)
 		}
@@ -1984,7 +1995,9 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 		# we stop the acceleration in the case of "simple situations"
 	}
 
-	iterMax = 10000 ; iter = 0
+	iterMax = get(".itermax.cluster", env)
+	iter = 0
+	method.cluster = get(".method.cluster", env)
 	dum_all = get(".dummy", env)
 	sum_y_all = get(".sum_y", env)
 	tableCluster_all = get(".tableCluster", env)
@@ -2000,8 +2013,6 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 	} else {
 		mu_in = mu + mu_dummies
 	}
-
-	useCG = get(".useCG", env)
 
 	#
 	# Lexique:
@@ -2019,6 +2030,34 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 			cluster_coef = computeDummies(dum_all[[1]], mu_in, env, coef, sum_y_all[[1]], orderCluster_all[[1]], tableCluster_all[[1]])
 			mu_dummies = mu_dummies + cluster_coef[dum_all[[1]]]
 		}
+
+	} else if(!useAcc && family == "poisson" && Q==2){
+		# Simple poisson 2 NEW ####
+
+		setup_poisson_fixedcost(env)
+		info = get(".indexOrdered", env)
+
+		new_order = order(nbCluster, decreasing = TRUE)
+		i = new_order[1]
+		j = new_order[2]
+
+		Ab = sum_double_index(info$n[i], info$n[j], info$index[[i]], info$index[[j]], exp_mu_in[info$order])
+
+		# the main loop
+		alpha = rep(1, nbCluster[i])
+		ca = as.numeric(sum_y_all[[i]])
+		cb = as.numeric(sum_y_all[[j]])
+
+		for(iter in 1:iterMax){
+			alpha_old = alpha
+			alpha = ca / (Ab %m% (cb / (Ab %tm% alpha)))
+
+			diff = max(abs(log(range(alpha_old / alpha))))
+			if(diff < eps.cluster) break
+		}
+
+		beta = cb / (Ab %tm% alpha)
+		mu_dummies = mu_dummies * alpha[dum_all[[i]]] * beta[dum_all[[j]]]
 
 	} else if(!useAcc && family == "poisson" && Q==2){
 		#### Simple + Q2 + Poisson ####
@@ -2043,8 +2082,7 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 		M1 = mat_all[[i]]
 		M2 = mat_all[[j]]
 
-		At = M1%*%(t(M2)*exp_mu_in)
-		# Bt = M2%*%(t(M1)*exp_mu_in)
+		At = M1 %*% (t(M2) * exp_mu_in)
 		Bt = t(At)
 
 		# the main loop
@@ -2068,49 +2106,74 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 		# The general case
 
 
-		# We select the cluster with the lowest nber of cases
-		new_order = order(nbCluster)
+		# We select the cluster with the lowest/highest nber of cases
+		new_order = order(nbCluster, decreasing = TRUE)
 		# new_order = order(nbCluster, decreasing = TRUE)
 		nbCluster_new = nbCluster[new_order]
 		start_cluster = 1 + c(0, cumsum(nbCluster_new))
 		end_cluster = cumsum(nbCluster_new)
 
 		# Function defined with some variables local to getDummies function
-		G = function(X){
-			# We compute the first item from the other items
 
-			# Note that the order of the data in X_list is different from the real order of the clusters
-			# we need to take special care of this specificity
+		if(Q == 2){
+			# poisson 2 ####
+			setup_poisson_fixedcost(env)
+			info = get(".indexOrdered", env)
 
-			X_list = list()
-			for(q_raw in 1:(Q-1)){
-				X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
+			i = new_order[1]
+			j = new_order[2]
+
+			Ab = sum_double_index(info$n[i], info$n[j], info$index[[i]], info$index[[j]], exp_mu_in[info$order])
+
+			# the main loop
+			alpha = rep(1, nbCluster[i])
+			ca = as.numeric(sum_y_all[[i]])
+			cb = as.numeric(sum_y_all[[j]])
+
+			G = function(X){
+				X_new = as.vector(ca / (Ab %m% (cb / (Ab %tm% X))))
+				X_new
 			}
 
-			# We start from Q because at the moment there is only Q-1 values in X_list
-			# starting with it will create its value
+		} else {
+			G = function(X){
+				# We compute the first item from the other items
 
-			for(q_raw in Q:1){
-				# the real ordered q:
-				q = new_order[q_raw]
+				# Note that the order of the data in X_list is different from the real order of the clusters
+				# we need to take special care of this specificity
 
-				# getting the value of mu
-				exp_mu_current = exp_mu_in
-				for(q_other_raw in (1:Q)[-q_raw]){
-					# We sum the cluster coefficients of the other clusters
-					q_other = new_order[q_other_raw]
-					exp_mu_current = exp_mu_current * X_list[[q_other_raw]][dum_all[[q_other]]]
+				X_list = list()
+				for(q_raw in 1:(Q-1)){
+					X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
 				}
 
-				# We update the value of X_list
-				X_list[[q_raw]] = sum_y_all[[q]] / rpar_tapply_vsum(nbCluster[q], exp_mu_current, dum_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]], env)
+				# We start from Q because at the moment there is only Q-1 values in X_list
+				# starting with it will create its value
+
+				for(q_raw in Q:1){
+					# the real ordered q:
+					q = new_order[q_raw]
+
+					# getting the value of mu
+					exp_mu_current = exp_mu_in
+					for(q_other_raw in (1:Q)[-q_raw]){
+						# We sum the cluster coefficients of the other clusters
+						q_other = new_order[q_other_raw]
+						exp_mu_current = exp_mu_current * X_list[[q_other_raw]][dum_all[[q_other]]]
+					}
+
+					# We update the value of X_list
+					X_list[[q_raw]] = sum_y_all[[q]] / rpar_tapply_vsum(nbCluster[q], exp_mu_current, dum_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]], env)
+				}
+
+				X_new = unlist(X_list[1:(Q-1)])
+
+				# we return them
+				X_new
 			}
 
-			X_new = unlist(X_list[1:(Q-1)])
-
-			# we return them
-			X_new
 		}
+
 
 		#
 		# The main loop
@@ -2122,7 +2185,6 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 		diff = max(abs(X - GX))
 		if(diff < eps.cluster){
 			iter = 1
-			X = GX
 		} else {
 			for(iter in 1:iterMax){
 				GGX = G(GX)
@@ -2139,8 +2201,11 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 			}
 		}
 
+		# since we computed it, we use it:
+		X = GX
+
 		#
-		# getting the value of the dummies
+		# New way of getting the dummies
 		#
 
 		X_list = list()
@@ -2148,20 +2213,27 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 			X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
 		}
 
-		Q_original = new_order[Q]
+		for(q_raw in Q:1){
+			# the real ordered q:
+			q = new_order[q_raw]
 
-		# getting the value of mu
-		exp_mu_current = exp_mu_in
-		for(q_other_raw in 1:(Q-1)){
-			# We sum the cluster coefficients of the other clusters
-			q_other = new_order[q_other_raw]
-			exp_mu_current = exp_mu_current * X_list[[q_other_raw]][dum_all[[q_other]]]
+			# getting the value of mu
+			exp_mu_current = exp_mu_in
+			for(q_other_raw in (1:Q)[-q_raw]){
+				# We sum the cluster coefficients of the other clusters
+				q_other = new_order[q_other_raw]
+				exp_mu_current = exp_mu_current * X_list[[q_other_raw]][dum_all[[q_other]]]
+			}
+
+			# We update the value of X_list
+			X_list[[q_raw]] = sum_y_all[[q]] / rpar_tapply_vsum(nbCluster[q], exp_mu_current, dum_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]], env)
 		}
 
-		# We update the value of X_list
-		X_Q = sum_y_all[[Q_original]] / rpar_tapply_vsum(nbCluster[Q_original], exp_mu_current, dum_all[[Q_original]], orderCluster_all[[Q_original]], tableCluster_all[[Q_original]], env)
+		# last increment
+		q_other = new_order[1]
+		exp_mu_current = exp_mu_current * X_list[[1]][dum_all[[q_other]]]
 
-		mu_dummies = exp_mu_current / exp_mu * X_Q[dum_all[[Q_original]]]
+		mu_dummies = exp_mu_current / exp_mu
 
 	} else if (family == "poisson"){
 		#### Simple + Poisson ####
@@ -2193,46 +2265,77 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 		# The general case
 
 		# We select the cluster with the lowest nber of cases
-		new_order = order(nbCluster)
+		new_order = order(nbCluster, decreasing = TRUE)
 		nbCluster_new = nbCluster[new_order]
 		start_cluster = 1 + c(0, cumsum(nbCluster_new))
 		end_cluster = cumsum(nbCluster_new)
 
 		# Function defined with some variables local to getDummies function
-		G = function(X){
-			# We compute the first item from the other items
+		if(family == "gaussian" && Q == 2){
+			# gaussian 2 ####
+			setup_gaussian_fixedcost(env)
 
-			# Note that the order of the data in X_list is different from the real order of the clusters
-			# we need to take special care of this specificity
+			mat_X = get(".mat_X", env)
+			mat_Xx = get(".mat_Xx", env)
+			lhs = get(".lhs", env)
 
-			X_list = list()
-			for(q_raw in 1:(Q-1)){
-				X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
+			i = new_order[1]
+			j = new_order[2]
+
+			A = mat_X[[i]]
+			B = mat_X[[j]]
+
+			Ab = mat_Xx[[paste0(i, j)]]
+			Ba = mat_Xx[[paste0(j, i)]]
+
+			resid = lhs - mu_in
+
+			const_a = A %m% resid
+			const_b = B %m% resid
+			a_tilde = const_a - (Ab %m% const_b)
+
+			G = function(X){
+				X_new = as.vector(a_tilde + (Ab %m% (Ba %m% X)))
+				X_new
 			}
+		} else {
+			G = function(X){
+				# general ####
+				# We compute the first item from the other items
 
-			# We start from Q because at the moment there is only Q-1 values in X_list
-			# starting with it will create its value
+				# X_list: the list of the cluster coefficients
+				# Note that the order of the data in X_list is different from the real order of the clusters
+				# we need to take special care of this specificity
 
-			for(q_raw in Q:1){
-				# the real ordered q:
-				q = new_order[q_raw]
-
-				# getting the value of mu
-				mu_current = mu_in
-				for(q_other_raw in (1:Q)[-q_raw]){
-					# We sum the cluster coefficients of the other clusters
-					q_other = new_order[q_other_raw]
-					mu_current = mu_current + X_list[[q_other_raw]][dum_all[[q_other]]]
+				X_list = list()
+				for(q_raw in 1:(Q-1)){
+					X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
 				}
 
-				# We update the value of X_list
-				X_list[[q_raw]] = computeDummies(dum_all[[q]], mu_current, env, coef, sum_y_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]])
+				# We start from Q because at the moment there is only Q-1 values in X_list
+				# starting with it will create its value
+
+				for(q_raw in Q:1){
+					# the real ordered q:
+					q = new_order[q_raw]
+
+					# getting the value of mu
+					mu_current = mu_in
+					for(q_other_raw in (1:Q)[-q_raw]){
+						# We sum the cluster coefficients of the other clusters
+						q_other = new_order[q_other_raw]
+						mu_current = mu_current + X_list[[q_other_raw]][dum_all[[q_other]]]
+					}
+
+					# We update the value of X_list
+					X_list[[q_raw]] = computeDummies(dum_all[[q]], mu_current, env, coef, sum_y_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]])
+				}
+
+				X_new = unlist(X_list[1:(Q-1)])
+
+				# we return them
+				X_new
 			}
-
-			X_new = unlist(X_list[1:(Q-1)])
-
-			# we return them
-			X_new
 		}
 
 		#
@@ -2245,7 +2348,6 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 		diff = max(abs(X - GX))
 		if(diff < eps.cluster){
 			iter = 1 # => there is convergence
-			X = GX
 		} else {
 			for(iter in 1:iterMax){
 				GGX = G(GX)
@@ -2262,8 +2364,11 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 			}
 		}
 
+		# since we've made one more iteration, we use it:
+		X = GX
+
 		#
-		# getting the value of the dummies
+		# New way of getting the dummies
 		#
 
 		X_list = list()
@@ -2271,20 +2376,54 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 			X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
 		}
 
-		Q_original = new_order[Q]
+		for(q_raw in Q:1){
+			# the real ordered q:
+			q = new_order[q_raw]
 
-		# getting the value of mu
-		mu_current = mu_in
-		for(q_other_raw in 1:(Q-1)){
-			# We sum the cluster coefficients of the other clusters
-			q_other = new_order[q_other_raw]
-			mu_current = mu_current + X_list[[q_other_raw]][dum_all[[q_other]]]
+			# getting the value of mu
+			mu_current = mu_in
+			for(q_other_raw in (1:Q)[-q_raw]){
+				# We sum the cluster coefficients of the other clusters
+				q_other = new_order[q_other_raw]
+				mu_current = mu_current + X_list[[q_other_raw]][dum_all[[q_other]]]
+			}
+
+			# We update the value of X_list
+			X_list[[q_raw]] = computeDummies(dum_all[[q]], mu_current, env, coef, sum_y_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]])
 		}
 
-		# We update the value of X_list
-		X_Q = computeDummies(dum_all[[Q_original]], mu_current, env, coef, sum_y_all[[Q_original]], orderCluster_all[[Q_original]], tableCluster_all[[Q_original]])
+		# we add the last item
+		q_other = new_order[1]
+		mu_current = mu_current + X_list[[1]][dum_all[[q_other]]]
 
-		mu_dummies = mu_current - mu + X_Q[dum_all[[Q_original]]]
+		mu_dummies = mu_current - mu
+
+		# #
+		# # getting the value of the dummies
+		# #
+		#
+		# X_list = list()
+		# for(q_raw in 1:(Q-1)){
+		# 	X_list[[q_raw]] = X[start_cluster[q_raw]:end_cluster[q_raw]]
+		# }
+		#
+		# Q_original = new_order[Q]
+		#
+		# # getting the value of mu
+		# mu_current = mu_in
+		# for(q_other_raw in 1:(Q-1)){
+		# 	# We sum the cluster coefficients of the other clusters
+		# 	q_other = new_order[q_other_raw]
+		# 	mu_current = mu_current + X_list[[q_other_raw]][dum_all[[q_other]]]
+		# }
+		#
+		# # We update the value of X_list
+		# X_Q = computeDummies(dum_all[[Q_original]], mu_current, env, coef, sum_y_all[[Q_original]], orderCluster_all[[Q_original]], tableCluster_all[[Q_original]])
+		#
+		# mu_dummies = mu_current - mu + X_Q[dum_all[[Q_original]]]
+		#
+		# browser()
+
 	} else {
 		#### Simple + General ####
 		# in the case we are in the useExp case, we need to make some changes for consistency
@@ -2315,7 +2454,7 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 	}
 
 	# Warning messages if necessary:
-	if(iter==iterMax) warning("[Getting cluster coefficients] iteration limit reached (max diff=", signif(diff), ").", call. = FALSE, immediate. = TRUE)
+	if(iter==iterMax) warning("[Getting cluster coefficients] iteration limit reached (", iterMax, "), max diff=", signif(diff), ".", call. = FALSE, immediate. = TRUE)
 	# print(iter)
 	assign(".iterCluster", iter, env)
 	if(firstIterCluster == 1e10){
@@ -2327,7 +2466,10 @@ getDummies = function(mu, exp_mu, env, coef, final = FALSE){
 	# we save the dummy:
 	assign(".savedDummy", mu_dummies, env)
 
-	if(verbose >= 2) cat("\nDummies:  ", (proc.time()-ptm)[3], "s (iter:", iter, ")\t", sep = "")
+	if(verbose >= 2){
+		acc_info = ifelse(useAcc, "with Acc. ", "no Acc. ")
+		cat("Dummies: ", (proc.time()-ptm)[3], "s (", acc_info, "iter:", iter, ")\t", sep = "")
+	}
 
 	mu_dummies
 }
@@ -2455,6 +2597,7 @@ dichoNR_Cpp = function(dum, mu, env, coef, sum_y, orderCluster, tableCluster){
 	#
 
 	isMulticore = get(".isMulticore", env)
+	FENmlm_CORES = get(".CORES", env)
 
 	if(!isMulticore){
 		res = cpp_DichotomyNR(N = N, K = nb_cases, family = family_nb, theta,
@@ -2482,7 +2625,7 @@ deriv_xi = function(jacob.mat, ll_d2, env, coef){
 
 	# Controls (for clusters >= 2)
 	nobs = get("nobs", env)
-	iterMax = 5000
+	iterMax = get(".itermax.deriv", env)
 
 	# Handling Acceleration
 	accDeriv = get(".accDeriv", env)
@@ -2516,6 +2659,7 @@ deriv_xi = function(jacob.mat, ll_d2, env, coef){
 		# Deriv with or without multicore
 
 		isMulticore = get(".isMulticore", env)
+		FENmlm_CORES = get(".CORES", env)
 
 		if(FALSE && isMulticore && K>1){
 			# is not faster, I don't know why
@@ -2525,9 +2669,9 @@ deriv_xi = function(jacob.mat, ll_d2, env, coef){
 			dxi_dbeta <- cpppar_PartialDerivative(FENmlm_CORES, Q, N, K, eps.deriv, ll_d2, jacob.mat, init, orderCluster_mat, tableCluster_vect, nbCluster)
 		} else {
 			if(family == "gaussian"){
-				dxi_dbeta <- RcppPartialDerivative_gaussian(Q, N, K, epsDeriv = eps.deriv, jacob.mat, init, dumMat_cpp, nbCluster)
+				dxi_dbeta <- RcppPartialDerivative_gaussian(iterMax, Q, N, K, epsDeriv = eps.deriv, jacob.mat, init, dumMat_cpp, nbCluster)
 			} else {
-				dxi_dbeta <- RcppPartialDerivative(Q, N, K, epsDeriv = eps.deriv, ll_d2, jacob.mat, init, dumMat_cpp, nbCluster)
+				dxi_dbeta <- RcppPartialDerivative(iterMax, Q, N, K, epsDeriv = eps.deriv, ll_d2, jacob.mat, init, dumMat_cpp, nbCluster)
 			}
 		}
 
@@ -2555,34 +2699,68 @@ deriv_xi = function(jacob.mat, ll_d2, env, coef){
 		start_cluster = 1 + c(0, cumsum(nbCluster))
 		end_cluster = cumsum(nbCluster)
 
-		G = function(X){
-			# Jk doit etre egal a la valeur de "Jk" + "sum deriv init"
+		newDerivFlag = TRUE
 
-			X_list = list()
-			for(q in 1:(Q-1)){
-				X_list[[q]] = X[start_cluster[q]:end_cluster[q]]
+		if(newDerivFlag && Q == 2){
+			# Case 2 ####
+			setup_deriv_fixedcost(env)
+
+			order_both = get(".order_ij_ji", env)
+
+			dum_1 = dum_all[[1]]
+			dum_2 = dum_all[[2]]
+
+			n1 = nbCluster[1]
+			n2 = nbCluster[2]
+
+			# les matrices types normalisees
+			coefmat_i = weight_all[[1]]
+			A = list(n_i = n1, n_j = nobs, index_i = dum_1 - 1L, index_j = (1:nobs) - 1L, coefmat = coefmat_i)
+			coefmat_j = weight_all[[2]]
+			B = list(n_i = n2, n_j = nobs, index_i = dum_2 - 1L, index_j = (1:nobs) - 1L, coefmat = coefmat_j)
+
+			# Other matrices
+			order_ij = order_both$order_ij
+			Ab = sum_double_index(n1, n2, dum_1[order_ij], dum_2[order_ij], coefmat_i[order_ij])
+
+			order_ji = order_both$order_ji
+			Ba = sum_double_index(n2, n1, dum_2[order_ji], dum_1[order_ji], coefmat_j[order_ji])
+
+			G = function(X){
+				X_new = const_a + (Ab %m% (Ba %m% X))
+				X_new
 			}
 
-			# We start from Q because at the moment there is only Q-1 values in X_list
-			# starting with it will create its value
+		} else {
+			G = function(X){
+				# Jk doit etre egal a la valeur de "Jk" + "sum deriv init"
 
-			for(q in Q:1){
-
-				# getting the value of the sum of derivatives
-				Jk_sum_deriv = Jk
-				for(q_other in (1:Q)[-q]){
-					# We sum the cluster derivatives of the other clusters
-					Jk_sum_deriv = Jk_sum_deriv + X_list[[q_other]][dum_all[[q_other]]]
+				X_list = list()
+				for(q in 1:(Q-1)){
+					X_list[[q]] = X[start_cluster[q]:end_cluster[q]]
 				}
 
-				# We update the value of X_list
-				X_list[[q]] = rpar_tapply_vsum(nbCluster[q], weight_all[[q]]*Jk_sum_deriv, dum_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]], env)
+				# We start from Q because at the moment there is only Q-1 values in X_list
+				# starting with it will create its value
+
+				for(q in Q:1){
+
+					# getting the value of the sum of derivatives
+					Jk_sum_deriv = Jk
+					for(q_other in (1:Q)[-q]){
+						# We sum the cluster derivatives of the other clusters
+						Jk_sum_deriv = Jk_sum_deriv + X_list[[q_other]][dum_all[[q_other]]]
+					}
+
+					# We update the value of X_list
+					X_list[[q]] = rpar_tapply_vsum(nbCluster[q], weight_all[[q]]*Jk_sum_deriv, dum_all[[q]], orderCluster_all[[q]], tableCluster_all[[q]], env)
+				}
+
+				X_new = unlist(X_list[1:(Q-1)])
+
+				# we return them
+				X_new
 			}
-
-			X_new = unlist(X_list[1:(Q-1)])
-
-			# we return them
-			X_new
 		}
 
 		# saving the number of iterations
@@ -2592,6 +2770,14 @@ deriv_xi = function(jacob.mat, ll_d2, env, coef){
 		dxi_dbeta_list = list()
 		for(k in 1:K){
 			Jk = jacob.mat[, k] + deriv_init[, k]
+
+			if(newDerivFlag && Q == 2){
+				# set up the constants:
+				a = A %m% Jk
+				b = B %m% Jk
+				const_a = a + (Ab %m% b)
+			}
+
 			X = rep(0, sum(nbCluster[1:(Q-1)]))
 			GX = G(X)
 
@@ -2614,6 +2800,9 @@ deriv_xi = function(jacob.mat, ll_d2, env, coef){
 				}
 			}
 
+			# we use the last iteration
+			X = GX
+
 			if(iter == iterMax) warning("[Getting cluster derivatives] Maximum iterations reached (", iterMax, "), max(abs(diff)) = ", diff)
 			if(iter > max_iter){
 				max_iter = iter
@@ -2632,19 +2821,6 @@ deriv_xi = function(jacob.mat, ll_d2, env, coef){
 		}
 		dxi_dbeta = do.call("cbind", dxi_dbeta_list)
 
-		# browser()
-
-		# for(k in 1:K){
-		# 	cat("\nK =", k, " ")
-		# 	Jk_sum_deriv = jacob.mat[, k] + dxi_dbeta[, k]
-		# 	for(q in 1:Q){
-		# 		cat("\n   - q =", q, " sum(abs(deriv)) = ")
-		# 		deriv = cpp_tapply_vsum(nbCluster[q], weight_all[[q]]*Jk_sum_deriv, dum_all[[q]])
-		# 		deriv_abs = abs(deriv)
-		# 		cat(sum(deriv_abs), ", max(abs(deriv)) = ", max(deriv_abs), ", mean(abs(deriv)) = ", mean(deriv_abs))
-		# 	}
-		# }
-
 		# we save the values
 		assign(".sum_deriv", dxi_dbeta, env)
 		assign(".iterDeriv", max_iter, env)
@@ -2662,6 +2838,7 @@ deriv_xi_other = function(ll_dx_dother, ll_d2, env, coef){
 	tableCluster_all = get(".tableCluster", env)
 	orderCluster_all = get(".orderCluster", env)
 	Q = length(dum_all)
+	iterMax = 5000
 
 	if(Q==1){
 		dum = dum_all[[1]]
@@ -2681,7 +2858,7 @@ deriv_xi_other = function(ll_dx_dother, ll_d2, env, coef){
 			init = get(".sum_deriv_other", env)
 		}
 
-		dxi_dother <- RcppPartialDerivative_other(Q, N, epsDeriv = eps.deriv, ll_d2, ll_dx_dother, init, dumMat_cpp, nbCluster)
+		dxi_dother <- RcppPartialDerivative_other(iterMax, Q, N, epsDeriv = eps.deriv, ll_d2, ll_dx_dother, init, dumMat_cpp, nbCluster)
 
 		# we save the values
 		assign(".sum_deriv_other", dxi_dother, env)
@@ -2722,6 +2899,115 @@ show_vars_limited_width = function(charVect, nbChars = 60){
 	return(text)
 }
 
+####
+#### Convergence of cluster coefficients ####
+####
+
+setup_poisson_fixedcost = function(env){
+
+	# We set up only one
+	if(".indexOrdered" %in% names(env)){
+		return(NULL)
+	}
+
+	ptm = proc.time()
+
+	dum_all = get(".dummy",env)
+
+	dum_A = as.integer(dum_all[[1]])
+	dum_B = as.integer(dum_all[[2]])
+
+	myOrder = order(dum_A, dum_B)
+	index_i = dum_A[myOrder]
+	index_j = dum_B[myOrder]
+
+	res = list(n = c(max(dum_A), max(dum_B)), index = list(index_i, index_j), order = myOrder)
+
+	assign(".indexOrdered", res, env)
+
+	verbose = get(".verbose", env)
+	if(verbose >= 2) cat("Poisson fixed-cost setup: ", (proc.time()-ptm)[3], "s\n", sep = "")
+}
+
+
+setup_gaussian_fixedcost = function(env){
+
+	# We set up only one
+	if(".mat_X" %in% names(env)){
+		return(NULL)
+	}
+
+	ptm = proc.time()
+
+	lhs = get(".lhs", env)
+	tableCluster_all = get(".tableCluster", env)
+	dum_all = get(".dummy", env)
+
+	n = length(lhs)
+	mat_X = list()
+	mat_Xx = list()
+
+	# NEW
+
+	dum_1 = as.integer(dum_all[[1]])
+	dum_2 = as.integer(dum_all[[2]])
+
+	n1 = max(dum_1)
+	n2 = max(dum_2)
+
+	# les matrices normalisees: A, B
+	coefmat_i = 1/(tableCluster_all[[1]][dum_1])
+	mat_X[[1]] = list(n_i = n1, n_j = n, index_i = dum_1 - 1L, index_j = (1:n) - 1L, coefmat = coefmat_i)
+
+	coefmat_j = 1/(tableCluster_all[[2]][dum_2])
+	mat_X[[2]] = list(n_i = n2, n_j = n, index_i = dum_2 - 1L, index_j = (1:n) - 1L, coefmat = coefmat_j)
+
+	# les matrices: Ab, Ba
+	order_ij = order(dum_1, dum_2)
+	mat_Xx[["12"]] = sum_double_index(n1, n2, dum_1[order_ij], dum_2[order_ij], coefmat_i[order_ij])
+
+	order_ji = order(dum_2, dum_1)
+	mat_Xx[["21"]] = sum_double_index(n2, n1, dum_2[order_ji], dum_1[order_ji], coefmat_j[order_ji])
+
+	assign(".mat_X", mat_X, env)
+	assign(".mat_Xx", mat_Xx, env)
+	assign(".order_ij_ji", list(order_ij = order_ij, order_ji = order_ji), env)
+
+	verbose = get(".verbose", env)
+	if(verbose >= 2) cat("Gaussian fixed-cost setup: ", (proc.time()-ptm)[3], "s\n", sep = "")
+}
+
+setup_deriv_fixedcost = function(env){
+	# We set up only one
+	if(".order_ij_ji" %in% names(env)){
+		return(NULL)
+	}
+
+	ptm = proc.time()
+
+	dum_all = get(".dummy", env)
+
+	dum_1 = dum_all[[1]]
+	dum_2 = dum_all[[2]]
+
+	# Matrices Ab et Ba
+	order_ij = order(dum_1, dum_2)
+	order_ji = order(dum_2, dum_1)
+
+	assign(".order_ij_ji", list(order_ij = order_ij, order_ji = order_ji), env)
+
+	verbose = get(".verbose", env)
+	if(verbose >= 2) cat("Deriv. fixed-cost setup: ", (proc.time()-ptm)[3], "s\n", sep = "")
+}
+
+# matrix multiply
+"%m%" = function(mat, x){
+	mmult(mat$n_i, mat$index_i, mat$index_j, mat$coefmat, x)
+}
+
+"%tm%" = function(mat, x){
+	mmult(mat$n_j, mat$index_j, mat$index_i, mat$coefmat, x)
+}
 
 ####
 #### Parallel Functions ####
@@ -2732,6 +3018,7 @@ show_vars_limited_width = function(charVect, nbChars = 60){
 rpar_exp = function(x, env){
 	# fast exponentiation
 	isMulticore = get(".isMulticore", env)
+	FENmlm_CORES = get(".CORES", env)
 
 	if(!isMulticore){
 		# simple exponentiation
@@ -2746,6 +3033,7 @@ rpar_exp = function(x, env){
 rpar_log = function(x, env){
 	# fast log
 	isMulticore = get(".isMulticore", env)
+	FENmlm_CORES = get(".CORES", env)
 
 	if(!isMulticore){
 		# simple log
@@ -2760,6 +3048,7 @@ rpar_log = function(x, env){
 rpar_lgamma = function(x, env){
 	# fast lgamma
 	isMulticore = get(".isMulticore", env)
+	FENmlm_CORES = get(".CORES", env)
 
 	if(!isMulticore){
 		# lgamma via cpp is faster
@@ -2773,6 +3062,7 @@ rpar_lgamma = function(x, env){
 
 rpar_digamma = function(x, env){
 	isMulticore = get(".isMulticore", env)
+	FENmlm_CORES = get(".CORES", env)
 
 	if(!isMulticore){
 		# digamma via cpp is as fast => no need
@@ -2786,6 +3076,7 @@ rpar_digamma = function(x, env){
 
 rpar_trigamma = function(x, env){
 	isMulticore = get(".isMulticore", env)
+	FENmlm_CORES = get(".CORES", env)
 
 	if(!isMulticore){
 		# trigamma via cpp is as fast => no need
@@ -2800,6 +3091,7 @@ rpar_trigamma = function(x, env){
 rpar_log_a_exp = function(a, mu, exp_mu, env){
 	# compute log_a_exp in a fast way
 	isMulticore = get(".isMulticore", env)
+	FENmlm_CORES = get(".CORES", env)
 
 	if(!isMulticore){
 		# cpp is faster
@@ -2812,6 +3104,7 @@ rpar_log_a_exp = function(a, mu, exp_mu, env){
 
 rpar_tapply_vsum = function(K, x, dum, obsCluster, tableCluster, env){
 	isMulticore = get(".isMulticore", env)
+	FENmlm_CORES = get(".CORES", env)
 
 	if(isMulticore){
 		res <- cpppar_tapply_vsum(FENmlm_CORES, K, x, obsCluster, tableCluster)
