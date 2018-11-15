@@ -27,8 +27,8 @@ knitr::opts_chunk$set(
 
 <!-- Ajouter example simple et intuitif fixed-effects  -->
 
-The package `FENmlm` is devoted to the estimation of maximum likelihood (ML) models with fixed-effects. 
-The function `femlm` is the workhorse of the package: it performs efficient ML estimations with *any number* of fixed-effects and also allows for non-linear in parameters right-hand-sides. Four likelihood models are supported: Poisson, Negative Binomial, Gaussian and Logit. 
+The package `FENmlm` estimates of maximum likelihood (ML) models with fixed-effects. 
+The function `femlm` is the workhorse of the package: it performs efficient ML estimations with *any number* of fixed-effects and also allows for non-linear in parameters right-hand-sides. Four likelihood models are supported: Poisson, Negative Binomial, Gaussian (equivalent to OLS) and Logit. 
 
 The standard-errors of the estimates can be very easily clustered (up to four-way).
 
@@ -97,10 +97,14 @@ summary(gravity_results, se = "twoway")
 The clustering can be done on one (`se="cluster"`), two (`se="twoway"`), three (`se="threeway"`) or up to four (`se="fourway"`) variables. If the estimation includes fixed-effects, then by default the clustering will be done using these fixed-effects, in the original order. This is why the *Origin* and *Destination* variables were used for the two-way clustering in the previous example. If, instead, you wanted to perform one-way clustering on the *Product* variable, you need to use the argument `cluster`: 
 
 ```{r}
+# Equivalent ways of clustering the SEs:
+# - using the vector:
 summary(gravity_results, se = "cluster", cluster = trade$Product)
+# - by reference (only possible because Product has been used as a cluster in the estimation):
+summary(gravity_results, se = "cluster", cluster = "Product")
 ```
 
-Note that you can always cluster the standard-errors, even when not estimating with fixed-effects. Buth then you need to use the argument `cluster`, as before:
+Note that you can always cluster the standard-errors, even when the estimation contained no fixed-effect. Buth then you need to use the argument `cluster` and give explicitely the data to cluster with:
 
 ```{r}
 gravity_simple = femlm(Euros ~ log(dist_km), trade)

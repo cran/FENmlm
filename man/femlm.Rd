@@ -5,8 +5,8 @@
 \title{Fixed effects maximum likelihood models}
 \usage{
 femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"),
-  NL.fml, cluster, useAcc = TRUE, NL.start, lower, upper, env,
-  NL.start.init, offset, nl.gradient, linear.start = 0,
+  NL.fml, cluster, na.rm = FALSE, useAcc = TRUE, NL.start, lower,
+  upper, env, NL.start.init, offset, nl.gradient, linear.start = 0,
   jacobian.method = c("simple", "Richardson"), useHessian = TRUE,
   opt.control = list(), cores = 1, verbose = 0, theta.init,
   precision.cluster, itermax.cluster = 10000, itermax.deriv = 5000,
@@ -22,6 +22,8 @@ femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"),
 \item{NL.fml}{A formula. If provided, this formula represents the non-linear part of the right hand side (RHS). Note that contrary to the \code{fml} argument, the coefficients must explicitely appear in this formula. For instance, it can be \code{~a*log(b*x + c*x^3)}, where \code{a}, \code{b}, and \code{c} are the coefficients to be estimated. Note that only the RHS of the formula is to be provided, and NOT the left hand side.}
 
 \item{cluster}{Character vector. The name/s of a/some variable/s within the dataset to be used as clusters. These variables should contain the identifier of each observation (e.g., think of it as a panel identifier).}
+
+\item{na.rm}{Logical, default is \code{FALSE}. If the variables necessary for the estimation contain NAs and \code{na.rm = TRUE}, then all observations containing NA are removed prior to estimation and a warning message is raised detailing the number of observations removed.}
 
 \item{useAcc}{Default is \code{TRUE}. Whether an acceleration algorithm (Irons and Tuck iterations) should be used to otbain the cluster coefficients when there are two or more clusters.}
 
@@ -118,7 +120,7 @@ with first a linear term and then a non linear part expressed by the function g.
 
 To estimate only a non-linear formula without even the intercept, you must exclude the intercept from the linear formula by using, e.g., \code{fml = z~0}.
 
-The over-dispersion parameter of the Negative Binomial family, theta, is capped at 10,000. If theta reaches this high values, it means that there is no overdispersion.
+The over-dispersion parameter of the Negative Binomial family, theta, is capped at 10,000. If theta reaches this high value, it means that there is no overdispersion.
 }
 \examples{
 

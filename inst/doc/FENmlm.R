@@ -26,7 +26,11 @@ print(gravity_results)
 summary(gravity_results, se = "twoway")
 
 ## ------------------------------------------------------------------------
+# Equivalent ways of clustering the SEs:
+# - using the vector:
 summary(gravity_results, se = "cluster", cluster = trade$Product)
+# - by reference (only possible because Product has been used as a cluster in the estimation):
+summary(gravity_results, se = "cluster", cluster = "Product")
 
 ## ------------------------------------------------------------------------
 gravity_simple = femlm(Euros ~ log(dist_km), trade)

@@ -3,7 +3,46 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
-\section{Changes in version 2.2.2 (2018-09-15)}{
+\section{Changes in version 2.3 (2018-11-15)}{
+	\subsection{New arguments}{
+		\itemize{
+			\item Argument \dQuote{na.rm} is introduced. If the variables necessary for the estimation contain NAs and \code{na.rm = TRUE}, then all observations containing NA are removed prior to estimation and a warning message is raised detailing the number of observations removed. By default, if the necessary variables contain NA, an error is raised.
+		}
+	}
+
+	\subsection{Deprecated arguments}{
+		\itemize{
+			\item Argument \dQuote{useAcc} is removed since now the acceleration algorithm is controlled dynamically.
+		}
+	}
+
+	\subsection{Improvements}{
+		\itemize{
+			\item Improved algorithm to obtain the cluster coefficients for 3+ clusters. For difficult cases, convergence is faster.
+			\item Now the acceleration algorithm (to get the cluster coefficients) is set up dynamically. Increases convergence speed overall.
+			\item When there is no acceleration, the algorithm converges faster (for 2+ clusters).
+			\item Important improvement of the algorithm getting the derivatives of the cluster coefficients. Convergence is fatser overall, especially for difficult cases.
+			\item Algorithm has been improved when factor variables are used as clusters.
+			\item Update method is now faster when using the same clusters and family.
+		}
+	}
+
+	\subsection{Control}{
+		\itemize{
+			\item Better errors messages regarding standard-errors clustering.
+			\item Better error messages when a cluster variable is not in the data.
+			\item Amelioration of function \code{diagnostic}.
+		}
+	}
+
+	\subsection{Vignette}{
+		\itemize{
+			\item New examples regarding the clustering of standard-errors.
+		}
+	}
+}
+
+\section{Changes in version 2.2.2 (2018-09-24)}{
 	\subsection{Bug Fixes}{
 		\itemize{
 			\item [femlm/cores, reported by Valerio Leone Sciabolazza] Multi-core estimations did not work anymore since version 2.2.0. This has been corrected.

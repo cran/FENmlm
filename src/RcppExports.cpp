@@ -5,6 +5,137 @@
 
 using namespace Rcpp;
 
+// cpppar_DichotomyNR
+NumericVector cpppar_DichotomyNR(int nthreads, int K, int family, double theta, double epsDicho, NumericVector lhs, NumericVector mu, NumericVector borne_inf, NumericVector borne_sup, IntegerVector obsCluster, IntegerVector tableCluster);
+RcppExport SEXP _FENmlm_cpppar_DichotomyNR(SEXP nthreadsSEXP, SEXP KSEXP, SEXP familySEXP, SEXP thetaSEXP, SEXP epsDichoSEXP, SEXP lhsSEXP, SEXP muSEXP, SEXP borne_infSEXP, SEXP borne_supSEXP, SEXP obsClusterSEXP, SEXP tableClusterSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    Rcpp::traits::input_parameter< int >::type K(KSEXP);
+    Rcpp::traits::input_parameter< int >::type family(familySEXP);
+    Rcpp::traits::input_parameter< double >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< double >::type epsDicho(epsDichoSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type lhs(lhsSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type borne_inf(borne_infSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type borne_sup(borne_supSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type obsCluster(obsClusterSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type tableCluster(tableClusterSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpppar_DichotomyNR(nthreads, K, family, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster, tableCluster));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpppar_tapply_vsum
+NumericVector cpppar_tapply_vsum(int nthreads, int K, NumericVector x, IntegerVector obsCluster, IntegerVector tableCluster);
+RcppExport SEXP _FENmlm_cpppar_tapply_vsum(SEXP nthreadsSEXP, SEXP KSEXP, SEXP xSEXP, SEXP obsClusterSEXP, SEXP tableClusterSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    Rcpp::traits::input_parameter< int >::type K(KSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type obsCluster(obsClusterSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type tableCluster(tableClusterSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpppar_tapply_vsum(nthreads, K, x, obsCluster, tableCluster));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpppar_PartialDerivative
+NumericMatrix cpppar_PartialDerivative(int nthreads, int Q, int N, int V, double epsDeriv, NumericVector ll_d2, NumericMatrix F, NumericVector init, IntegerMatrix obsCluster, IntegerVector tableCluster, IntegerVector nbCluster);
+RcppExport SEXP _FENmlm_cpppar_PartialDerivative(SEXP nthreadsSEXP, SEXP QSEXP, SEXP NSEXP, SEXP VSEXP, SEXP epsDerivSEXP, SEXP ll_d2SEXP, SEXP FSEXP, SEXP initSEXP, SEXP obsClusterSEXP, SEXP tableClusterSEXP, SEXP nbClusterSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    Rcpp::traits::input_parameter< int >::type Q(QSEXP);
+    Rcpp::traits::input_parameter< int >::type N(NSEXP);
+    Rcpp::traits::input_parameter< int >::type V(VSEXP);
+    Rcpp::traits::input_parameter< double >::type epsDeriv(epsDerivSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type ll_d2(ll_d2SEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type F(FSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type init(initSEXP);
+    Rcpp::traits::input_parameter< IntegerMatrix >::type obsCluster(obsClusterSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type tableCluster(tableClusterSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type nbCluster(nbClusterSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpppar_PartialDerivative(nthreads, Q, N, V, epsDeriv, ll_d2, F, init, obsCluster, tableCluster, nbCluster));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpppar_exp
+NumericVector cpppar_exp(NumericVector x, int nthreads);
+RcppExport SEXP _FENmlm_cpppar_exp(SEXP xSEXP, SEXP nthreadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpppar_exp(x, nthreads));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpppar_log
+NumericVector cpppar_log(NumericVector x, int nthreads);
+RcppExport SEXP _FENmlm_cpppar_log(SEXP xSEXP, SEXP nthreadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpppar_log(x, nthreads));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpppar_log_a_exp
+NumericVector cpppar_log_a_exp(int nthreads, double a, NumericVector mu, NumericVector exp_mu);
+RcppExport SEXP _FENmlm_cpppar_log_a_exp(SEXP nthreadsSEXP, SEXP aSEXP, SEXP muSEXP, SEXP exp_muSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    Rcpp::traits::input_parameter< double >::type a(aSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type exp_mu(exp_muSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpppar_log_a_exp(nthreads, a, mu, exp_mu));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpppar_lgamma
+NumericVector cpppar_lgamma(NumericVector x, int nthreads);
+RcppExport SEXP _FENmlm_cpppar_lgamma(SEXP xSEXP, SEXP nthreadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpppar_lgamma(x, nthreads));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpppar_digamma
+NumericVector cpppar_digamma(NumericVector x, int nthreads);
+RcppExport SEXP _FENmlm_cpppar_digamma(SEXP xSEXP, SEXP nthreadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpppar_digamma(x, nthreads));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cpppar_trigamma
+NumericVector cpppar_trigamma(NumericVector x, int nthreads);
+RcppExport SEXP _FENmlm_cpppar_trigamma(SEXP xSEXP, SEXP nthreadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpppar_trigamma(x, nthreads));
+    return rcpp_result_gen;
+END_RCPP
+}
 // cpp_lgamma
 NumericVector cpp_lgamma(NumericVector x);
 RcppExport SEXP _FENmlm_cpp_lgamma(SEXP xSEXP) {
@@ -412,139 +543,56 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// cpppar_DichotomyNR
-NumericVector cpppar_DichotomyNR(int nthreads, int K, int family, double theta, double epsDicho, NumericVector lhs, NumericVector mu, NumericVector borne_inf, NumericVector borne_sup, IntegerVector obsCluster, IntegerVector tableCluster);
-RcppExport SEXP _FENmlm_cpppar_DichotomyNR(SEXP nthreadsSEXP, SEXP KSEXP, SEXP familySEXP, SEXP thetaSEXP, SEXP epsDichoSEXP, SEXP lhsSEXP, SEXP muSEXP, SEXP borne_infSEXP, SEXP borne_supSEXP, SEXP obsClusterSEXP, SEXP tableClusterSEXP) {
+// RcppPartialDerivative_new
+List RcppPartialDerivative_new(int iterMax, int Q, int N, int K, double epsDeriv, NumericVector ll_d2, NumericMatrix F, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster);
+RcppExport SEXP _FENmlm_RcppPartialDerivative_new(SEXP iterMaxSEXP, SEXP QSEXP, SEXP NSEXP, SEXP KSEXP, SEXP epsDerivSEXP, SEXP ll_d2SEXP, SEXP FSEXP, SEXP initSEXP, SEXP dumMatSEXP, SEXP nbClusterSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
-    Rcpp::traits::input_parameter< int >::type K(KSEXP);
-    Rcpp::traits::input_parameter< int >::type family(familySEXP);
-    Rcpp::traits::input_parameter< double >::type theta(thetaSEXP);
-    Rcpp::traits::input_parameter< double >::type epsDicho(epsDichoSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type lhs(lhsSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type mu(muSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type borne_inf(borne_infSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type borne_sup(borne_supSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type obsCluster(obsClusterSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type tableCluster(tableClusterSEXP);
-    rcpp_result_gen = Rcpp::wrap(cpppar_DichotomyNR(nthreads, K, family, theta, epsDicho, lhs, mu, borne_inf, borne_sup, obsCluster, tableCluster));
-    return rcpp_result_gen;
-END_RCPP
-}
-// cpppar_tapply_vsum
-NumericVector cpppar_tapply_vsum(int nthreads, int K, NumericVector x, IntegerVector obsCluster, IntegerVector tableCluster);
-RcppExport SEXP _FENmlm_cpppar_tapply_vsum(SEXP nthreadsSEXP, SEXP KSEXP, SEXP xSEXP, SEXP obsClusterSEXP, SEXP tableClusterSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
-    Rcpp::traits::input_parameter< int >::type K(KSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type obsCluster(obsClusterSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type tableCluster(tableClusterSEXP);
-    rcpp_result_gen = Rcpp::wrap(cpppar_tapply_vsum(nthreads, K, x, obsCluster, tableCluster));
-    return rcpp_result_gen;
-END_RCPP
-}
-// cpppar_PartialDerivative
-NumericMatrix cpppar_PartialDerivative(int nthreads, int Q, int N, int V, double epsDeriv, NumericVector ll_d2, NumericMatrix F, NumericVector init, IntegerMatrix obsCluster, IntegerVector tableCluster, IntegerVector nbCluster);
-RcppExport SEXP _FENmlm_cpppar_PartialDerivative(SEXP nthreadsSEXP, SEXP QSEXP, SEXP NSEXP, SEXP VSEXP, SEXP epsDerivSEXP, SEXP ll_d2SEXP, SEXP FSEXP, SEXP initSEXP, SEXP obsClusterSEXP, SEXP tableClusterSEXP, SEXP nbClusterSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    Rcpp::traits::input_parameter< int >::type iterMax(iterMaxSEXP);
     Rcpp::traits::input_parameter< int >::type Q(QSEXP);
     Rcpp::traits::input_parameter< int >::type N(NSEXP);
-    Rcpp::traits::input_parameter< int >::type V(VSEXP);
+    Rcpp::traits::input_parameter< int >::type K(KSEXP);
     Rcpp::traits::input_parameter< double >::type epsDeriv(epsDerivSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type ll_d2(ll_d2SEXP);
     Rcpp::traits::input_parameter< NumericMatrix >::type F(FSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type init(initSEXP);
-    Rcpp::traits::input_parameter< IntegerMatrix >::type obsCluster(obsClusterSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type tableCluster(tableClusterSEXP);
+    Rcpp::traits::input_parameter< IntegerMatrix >::type dumMat(dumMatSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type nbCluster(nbClusterSEXP);
-    rcpp_result_gen = Rcpp::wrap(cpppar_PartialDerivative(nthreads, Q, N, V, epsDeriv, ll_d2, F, init, obsCluster, tableCluster, nbCluster));
+    rcpp_result_gen = Rcpp::wrap(RcppPartialDerivative_new(iterMax, Q, N, K, epsDeriv, ll_d2, F, init, dumMat, nbCluster));
     return rcpp_result_gen;
 END_RCPP
 }
-// cpppar_exp
-NumericVector cpppar_exp(NumericVector x, int nthreads);
-RcppExport SEXP _FENmlm_cpppar_exp(SEXP xSEXP, SEXP nthreadsSEXP) {
+// RcppPartialDerivative_gaussian_new
+List RcppPartialDerivative_gaussian_new(int iterMax, int Q, int N, int K, double epsDeriv, NumericMatrix F, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster);
+RcppExport SEXP _FENmlm_RcppPartialDerivative_gaussian_new(SEXP iterMaxSEXP, SEXP QSEXP, SEXP NSEXP, SEXP KSEXP, SEXP epsDerivSEXP, SEXP FSEXP, SEXP initSEXP, SEXP dumMatSEXP, SEXP nbClusterSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
-    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
-    rcpp_result_gen = Rcpp::wrap(cpppar_exp(x, nthreads));
-    return rcpp_result_gen;
-END_RCPP
-}
-// cpppar_log
-NumericVector cpppar_log(NumericVector x, int nthreads);
-RcppExport SEXP _FENmlm_cpppar_log(SEXP xSEXP, SEXP nthreadsSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
-    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
-    rcpp_result_gen = Rcpp::wrap(cpppar_log(x, nthreads));
-    return rcpp_result_gen;
-END_RCPP
-}
-// cpppar_log_a_exp
-NumericVector cpppar_log_a_exp(int nthreads, double a, NumericVector mu, NumericVector exp_mu);
-RcppExport SEXP _FENmlm_cpppar_log_a_exp(SEXP nthreadsSEXP, SEXP aSEXP, SEXP muSEXP, SEXP exp_muSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
-    Rcpp::traits::input_parameter< double >::type a(aSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type mu(muSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type exp_mu(exp_muSEXP);
-    rcpp_result_gen = Rcpp::wrap(cpppar_log_a_exp(nthreads, a, mu, exp_mu));
-    return rcpp_result_gen;
-END_RCPP
-}
-// cpppar_lgamma
-NumericVector cpppar_lgamma(NumericVector x, int nthreads);
-RcppExport SEXP _FENmlm_cpppar_lgamma(SEXP xSEXP, SEXP nthreadsSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
-    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
-    rcpp_result_gen = Rcpp::wrap(cpppar_lgamma(x, nthreads));
-    return rcpp_result_gen;
-END_RCPP
-}
-// cpppar_digamma
-NumericVector cpppar_digamma(NumericVector x, int nthreads);
-RcppExport SEXP _FENmlm_cpppar_digamma(SEXP xSEXP, SEXP nthreadsSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
-    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
-    rcpp_result_gen = Rcpp::wrap(cpppar_digamma(x, nthreads));
-    return rcpp_result_gen;
-END_RCPP
-}
-// cpppar_trigamma
-NumericVector cpppar_trigamma(NumericVector x, int nthreads);
-RcppExport SEXP _FENmlm_cpppar_trigamma(SEXP xSEXP, SEXP nthreadsSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
-    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
-    rcpp_result_gen = Rcpp::wrap(cpppar_trigamma(x, nthreads));
+    Rcpp::traits::input_parameter< int >::type iterMax(iterMaxSEXP);
+    Rcpp::traits::input_parameter< int >::type Q(QSEXP);
+    Rcpp::traits::input_parameter< int >::type N(NSEXP);
+    Rcpp::traits::input_parameter< int >::type K(KSEXP);
+    Rcpp::traits::input_parameter< double >::type epsDeriv(epsDerivSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type F(FSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type init(initSEXP);
+    Rcpp::traits::input_parameter< IntegerMatrix >::type dumMat(dumMatSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type nbCluster(nbClusterSEXP);
+    rcpp_result_gen = Rcpp::wrap(RcppPartialDerivative_gaussian_new(iterMax, Q, N, K, epsDeriv, F, init, dumMat, nbCluster));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_FENmlm_cpppar_DichotomyNR", (DL_FUNC) &_FENmlm_cpppar_DichotomyNR, 11},
+    {"_FENmlm_cpppar_tapply_vsum", (DL_FUNC) &_FENmlm_cpppar_tapply_vsum, 5},
+    {"_FENmlm_cpppar_PartialDerivative", (DL_FUNC) &_FENmlm_cpppar_PartialDerivative, 11},
+    {"_FENmlm_cpppar_exp", (DL_FUNC) &_FENmlm_cpppar_exp, 2},
+    {"_FENmlm_cpppar_log", (DL_FUNC) &_FENmlm_cpppar_log, 2},
+    {"_FENmlm_cpppar_log_a_exp", (DL_FUNC) &_FENmlm_cpppar_log_a_exp, 4},
+    {"_FENmlm_cpppar_lgamma", (DL_FUNC) &_FENmlm_cpppar_lgamma, 2},
+    {"_FENmlm_cpppar_digamma", (DL_FUNC) &_FENmlm_cpppar_digamma, 2},
+    {"_FENmlm_cpppar_trigamma", (DL_FUNC) &_FENmlm_cpppar_trigamma, 2},
     {"_FENmlm_cpp_lgamma", (DL_FUNC) &_FENmlm_cpp_lgamma, 1},
     {"_FENmlm_cpp_log_a_exp", (DL_FUNC) &_FENmlm_cpp_log_a_exp, 3},
     {"_FENmlm_RcppPartialDerivative", (DL_FUNC) &_FENmlm_RcppPartialDerivative, 10},
@@ -571,15 +619,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_FENmlm_sum_double_index", (DL_FUNC) &_FENmlm_sum_double_index, 5},
     {"_FENmlm_matmult", (DL_FUNC) &_FENmlm_matmult, 4},
     {"_FENmlm_mmult", (DL_FUNC) &_FENmlm_mmult, 5},
-    {"_FENmlm_cpppar_DichotomyNR", (DL_FUNC) &_FENmlm_cpppar_DichotomyNR, 11},
-    {"_FENmlm_cpppar_tapply_vsum", (DL_FUNC) &_FENmlm_cpppar_tapply_vsum, 5},
-    {"_FENmlm_cpppar_PartialDerivative", (DL_FUNC) &_FENmlm_cpppar_PartialDerivative, 11},
-    {"_FENmlm_cpppar_exp", (DL_FUNC) &_FENmlm_cpppar_exp, 2},
-    {"_FENmlm_cpppar_log", (DL_FUNC) &_FENmlm_cpppar_log, 2},
-    {"_FENmlm_cpppar_log_a_exp", (DL_FUNC) &_FENmlm_cpppar_log_a_exp, 4},
-    {"_FENmlm_cpppar_lgamma", (DL_FUNC) &_FENmlm_cpppar_lgamma, 2},
-    {"_FENmlm_cpppar_digamma", (DL_FUNC) &_FENmlm_cpppar_digamma, 2},
-    {"_FENmlm_cpppar_trigamma", (DL_FUNC) &_FENmlm_cpppar_trigamma, 2},
+    {"_FENmlm_RcppPartialDerivative_new", (DL_FUNC) &_FENmlm_RcppPartialDerivative_new, 10},
+    {"_FENmlm_RcppPartialDerivative_gaussian_new", (DL_FUNC) &_FENmlm_RcppPartialDerivative_gaussian_new, 9},
     {NULL, NULL, 0}
 };
 

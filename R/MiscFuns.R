@@ -1581,6 +1581,32 @@ numberFormatNormal = function(x){
 	sapply(x, numberFormat_single)
 }
 
+enumerate_items = function (x, endVerb = c("is", "no", "contain"), addS = FALSE, past = FALSE){
+	# function that enumerates items and add verbs
+	endVerb = match.arg(endVerb)
+	n = length(x)
+
+	if(past){
+		endWord = switch(endVerb, is = ifelse(n == 1, " was", " were"), no = "", contain = "contained")
+	} else {
+		endWord = switch(endVerb, is = ifelse(n == 1, " is", " are"), no = "", contain = ifelse(n == 1, " contains", " contain"))
+	}
+
+	if (addS) {
+		startWord = ifelse(n == 1, " ", "s ")
+	} else {
+		startWord = ""
+	}
+
+	if (n == 1) {
+		res = paste0(startWord, x, endWord)
+	} else {
+		res = paste0(startWord, paste0(x[-n], collapse = ", "), " and ", x[n], endWord)
+	}
+
+	res
+}
+
 charShorten = function(x, width){
 	# transforms characters => they can't go beyond a certain width
 	# two dots are added to suggest longer character
@@ -1981,6 +2007,21 @@ diagnostic = function(x){
 	}
 
 	#
+	# Variables are equal to 0
+	#
+
+	if(isLinear){
+		sum_all = colSums(abs(linear.matrix))
+		if(any(sum_all == 0)){
+			var_problem = colnames(linear.matrix)[sum_all == 0]
+			message = paste0("Variable", enumerate_items(var_problem, addS = TRUE), " constant and equal to 0.")
+
+			print(message)
+			return(invisible(message))
+		}
+	}
+
+	#
 	# II) perfect multicollinearity
 	#
 
@@ -2129,8 +2170,6 @@ diagnostic = function(x){
 	return(invisible(message))
 
 }
-
-
 
 
 #### ................. ####
@@ -2839,7 +2878,8 @@ vcov.femlm = function(object, se=c("standard", "white", "cluster", "twoway", "th
 			isS = ifelse(nway>1, "s, each", "")
 			if(length(cluster) == nway && is.character(cluster)){
 				if(any(!cluster %in% object$clusterNames)){
-					stop("Cannot apply ", nway, "-way clustering with the current argument 'cluster'.")
+					var_problem = setdiff(cluster, object$clusterNames)
+					stop("Cannot apply ", nway, "-way clustering with current 'cluster' argument. Variable", enumerate_items(var_problem, past = TRUE, addS = TRUE), " not used as clusters in the estimation.\nAlternatively, use a matrix for argument cluster (ex: cluster = base[, c('", paste0(cluster, collapse = "', '"), "')]")
 				}
 
 				type_info = paste0(" (", paste0(cluster, collapse = " & "), ")")
@@ -3115,6 +3155,13 @@ update.femlm = function(object, fml.update, ...){
 		}
 	}
 
+	if(!is.null(dots$na.rm) && dots$na.rm){
+		# Too complicated to initialize with na.rm
+		# I would have to make tons of controls, and it would work
+		# only in some cases...
+		useInit = FALSE
+	}
+
 	#
 	# II) evaluation data
 	#
@@ -3134,7 +3181,7 @@ update.femlm = function(object, fml.update, ...){
 				stop("To apply 'update.femlm', we fetch the original database in the parent.frame -- but it doesn't seem to be there anymore (btw it was ", deparse(dataName), ").")
 			}
 		} else {
-			if(!"data.frame" %in% class(dots$data)){
+			if(!is.matrix(data) && !"data.frame" %in% class(dots$data)){
 				stop("The argument 'data' must be a data.frame.")
 			}
 			data = dots$data

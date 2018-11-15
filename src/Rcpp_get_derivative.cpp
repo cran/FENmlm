@@ -1931,3 +1931,218 @@ SEXP mmult(int n, SEXP index_i, SEXP index_j, SEXP coefmat, SEXP x){
 	return(res);
 }
 
+
+////
+//// New convergence functions ////
+////
+
+
+// [[Rcpp::export]]
+List RcppPartialDerivative_new(int iterMax, int Q, int N, int K, double epsDeriv, NumericVector ll_d2,	NumericMatrix F, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster){
+	// takes in:
+	// dumMat: the matrix of dummies (n X c) each obs => cluster
+	// init: the initialisation of the sum of derivatives vector
+	// ll_d2: the second derivative
+	// F: the jacobian matrix
+
+	int iter, max_iter = 1;
+
+	int i, q, k, c;
+	int index;
+	int sum_cases = 0;
+	bool ok;
+	double new_value;
+	IntegerVector start(Q), end(Q);
+
+	for(q=0 ; q<Q ; q++){
+		sum_cases += nbCluster(q);
+		if(q == 0){
+			start(q) = 0;
+			end(q) = nbCluster(q);
+		} else {
+			start(q) = start(q-1) + nbCluster(q-1);
+			end(q) = end(q-1) + nbCluster(q);
+		}
+	}
+
+	NumericMatrix clusterDeriv(sum_cases, K); // the output
+	NumericVector sum_lld2(sum_cases);
+
+	// Creation of the sum_lld2
+	for(i=0 ; i<N ; i++){
+		for(q=0 ; q<Q ; q++){
+			// index = start[q] + dumMat(i, q) - 1;
+			index = start[q] + dumMat(i, q);
+			sum_lld2[index] += ll_d2(i);
+		}
+	}
+
+	// the result to return
+	NumericMatrix S(N, K);
+	for(i=0 ; i<N ; i++){
+		for(k=0 ; k<K ; k++){
+			S(i,k) = init(i,k);
+		}
+	}
+
+	for(k=0 ; k<K ; k++){
+
+		ok = true;
+		iter = 0;
+		while( ok & (iter<iterMax) ){
+			iter++;
+			ok = false;
+
+			for(q=0 ; q<Q ; q++){
+				R_CheckUserInterrupt();
+
+				// init of the vector
+				for(c=start[q] ; c<end[q] ; c++){
+					clusterDeriv(c, k) = 0;
+				}
+
+				for(i=0 ; i<N ; i++){
+					// index = start[q] + dumMat(i, q) - 1;
+					index = start[q] + dumMat(i, q);
+					clusterDeriv(index, k) += (F(i,k) + S(i,k))*ll_d2(i);
+				}
+
+				// on finit de calculer clusterDeriv + controle
+				for(c=start[q] ; c<end[q] ; c++){
+					new_value = -clusterDeriv(c, k)/sum_lld2[c];
+					clusterDeriv(c, k) = new_value;
+					if(cpp_abs(new_value) > epsDeriv){
+						ok = true;
+					}
+				}
+
+				// on ajoute la derivee a S:
+				for(i=0 ; i<N ; i++){
+					// index = start[q] + dumMat(i, q) - 1;
+					index = start[q] + dumMat(i, q);
+					S(i,k) += clusterDeriv(index, k);
+				}
+
+			}
+		}
+
+		if(iter > max_iter){
+			max_iter = iter;
+		}
+
+	}
+
+	List res;
+	res["dxi_dbeta"] = S;
+	res["iter"] = max_iter;
+
+	return(res);
+}
+
+// [[Rcpp::export]]
+List RcppPartialDerivative_gaussian_new(int iterMax, int Q, int N, int K, double epsDeriv, NumericMatrix F, NumericVector init, IntegerMatrix dumMat, IntegerVector nbCluster){
+	// takes in:
+	// dumMat: the matrix of dummies (n X c) each obs => cluster
+	// init: the initialisation of the sum of derivatives vector
+	// ll_d2: the second derivative
+	// F: the jacobian matrix
+
+	int iter, max_iter;
+
+	int i, q, k, c;
+	int index;
+	int sum_cases=0;
+	bool ok;
+	double new_value;
+	IntegerVector start(Q), end(Q);
+
+	for(q=0 ; q<Q ; q++){
+		sum_cases += nbCluster(q);
+		if(q == 0){
+			start(q) = 0;
+			end(q) = nbCluster(q);
+		} else {
+			start(q) = start(q-1) + nbCluster(q-1);
+			end(q) = end(q-1) + nbCluster(q);
+		}
+	}
+
+	NumericMatrix clusterDeriv(sum_cases, K); // the output
+
+	NumericVector n_group(sum_cases);
+
+	// Creation of the sum_lld2
+	for(i=0 ; i<N ; i++){
+		for(q=0 ; q<Q ; q++){
+			// index = start[q] + dumMat(i, q) - 1;
+			index = start[q] + dumMat(i, q);
+			n_group[index] ++;
+		}
+	}
+
+	// the result to return
+	NumericMatrix S(N, K);
+	for(i=0 ; i<N ; i++){
+		for(k=0 ; k<K ; k++){
+			S(i,k) = init(i,k);
+		}
+	}
+
+	for(k=0 ; k<K ; k++){
+
+		ok = true;
+		iter = 0;
+		while( ok & (iter<iterMax) ){
+			iter++;
+			ok = false;
+
+			for(q=0 ; q<Q ; q++){
+				R_CheckUserInterrupt();
+
+				// init of the vector
+				for(c=start[q] ; c<end[q] ; c++){
+					clusterDeriv(c, k) = 0;
+				}
+
+				for(i=0 ; i<N ; i++){
+					// index = start[q] + dumMat(i, q) - 1;
+					index = start[q] + dumMat(i, q);
+					clusterDeriv(index, k) += F(i,k) + S(i,k);
+				}
+
+				// on finit de calculer clusterDeriv + controle
+				for(c=start[q] ; c<end[q] ; c++){
+					new_value = -clusterDeriv(c, k)/n_group[c];
+					clusterDeriv(c, k) = new_value;
+					if(cpp_abs(new_value) > epsDeriv/Q){
+						ok = true;
+					}
+				}
+
+				// on ajoute la derivee a S:
+				for(i=0 ; i<N ; i++){
+					// index = start[q] + dumMat(i, q) - 1;
+					index = start[q] + dumMat(i, q);
+					S(i,k) += clusterDeriv(index, k);
+				}
+
+			}
+		}
+
+		if(iter > max_iter){
+			max_iter = iter;
+		}
+
+	}
+
+	List res;
+	res["dxi_dbeta"] = S;
+	res["iter"] = max_iter;
+
+	return(res);
+}
+
+
+
+
+
