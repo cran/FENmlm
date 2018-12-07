@@ -10,7 +10,7 @@ femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"),
   jacobian.method = c("simple", "Richardson"), useHessian = TRUE,
   opt.control = list(), cores = 1, verbose = 0, theta.init,
   precision.cluster, itermax.cluster = 10000, itermax.deriv = 5000,
-  ...)
+  showWarning = TRUE, ...)
 }
 \arguments{
 \item{fml}{A formula. This formula gives the linear formula to be estimated (it is similar to a \code{lm} formula), for example: \code{fml = z~x+y}. To include cluster variables, you can 1) either insert them in this formula using a pipe (e.g. \code{fml = z~x+y|cluster1+cluster2}), or 2) either use the argment \code{cluster}. To include a non-linear in parameters element, you must use the argment \code{NL.fml}.}
@@ -60,6 +60,8 @@ femlm(fml, data, family = c("poisson", "negbin", "logit", "gaussian"),
 \item{itermax.cluster}{Maximum number of iterations in the step obtaining the fixed-effects (only in use for 2+ clusters). Default is 10000.}
 
 \item{itermax.deriv}{Maximum number of iterations in the step obtaining the derivative of the fixed-effects (only in use for 2+ clusters). Default is 5000.}
+
+\item{showWarning}{Logical, default is \code{TRUE}. Whether warnings should be displayed (concerns warnings relating to: convergence state, collinearity issues and observation removal due to only 0/1 outcomes or presence of NA values).}
 
 \item{...}{Not currently used.}
 }

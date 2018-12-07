@@ -22,7 +22,7 @@ res2table(..., se = c("standard", "white", "cluster", "twoway",
 
 \item{order}{Character vector. This element is used if the user wants the variables to be ordered in a certain way. This should be a regular expression (see \code{\link[base]{regex}} help for more info). There can be more than one regular expression. The variables satisfying the first regular expression will be placed first, then the order follows the sequence of regular expressions.}
 
-\item{digits}{Integer. The number of digits to be displayed.}
+\item{digits}{Integer, default is 4. The number of digits to be displayed.}
 
 \item{pseudo}{Logical, default is \code{TRUE}. Should the pseudo R2 be displayed?}
 

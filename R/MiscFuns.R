@@ -211,7 +211,7 @@ summary.femlm <- function(object, se=c("standard", "white", "cluster", "twoway",
 #' @inheritParams summary.femlm
 #'
 #' @param ... Used to capture different \code{\link[FENmlm]{femlm}} objects. Note that any other type of element is discarded. Note that you can give a list of \code{\link[FENmlm]{femlm}} objects.
-#' @param digits Integer. The number of digits to be displayed.
+#' @param digits Integer, default is 4. The number of digits to be displayed.
 #' @param pseudo Logical, default is \code{TRUE}. Should the pseudo R2 be displayed?
 #' @param title Character scalar. The title of the Latex table.
 #' @param sdBelow Logical, default is \code{TRUE}. Should the standard-errors be displayed below the coefficients?
@@ -232,6 +232,7 @@ summary.femlm <- function(object, se=c("standard", "white", "cluster", "twoway",
 #' @param loglik Logical, default is \code{TRUE}. Should the log-likelihood be reported?
 #' @param yesNoCluster A character vector of lenght 2. Default is \code{c("Yes", "No")}. This is the message displayed when a given cluster is (or is not) included in a regression.
 #' @param family A logical, default is missing. Whether to display the families of the models. By default this line is displayed when at least two models are from different families.
+#' @param powerBelow Integer, default is -5. A coefficient whose value is below \code{10**(powerBelow+1)} is written with a power in Latex. For example \code{0.0000456} would be written \code{4.56$\\times 10^{-5}$} by default. Setting \code{powerBelow = -6} would lead to \code{0.00004} in Latex.
 #'
 #' @return
 #' There is nothing returned, the result is only displayed on the console or saved in a file.
@@ -257,7 +258,7 @@ summary.femlm <- function(object, se=c("standard", "white", "cluster", "twoway",
 #' res2tex(res1, res2, dict = c(Sepal.Length = "The sepal length", Sepal.Width = "SW"),
 #'         signifCode = c("**" = 0.1, "*" = 0.2, "n.s."=1))
 #'
-res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, digits=4, pseudo=TRUE, title, sdBelow=TRUE, drop, order, dict, file, append=TRUE, convergence, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), label, aic=FALSE, sqCor = FALSE, subtitles, showClusterSize = FALSE, bic = TRUE, loglik = TRUE, yesNoCluster = c("Yes", "No"), keepFactors = FALSE, family){
+res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, digits=4, pseudo=TRUE, title, sdBelow=TRUE, drop, order, dict, file, append=TRUE, convergence, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), label, aic=FALSE, sqCor = FALSE, subtitles, showClusterSize = FALSE, bic = TRUE, loglik = TRUE, yesNoCluster = c("Yes", "No"), keepFactors = FALSE, family, powerBelow = -5){
 	# drop: a vector of regular expressions
 	# order: a vector of regular expressions
 	# dict: a 'named' vector
@@ -273,7 +274,7 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 	# to get the model names
 	dots_call = match.call(expand.dots = FALSE)[["..."]]
 
-	info = results2formattedList(..., se=se, cluster=cluster, digits=digits, sdBelow=sdBelow, signifCode=signifCode, subtitles=subtitles, yesNoCluster=yesNoCluster, keepFactors=keepFactors, isTex = TRUE, useSummary=useSummary, sdType=sdType, dots_call=dots_call)
+	info = results2formattedList(..., se=se, cluster=cluster, digits=digits, sdBelow=sdBelow, signifCode=signifCode, subtitles=subtitles, yesNoCluster=yesNoCluster, keepFactors=keepFactors, isTex = TRUE, useSummary=useSummary, sdType=sdType, dots_call=dots_call, powerBelow=powerBelow)
 
 	# browser()
 
@@ -418,6 +419,7 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 				myCoef = c(myCoef, coef_below[[m]][v])
 				mySd = c(mySd, sd_below[[m]][v])
 			}
+
 			myCoef[is.na(myCoef)] = "  "
 			mySd[is.na(mySd)] = "  "
 			myCoef = paste0(aliasVars[v], "&", paste0(myCoef, collapse="&"))
@@ -774,7 +776,7 @@ res2table <- function(..., se=c("standard", "white", "cluster", "twoway", "three
 	return(res)
 }
 
-results2formattedList = function(..., se=c("standard", "white", "cluster", "twoway"), cluster, digits=4, pseudo=TRUE, sdBelow=TRUE, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), label, subtitles, yesNoCluster = c("Yes", "No"), keepFactors = FALSE, isTex = FALSE, useSummary, sdType, dots_call){
+results2formattedList = function(..., se=c("standard", "white", "cluster", "twoway"), cluster, digits=4, pseudo=TRUE, sdBelow=TRUE, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), label, subtitles, yesNoCluster = c("Yes", "No"), keepFactors = FALSE, isTex = FALSE, useSummary, sdType, dots_call, powerBelow){
 	# This function is the core of the functions res2table and res2tex
 
 	signifCode = sort(signifCode)
@@ -965,8 +967,14 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 		# on enleve les espaces dans les noms de variables
 		var <- c(gsub(" ", "", row.names(a)))
 
-		coef = as.character(round(a[, 1], digits))
-		se = as.character(myRound(a[, 2], digits))
+		if(isTex){
+			coef = coefFormatLatex(a[, 1], digits = digits, power = abs(powerBelow))
+			se = coefFormatLatex(a[, 2], digits = digits, power = abs(powerBelow))
+		} else {
+			coef = as.character(round(a[, 1], digits))
+			se = as.character(myRound(a[, 2], digits))
+		}
+
 		if(isTex){
 			pval = cut(a[, 4], breaks = c(-1, signifCode, 100), labels = c(paste0("\\sym{",names(signifCode),"}"), ""))
 		} else {
@@ -1553,21 +1561,66 @@ decimalFormat = function(x){
 	sapply(x, decimalFormat_single)
 }
 
+coefFormatLatex_single = function(x, digits, power){
+	# format decimals: 5.3 10**-7 instead of 0.00000053
+	# format large numbers 6356516.12464 => 6356516.1
 
-numberFormat_single = function(x, type = "normal"){
+	nbSignif = 3
+
+	if(is.na(x)) return(x)
+
+	if(!is.numeric(x)){
+		if(grepl("[^[:digit:]e\\.-]", x)){
+			return(x)
+		} else {
+			x = as.numeric(x)
+		}
+	}
 
 	exponent = floor(log10(abs(x)))
 
-	if(exponent<9) return(addCommas(x))
+	if(exponent > 0){
+		return(sprintf("%.*f", max(1, digits - abs(exponent)), x))
+	}
 
+	if(abs(exponent) >= power){
+		left_value = round(x*10**-exponent, 3)
+		res = paste0("$", left_value, "\\times 10^{", exponent, "}$")
+	} else if(x > 10**(-digits)){
+		res = sprintf("%.*f", digits, x)
+	} else {
+		res = sprintf("%.*f", abs(exponent), x)
+	}
+
+	res
+}
+
+coefFormatLatex = function(x, digits = 4, power = 5){
+	sapply(x, coefFormatLatex_single, digits = digits, power = power)
+}
+
+
+numberFormat_single = function(x, type = "normal"){
 	# For numbers higher than 1e9 => we apply a specific formatting
+	# idem for numbers lower than 1e-4
+
+	exponent = floor(log10(abs(x)))
+
+	if(-4 < exponent && exponent < 9){
+		if(exponent > 0){
+			return(addCommas(x))
+		} else {
+			return(decimalFormat(x))
+		}
+
+	}
 
 	left_value = round(x*10**-exponent, 3)
 
 	if(type == "latex"){
 		res = paste0("$", left_value, "\\times 10^{", exponent, "}$")
 	} else {
-		res = paste0(left_value, "e+", exponent)
+		res = paste0(left_value, "e", ifelse(exponent > 0, "+", ""), exponent)
 	}
 
 	res
@@ -1959,6 +2012,10 @@ diagnostic = function(x){
 		stop("To apply 'diagnostic', we fetch the original database in the parent.frame -- but it doesn't seem to be there anymore (btw it was ", deparse(dataName), ").")
 	}
 
+	if(!is.null(x$obsRemoved)){
+		data = data[-x$obsRemoved, ]
+	}
+
 
 	if(isCluster){
 		linear_fml = update(linear_fml, ~ . + 1)
@@ -2028,8 +2085,6 @@ diagnostic = function(x){
 	linearVars = setdiff(colnames(linear.matrix), "(Intercept)")
 	if(isLinear && length(linearVars) >= 2){
 
-		linear_df = as.data.frame(linear.matrix)
-
 		for(v in linearVars){
 			fml2estimate = as.formula(paste0(v, "~", paste0(setdiff(linearVars, v), collapse = "+")))
 
@@ -2043,6 +2098,39 @@ diagnostic = function(x){
 
 				print(message)
 				return(invisible(message))
+			}
+		}
+	}
+
+	#
+	# II.b) perfect multicollinearity + cluster
+	#
+
+	linearVars = setdiff(colnames(linear.matrix), "(Intercept)")
+	if(isLinear && length(linearVars) >= 2 && isCluster){
+
+		dum_names = names(x$id_dummies)
+		n_clust = length(dum_names)
+		new_dum_names = paste0("__DUM_", 1:n_clust)
+		for(i in 1:n_clust){
+			data[[paste0("__DUM_", i)]] = x$id_dummies[[i]]
+		}
+
+		for(v in linearVars){
+			fml2estimate = as.formula(paste0(v, "~", paste0(setdiff(linearVars, v), collapse = "+")))
+
+			for(id_cluster in 1:n_clust){
+				res = femlm(fml2estimate, data, cluster = new_dum_names[id_cluster], family = "gaussian", showWarning = FALSE)
+
+				sum_resid = sum(abs(resid(res)))
+				if(sum_resid < 1e-4){
+					coef_lm = coef(res)
+					collin_var = names(coef_lm)[!is.na(coef_lm) & abs(coef_lm) > 1e-6]
+					message = paste0("Variable '", v, "' is collinear with variable(s): ", paste0(collin_var, collapse = ", "), " and cluster ", dum_names[id_cluster], ".")
+
+					print(message)
+					return(invisible(message))
+				}
 			}
 		}
 	}
@@ -2149,7 +2237,6 @@ diagnostic = function(x){
 
 			}
 
-			# browser()
 			sum_resids = sum(abs(resid(res)))
 			if(sum_resids < 1e-4){
 				coef_esti = coef(res)
@@ -2165,7 +2252,7 @@ diagnostic = function(x){
 
 	}
 
-	message = "No visible collinearity problem. Maybe try setting the argument 'precision.cluster' to a lower value to solve the problem."
+	message = "No visible collinearity problem. (Doesn't mean there's none!)"
 	print(message)
 	return(invisible(message))
 

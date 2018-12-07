@@ -10,7 +10,7 @@ res2tex(..., se = c("standard", "white", "cluster", "twoway", "threeway",
   signifCode = c(`***` = 0.01, `**` = 0.05, `*` = 0.1), label,
   aic = FALSE, sqCor = FALSE, subtitles, showClusterSize = FALSE,
   bic = TRUE, loglik = TRUE, yesNoCluster = c("Yes", "No"),
-  keepFactors = FALSE, family)
+  keepFactors = FALSE, family, powerBelow = -5)
 }
 \arguments{
 \item{...}{Used to capture different \code{\link[FENmlm]{femlm}} objects. Note that any other type of element is discarded. Note that you can give a list of \code{\link[FENmlm]{femlm}} objects.}
@@ -19,7 +19,7 @@ res2tex(..., se = c("standard", "white", "cluster", "twoway", "threeway",
 
 \item{cluster}{A list of vectors. Used only if \code{se="cluster"}, \dQuote{se=twoway}, \dQuote{se=threeway} or \dQuote{se=fourway}. The vectors should give the cluster of each observation. Note that if the estimation was run using \code{cluster}, the standard error is automatically clustered along the cluster given in \code{\link[FENmlm]{femlm}}. For one-way clustering, this argument can directly be a vector (instead of a list). If the estimation has been done with cluster variables, you can give a character vector of the dimensions over which to cluster the SE.}
 
-\item{digits}{Integer. The number of digits to be displayed.}
+\item{digits}{Integer, default is 4. The number of digits to be displayed.}
 
 \item{pseudo}{Logical, default is \code{TRUE}. Should the pseudo R2 be displayed?}
 
@@ -60,6 +60,8 @@ res2tex(..., se = c("standard", "white", "cluster", "twoway", "threeway",
 \item{keepFactors}{Logical, default is \code{FALSE}. By default, when factor variables are contained in the estimation, they are printed as if they were a cluster variable. Put to \code{TRUE} to display all the coefficients of the factor variables.}
 
 \item{family}{A logical, default is missing. Whether to display the families of the models. By default this line is displayed when at least two models are from different families.}
+
+\item{powerBelow}{Integer, default is -5. A coefficient whose value is below \code{10**(powerBelow+1)} is written with a power in Latex. For example \code{0.0000456} would be written \code{4.56$\\times 10^{-5}$} by default. Setting \code{powerBelow = -6} would lead to \code{0.00004} in Latex.}
 }
 \value{
 There is nothing returned, the result is only displayed on the console or saved in a file.

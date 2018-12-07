@@ -1,7 +1,6 @@
 # Commands to genereate the help files:
 # load("data/trade.RData")
 # roxygen2::roxygenise(roclets = "rd")
-# devtools::install(args = "--no-multiarch", build_vignettes = TRUE) # To build the vignettes
 
 
 #' Fixed effects maximum likelihood models
@@ -32,6 +31,7 @@
 #' @param precision.cluster Precision used to obtain the fixed-effects (ie cluster coefficients). Defaults to \code{1e-5}. It corresponds to the maximum absolute difference allowed between two iterations. Argument \code{precision.cluster} cannot be lower than \code{10000*.Machine$double.eps}.
 #' @param itermax.cluster Maximum number of iterations in the step obtaining the fixed-effects (only in use for 2+ clusters). Default is 10000.
 #' @param itermax.deriv Maximum number of iterations in the step obtaining the derivative of the fixed-effects (only in use for 2+ clusters). Default is 5000.
+#' @param showWarning Logical, default is \code{TRUE}. Whether warnings should be displayed (concerns warnings relating to: convergence state, collinearity issues and observation removal due to only 0/1 outcomes or presence of NA values).
 #' @param ... Not currently used.
 #'
 #' @details
@@ -211,7 +211,7 @@
 #'                      NL.start = list(a=1,b=2), nl.gradient = ~myGrad(a,x,b,y))
 #'
 #'
-femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, na.rm = FALSE, useAcc=TRUE, NL.start, lower, upper, env, NL.start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), cores = 1, verbose=0, theta.init, precision.cluster, itermax.cluster = 10000, itermax.deriv = 5000, ...){
+femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"), NL.fml, cluster, na.rm = FALSE, useAcc=TRUE, NL.start, lower, upper, env, NL.start.init, offset, nl.gradient, linear.start=0, jacobian.method=c("simple", "Richardson"), useHessian=TRUE, opt.control=list(), cores = 1, verbose=0, theta.init, precision.cluster, itermax.cluster = 10000, itermax.deriv = 5000, showWarning = TRUE, ...){
 
 	# use of the conjugate gradient in the gaussian case to get
 	# the cluster coefficients
@@ -507,22 +507,23 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		nbCluster = object$clusterSize
 		Q = length(nbCluster)
 
-		# If obsRemoved => need to modify the data base
-		if(length(obs2remove) > 0){
-			data = data[-obs2remove, ]
-
-			# We recreate the linear matrix
-			if(isLinear) {
-				if(useModel.matrix){
-					# means there are factors
-					linear.mat = stats::model.matrix(linear.fml, data)
-				} else {
-					linear.mat = linear.mat[-obs2remove, ]
-				}
-			}
-
-			lhs = eval(fml[[2]], data)
-		}
+		# # If obsRemoved => need to modify the data base
+		# # This is done later only once
+		# if(length(obs2remove) > 0){
+		# 	data = data[-obs2remove, ]
+		#
+		# 	# We recreate the linear matrix
+		# 	if(isLinear) {
+		# 		if(useModel.matrix){
+		# 			# means there are factors
+		# 			linear.mat = stats::model.matrix(linear.fml, data)
+		# 		} else {
+		# 			linear.mat = linear.mat[-obs2remove, ]
+		# 		}
+		# 	}
+		#
+		# 	lhs = eval(fml[[2]], data)
+		# }
 
 		# We still need to recreate some objects though
 		isDummy = TRUE
@@ -533,7 +534,12 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		for(i in 1:Q){
 			k = nbCluster[i]
 			dum = dum_all[[i]]
-			sum_y_all[[i]] = cpp_tapply_vsum(k, lhs, dum)
+			if(length(obs2remove) > 0){
+				sum_y_all[[i]] = cpp_tapply_vsum(k, lhs[-obs2remove], dum)
+			} else {
+				sum_y_all[[i]] = cpp_tapply_vsum(k, lhs, dum)
+			}
+
 			obs_per_cluster_all[[i]] = cpp_table(k, dum)
 			dum_names[[i]] = attr(dum_all[[i]], "clust_names")
 		}
@@ -598,9 +604,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 				stop("All observations contain NAs. Estimation cannot be done.")
 			}
 
-			message_NA = paste0(nbNA, " observations removed because of NA values. (Breakup: LHS:", sum(isNA_y), ", RHS:", sum(isNA_L + isNA_NL), ", Cluster: ", sum(isNA_cluster), ")")
-
-			# warning(nbNA, " observations removed because of NA values. (Breakup: LHS:", sum(isNA_y), ", RHS:", sum(isNA_L + isNA_NL), ", Cluster: ", sum(isNA_cluster), ")", immediate. = TRUE)
+			message_NA = paste0(numberFormatNormal(nbNA), " observations removed because of NA values. (Breakup: LHS: ", numberFormatNormal(sum(isNA_y)), ", RHS: ", numberFormatNormal(sum(isNA_L + isNA_NL)), ", Cluster: ", numberFormatNormal(sum(isNA_cluster)), ")")
 
 			# we drop the NAs from the cluster matrix
 			cluster_mat = cluster_mat[!isNA_full, , drop = FALSE]
@@ -679,12 +683,14 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 			nb_missing = sapply(dummyOmises, length)
 			message_cluster = paste0(paste0(nb_missing, collapse = "/"), " cluster", ifelse(sum(nb_missing) == 1, "", "s"), " (", length(obs2remove), " observations) removed because of only ", ifelse(family=="logit", "zero/one", "zero"), " outcomes.")
 			if(isNA_sample){
-				warning(message_NA, "\n  ", message_cluster)
+				if(showWarning) warning(message_NA, "\n  ", message_cluster)
 			} else {
-				warning(message_cluster)
+				if(showWarning) warning(message_cluster)
 			}
 
 			names(dummyOmises) = cluster
+		} else if(isNA_sample){
+			if(showWarning) warning(message_NA)
 		}
 
 		if(isNA_sample){
@@ -716,7 +722,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 				stop("All observations contain NAs. Estimation cannot be done.")
 			}
 
-			warning(nbNA, " observations removed because of NA values. (Breakup: LHS:", sum(isNA_y), ", RHS:", sum(isNA_L + isNA_NL), ")")
+			if(showWarning) warning(numberFormatNormal(nbNA), " observations removed because of NA values. (Breakup: LHS: ", numberFormatNormal(sum(isNA_y)), ", RHS: ", numberFormatNormal(sum(isNA_L + isNA_NL)), ")")
 
 			# we drop the NAs from the cluster matrix
 			obs2remove = which(isNA_full)
@@ -747,7 +753,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	if(Q > 0){
 		# If there is a linear intercept, we withdraw it
 		# We drop the intercept:
-		if(isLinear && "(Intercept)" == colnames(linear.mat)){
+		if(isLinear && "(Intercept)" %in% colnames(linear.mat)){
 			var2remove = which(colnames(linear.mat) == "(Intercept)")
 			if(ncol(linear.mat) == length(var2remove)){
 				isLinear = FALSE
@@ -865,7 +871,8 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	if(!missing(offset) && !is.null(offset)){
 
 		# control
-		if(!class(offset) == "formula"){
+		# if(!class(offset) == "formula"){
+		if(!"formula" %in% class(offset)){
 			stop("Argument 'offset' must be a formula (e.g. ~ 1+x^2).")
 		}
 
@@ -1264,7 +1271,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	# Warning message
 	if(nchar(warningMessage) > 0){
-		warning("[femlm]:", warningMessage, " Use function diagnostic() to see what's wrong.")
+		if(showWarning) warning("[femlm]:", warningMessage, " Use function diagnostic() to see what's wrong.")
 	}
 
 	# To handle the bounded coefficient, we set its SE to NA
@@ -1357,8 +1364,12 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		clustSize = sapply(dum_all, max)
 		names(clustSize) = cluster
 		res$clusterSize = clustSize
-		if(length(obs2remove)>0){
-			res$obsRemoved = obs2remove
+	}
+
+	# Observations removed (either NA or clusters)
+	if(length(obs2remove)>0){
+		res$obsRemoved = obs2remove
+		if(isDummy && any(lengths(dummyOmises) > 0)){
 			res$clusterRemoved = dummyOmises
 		}
 	}
@@ -2478,7 +2489,7 @@ convergence = function(coef, mu_in, env, index, iterMax){
 		# in case of complex cases: it's more efficient
 		# to initialize the first two clusters
 
-		res = convergence(mu_in, env, index[1:2], iterMax)
+		res = convergence(coef, mu_in, env, index[1:2], iterMax)
 		mu_in = res$mu_new
 	}
 

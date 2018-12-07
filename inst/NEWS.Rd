@@ -3,6 +3,30 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
+
+\section{Changes in version 2.3.1 (2018-12-06)}{
+	\subsection{New argument}{
+		\itemize{
+			\item[femlm] Function \code{femlm()} has the new argument \code{showWarning} whose default is \code{TRUE}. If \code{FALSE}, then warnings relating to a) the number of NA values, b) the clusters removed from estimation and c) the convergence state, are not prompted anymore.
+			\item[res2tex] The new argument \code{powerBelow} controls the display of coefficients/standard-errors of low value in Latex. For values lower than \code{10**(powerBelow+1)} the display in Latex is now \code{x.xx $\\times 10^{pow}$}, for example \code{0.0000456} would be displayed as \code{4.56 $\\times 10^{-5}$}.
+		}
+	}
+
+	\subsection{Improvements}{
+		\itemize{
+			\item Function \code{diagnostic()} now finds more involved collinearity cases.
+			\item Function res2tex now provides a \dQuote{nicer} display of coefficients/standard-errors.
+		}
+	}
+	\subsection{Bug fixes}{
+		\itemize{
+			\item Function \code{diagnostic()} did not work when some observations were removed from the estimation. This is now corrected.
+			\item[femlm] For 3+ clusters, when finding the cluster coefficients was \sQuote{difficult}, there was a bug. Now corrected.
+			\item[femlm] Now whenever the data of an estimation contains NA, \code{na.rm=TRUE} and no fixed-effects are used, the observations removed are correctly returned in the object \code{obsRemoved}. This was causing a bug in \code{summary} with custom clustered standard errors.
+		}
+	}
+}
+
 \section{Changes in version 2.3 (2018-11-15)}{
 	\subsection{New arguments}{
 		\itemize{

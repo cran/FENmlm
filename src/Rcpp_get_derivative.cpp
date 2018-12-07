@@ -2047,11 +2047,11 @@ List RcppPartialDerivative_gaussian_new(int iterMax, int Q, int N, int K, double
 	// ll_d2: the second derivative
 	// F: the jacobian matrix
 
-	int iter, max_iter;
+	int iter, max_iter = 1;
 
 	int i, q, k, c;
 	int index;
-	int sum_cases=0;
+	int sum_cases = 0;
 	bool ok;
 	double new_value;
 	IntegerVector start(Q), end(Q);

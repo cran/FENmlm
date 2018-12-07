@@ -11,7 +11,7 @@
 
 <meta name="author" content="Laurent Berge" />
 
-<meta name="date" content="2018-11-15" />
+<meta name="date" content="2018-12-07" />
 
 <title>Efficient Maximum Likelihood Estimation with Multiple Fixed-Effects</title>
 
@@ -228,7 +228,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Efficient Maximum Likelihood Estimation with Multiple Fixed-Effects</h1>
 <h4 class="author"><em>Laurent Berge</em></h4>
-<h4 class="date"><em>2018-11-15</em></h4>
+<h4 class="date"><em>2018-12-07</em></h4>
 
 </div>
 
@@ -424,7 +424,7 @@ summary(gravity_simple, se = &quot;twoway&quot;, cluster = trade[, c(&quot;Origi
 <tr class="odd">
 <td>Overdispersion:</td>
 <td align="left"></td>
-<td align="left">0.54</td>
+<td align="left">0.548774</td>
 <td align="left"></td>
 </tr>
 <tr class="even">
@@ -624,7 +624,7 @@ for(i in 1:4){
 #&gt; Model:&amp;(1)&amp;(2)&amp;(3)&amp;(4)\\
 #&gt; \hline
 #&gt; \emph{Variables}\tabularnewline
-#&gt; log(dist_km)&amp;-1.0293\sym{***}&amp;-1.2257\sym{***}&amp;-1.5176\sym{***}&amp;-1.5279\sym{***}\\
+#&gt; log(dist_km)&amp;-1\sym{***}&amp;-1\sym{***}&amp;-2\sym{***}&amp;-2\sym{***}\\
 #&gt;   &amp;(0.1527)&amp;(0.1975)&amp;(0.1238)&amp;(0.1263)\\
 #&gt; \hline
 #&gt; \emph{Fixed-Effects}&amp;  &amp; &amp; &amp; \\
@@ -730,12 +730,12 @@ base = data.frame(x, y, z)</code></pre>
 #&gt; Observations: 1,000 
 #&gt; Standard-errors type: Standard 
 #&gt;   Estimate Std. Error z value  Pr(&gt;|z|)    
-#&gt; a   2.0225   0.011161  181.22 &lt; 2.2e-16 ***
-#&gt; b   3.0196   0.013168  229.32 &lt; 2.2e-16 ***
+#&gt; a   2.0264   0.010935  185.31 &lt; 2.2e-16 ***
+#&gt; b   3.0226   0.012999  232.52 &lt; 2.2e-16 ***
 #&gt; ---
 #&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-#&gt; Log-likelihood: -3,585.06      Pseudo-R2: 0.93872 
-#&gt;            BIC: 7,197.76    Squared Cor.: 0.99246</code></pre>
+#&gt; Log-likelihood: -3,565.05      Pseudo-R2: 0.9449 
+#&gt;            BIC: 7,157.73    Squared Cor.: 0.99352</code></pre>
 <p>We can see that we obtain coefficients close to the generating values.</p>
 <div id="adding-fixed-effects-to-non-linear-in-parameters-models" class="section level3">
 <h3><span class="header-section-number">2.1.1</span> Adding fixed-effects to non-linear in parameters models</h3>
@@ -763,15 +763,18 @@ result_NL_fe$coef
 #&gt; NULL
 # the gamma and the exponential of the fixed-effects should be similar
 rbind(gamma, exp(getFE(result_NL_fe)$id))
-#&gt;               1        2         3         4        5        6         7
-#&gt; gamma 0.5373553 2.547587 0.3662600 0.2260310 1.469011 1.580518 0.4767791
-#&gt;       0.5408775 2.550597 0.3883198 0.2321321 1.462594 1.588066 0.4920959
-#&gt;               8        9        10        11       12        13       14
-#&gt; gamma 0.1382040 2.558171 0.2808056 0.7159587 1.445204 0.3705908 4.938374
-#&gt;       0.1402242 2.582773 0.2785758 0.7276676 1.436511 0.3814252 4.900316
-#&gt;              15       16        17        18        19       20
-#&gt; gamma 0.3699644 7.846009 0.3672852 0.8842160 0.2414151 7.176842
-#&gt;       0.3921119 7.866917 0.3698117 0.9093246 0.2474324 7.142627</code></pre>
+#&gt;               1         2         3        4        5         6
+#&gt; gamma 0.7426616 0.1866309 0.3338763 1.233234 3.784924 0.1003087
+#&gt;       0.7341783 0.1922321 0.3269840 1.226228 3.830662 0.1088961
+#&gt;                  7         8         9        10       11       12
+#&gt; gamma 1.390445e-05 0.0615576 0.2007505 0.1293647 0.235345 2.776546
+#&gt;       8.739663e-03 0.0692253 0.2154257 0.1386861 0.238911 2.822437
+#&gt;              13        14         15         16       17        18
+#&gt; gamma 0.2997898 0.9701951 0.02171294 0.03552982 3.264599 0.2392428
+#&gt;       0.3158518 0.9634479 0.03097790 0.04304584 3.339123 0.2521053
+#&gt;             19       20
+#&gt; gamma 3.501098 4.137319
+#&gt;       3.532087 4.140046</code></pre>
 <p>As we can see, we obtain the “right” estimates.</p>
 </div>
 </div>
