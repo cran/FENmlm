@@ -6,11 +6,12 @@
 \usage{
 res2tex(..., se = c("standard", "white", "cluster", "twoway", "threeway",
   "fourway"), cluster, digits = 4, pseudo = TRUE, title,
-  sdBelow = TRUE, drop, order, dict, file, append = TRUE, convergence,
-  signifCode = c(`***` = 0.01, `**` = 0.05, `*` = 0.1), label,
-  aic = FALSE, sqCor = FALSE, subtitles, showClusterSize = FALSE,
-  bic = TRUE, loglik = TRUE, yesNoCluster = c("Yes", "No"),
-  keepFactors = FALSE, family, powerBelow = -5)
+  sdBelow = TRUE, drop, order, dict, file, replace = FALSE,
+  convergence, signifCode = c(`***` = 0.01, `**` = 0.05, `*` = 0.1),
+  label, aic = FALSE, sqCor = FALSE, subtitles,
+  showClusterSize = FALSE, bic = TRUE, loglik = TRUE,
+  yesNoCluster = c("Yes", "No"), keepFactors = FALSE, family,
+  powerBelow = -5)
 }
 \arguments{
 \item{...}{Used to capture different \code{\link[FENmlm]{femlm}} objects. Note that any other type of element is discarded. Note that you can give a list of \code{\link[FENmlm]{femlm}} objects.}
@@ -35,7 +36,7 @@ res2tex(..., se = c("standard", "white", "cluster", "twoway", "threeway",
 
 \item{file}{A character scalar. If provided, the Latex table will be saved in a file whose path is \code{file}.}
 
-\item{append}{Logical, default is \code{TRUE}. Only used if option \code{file} is used. Should the Latex table be appended to the existing file?}
+\item{replace}{Logical, default is \code{FALSE}. Only used if option \code{file} is used. Should the Latex table be written in a new file that replaces any existing file?}
 
 \item{convergence}{Logical, default is missing. Should the convergence state of the algorithm be displayed? By default, convergence information is displayed if at least one model did not converge.}
 

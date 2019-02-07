@@ -34,9 +34,6 @@ fe_trade = getFE(est_pois)
 # plotting them
 plot(fe_trade)
 
-# plotting only the Products fixed-effects & showing more of them
-plot(fe_trade$Product, n=8)
-
 
 }
 \seealso{

@@ -3,6 +3,41 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
+\section{Changes in version 2.4 (2019-02-07)}{
+
+	\subsection{Major changes}{
+		\itemize{
+			\item Major improvement of the internal code. All functions relating to the fixed-effects have been ported to c++, significantly improving performance (both in computing time and memory usage).
+		}
+	}
+
+	\subsection{Other improvements}{
+		\itemize{
+			\item In the \code{print} method, now the BIC and likelihood numbers are properly aligned.
+			\item[res2table] The titles of each column are more consistent.
+			\item[femlm] New controls to check that the formula given by the user is valid and can be evaluated.
+			\item[femlm] Better controls when using \code{na.rm = TRUE}.
+			\item[res2tex] Argument \dQuote{append} has been superseded by \dQuote{replace} for improved clarity (the former can still be used though).
+		}
+	}
+
+	\subsection{Function getFE}{
+		\itemize{
+			\item Now \code{getFE} returns a list of simple vectors (the fixed-effects on each dimension) instead of \code{femlm.cluster} objects.
+			\item The \code{print} method has been superseded by a \code{summary} method.
+		}
+	}
+
+	\subsection{Bug fixes}{
+		\itemize{
+			\item[femlm] For estimations with fixed-effects only (no variable), the print method did not work. Now corrected.
+			\item[femlm] For estimations in Poisson with 2 fixed-effects, when convergence was "difficult", a bug could emerge. Now corrected.
+			\item[femlm] Bug when there were NAs in the data and a factor variable in the right hand side.
+			\item[print.femlm] For estimations without variables (only the fixed-effects), the print method now works properly.
+			\item[diagnostic] Now function \code{diagnostic} works properly when there is a variable that is factored in the formula (i.e. as.factor(var) is applied) and not in the fixed-effect part.
+		}
+	}
+}
 
 \section{Changes in version 2.3.1 (2018-12-06)}{
 	\subsection{New argument}{

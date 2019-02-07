@@ -40,7 +40,7 @@ ml_poisson = function(){
 	closedFormDummies = function(dum, y, mu, env, sum_y, orderCluster, tableCluster, ...){
 		# We send only the dummies (not the vector of dummies)
 
-		mu_dum = rpar_tapply_vsum(length(tableCluster), c(exp(mu)), dum, orderCluster, tableCluster, env)
+		mu_dum = cpp_tapply_vsum(length(tableCluster), c(exp(mu)), dum)
 		log(sum_y) - log(mu_dum)
 	}
 
@@ -246,7 +246,7 @@ ml_gaussian = function(){
 	closedFormDummies = function(dum, y, mu, env, sum_y, orderCluster, tableCluster, ...){
 		# We send only the dummies (not the vector of dummies)
 
-		(sum_y - rpar_tapply_vsum(length(tableCluster), mu, dum, orderCluster, tableCluster, env)) / tableCluster
+		(sum_y - cpp_tapply_vsum(length(tableCluster), mu, dum)) / tableCluster
 	}
 
 	return(list(ll=ll, expected.predictor=expected.predictor, linearFromExpected=linearFromExpected, ll_dl=ll_dl, ll_d2=ll_d2, closedFormDummies=closedFormDummies))

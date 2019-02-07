@@ -8,9 +8,8 @@ export(femlm, res2tex, res2table, getFE, diagnostic, obs2remove)
 
 # Base methods
 S3method(print, femlm)
-S3method(print, femlm.allClusters)
+S3method(summary, femlm.allClusters)
 S3method(summary, femlm)
-S3method(plot, femlm.cluster)
 S3method(plot, femlm.allClusters)
 
 # Stats methods
@@ -41,7 +40,7 @@ importFrom(stats, cor, dnorm, lm, model.matrix, nlminb, optim,
 			  pnorm, qnorm, as.formula, terms, var, sd, formula,
 			  nobs, AIC, BIC, update, predict, fitted, fitted.values,
 			  resid, residuals, logLik, coef, coefficients,
-			  confint, vcov, na.omit, model.frame)
+			  confint, vcov, na.omit, model.frame, "na.pass")
 
 importFrom(MASS, ginv)
 

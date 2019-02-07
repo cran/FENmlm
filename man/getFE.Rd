@@ -37,7 +37,7 @@ plot(fe_trade$Product, n=8)
 
 }
 \seealso{
-\code{\link[FENmlm]{plot.femlm.cluster}}, \code{\link[FENmlm]{plot.femlm.allClusters}}. See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
+\code{\link[FENmlm]{plot.femlm.allClusters}}. See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
 }
 \author{
 Laurent Berge

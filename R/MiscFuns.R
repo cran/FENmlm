@@ -9,6 +9,7 @@
 #' @method print femlm
 #'
 #' @param x A femlm object. Obtained using \code{\link[FENmlm]{femlm}}.
+#' @param n Integer, number of coefficients to display. By default, all estimated coefficients are displayed.
 #' @param ... Other arguments to be passed to \code{\link[FENmlm]{vcov.femlm}}.
 #'
 #' @seealso
@@ -32,15 +33,22 @@
 #' print(est_pois, se = "c")
 #'
 #'
-print.femlm <- function(x, ...){
+print.femlm <- function(x, n, ...){
 
 	x = summary(x, fromPrint = TRUE, ...)
+
+	if(missing(n)){
+		n = Inf
+	} else if(!length(n) == 1 || !is.numeric(n) || n<=0){
+		stop("Argument 'n' must be a single positive integer.")
+	}
 
 	if(!x$convStatus){
 		warning("The optimization algorithm did not converge, the results are not reliable. Use function diagnostic() to see what's wrong.")
 	}
 
 	coeftable = x$coeftable
+
 	# The type of SE
 	se.type = attr(coeftable, "type")
 	family_format = c(poisson="Poisson", negbin="Negative Binomial", logit="Logit", gaussian="Gaussian")
@@ -62,29 +70,19 @@ print.femlm <- function(x, ...){
 				new_table = coeftable[-nrow(coeftable), ]
 			}
 
-			myPrintCoefTable(new_table)
+			myPrintCoefTable(head(new_table, n))
+
 			theta = coeftable[".theta", 1]
 			noDispInfo = ifelse(theta > 1000, "(theta >> 0, no sign of overdispersion, you may consider a Poisson model)", "")
 			cat("Over-dispersion parameter: theta =", theta, noDispInfo, "\n")
 		} else {
-			myPrintCoefTable(coeftable)
+			myPrintCoefTable(head(coeftable, n))
 		}
-
-		# cat("\n")
-
 	}
 
-	bic_format = paste0("           BIC: ", numberFormatNormal(BIC(x)))
-	LL_format = paste0("Log-likelihood: ", numberFormatNormal(x$loglik))
-
-	sep = "  "
-	myWidth = max(nchar(c(bic_format, LL_format))) + length(sep) + 1
-
-	bic_format = paste0(bic_format, sprintf("% *s", myWidth - nchar(bic_format), sep))
-	LL_format = paste0(LL_format, sprintf("% *s", myWidth - nchar(LL_format), sep))
-
-	cat(LL_format, "   Pseudo-R2:", round(x$pseudo_r2, 5), "\n")
-	cat(bic_format, "Squared Cor.:", round(x$sq.cor, 5), "\n")
+	bic_ll = formatBicLL(BIC(x), x$loglik)
+	cat("           BIC:", bic_ll$ll, "   Pseudo-R2:", round(x$pseudo_r2, 5), "\n")
+	cat("Log-likelihood:", bic_ll$bic, "Squared Cor.:", round(x$sq.cor, 5), "\n")
 
 	if(!x$convStatus && is.null(x$onlyCluster)){
 		cat("# Evaluations:", x$iterations, "--", x$message, "\n")
@@ -219,7 +217,7 @@ summary.femlm <- function(object, se=c("standard", "white", "cluster", "twoway",
 #' @param order Character vector. This element is used if the user wants the variables to be ordered in a certain way. This should be a regular expression (see \code{\link[base]{regex}} help for more info). There can be more than one regular expression. The variables satisfying the first regular expression will be placed first, then the order follows the sequence of regular expressions.
 #' @param dict A named character vector. If provided, it changes the original variable names to the ones contained in the \code{dict}. Example: I want to change my variable named "a" to "$log(a)$" and "b3" to "$bonus^3$", then I used \code{dict=c(a="$log(a)$",b3="$bonus^3$")}.
 #' @param file A character scalar. If provided, the Latex table will be saved in a file whose path is \code{file}.
-#' @param append Logical, default is \code{TRUE}. Only used if option \code{file} is used. Should the Latex table be appended to the existing file?
+#' @param replace Logical, default is \code{FALSE}. Only used if option \code{file} is used. Should the Latex table be written in a new file that replaces any existing file?
 #' @param convergence Logical, default is missing. Should the convergence state of the algorithm be displayed? By default, convergence information is displayed if at least one model did not converge.
 #' @param signifCode Named numeric vector, used to provide the significance codes with respect to the p-value of the coefficients. Default is \code{c("***"=0.01, "**"=0.05, "*"=0.10)}.
 #' @param label Character scalar. The label of the Latex table.
@@ -258,7 +256,7 @@ summary.femlm <- function(object, se=c("standard", "white", "cluster", "twoway",
 #' res2tex(res1, res2, dict = c(Sepal.Length = "The sepal length", Sepal.Width = "SW"),
 #'         signifCode = c("**" = 0.1, "*" = 0.2, "n.s."=1))
 #'
-res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, digits=4, pseudo=TRUE, title, sdBelow=TRUE, drop, order, dict, file, append=TRUE, convergence, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), label, aic=FALSE, sqCor = FALSE, subtitles, showClusterSize = FALSE, bic = TRUE, loglik = TRUE, yesNoCluster = c("Yes", "No"), keepFactors = FALSE, family, powerBelow = -5){
+res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threeway", "fourway"), cluster, digits=4, pseudo=TRUE, title, sdBelow=TRUE, drop, order, dict, file, replace=FALSE, convergence, signifCode = c("***"=0.01, "**"=0.05, "*"=0.10), label, aic=FALSE, sqCor = FALSE, subtitles, showClusterSize = FALSE, bic = TRUE, loglik = TRUE, yesNoCluster = c("Yes", "No"), keepFactors = FALSE, family, powerBelow = -5){
 	# drop: a vector of regular expressions
 	# order: a vector of regular expressions
 	# dict: a 'named' vector
@@ -274,9 +272,14 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 	# to get the model names
 	dots_call = match.call(expand.dots = FALSE)[["..."]]
 
-	info = results2formattedList(..., se=se, cluster=cluster, digits=digits, sdBelow=sdBelow, signifCode=signifCode, subtitles=subtitles, yesNoCluster=yesNoCluster, keepFactors=keepFactors, isTex = TRUE, useSummary=useSummary, sdType=sdType, dots_call=dots_call, powerBelow=powerBelow)
+	if("append" %in% names(dots_call)){
+		value = dots_call$append
+		replace = !value
+		warning("Argument 'append' is deprecated, use argument 'replace' instead.")
+		dots_call$append = NULL
+	}
 
-	# browser()
+	info = results2formattedList(..., se=se, cluster=cluster, digits=digits, sdBelow=sdBelow, signifCode=signifCode, subtitles=subtitles, yesNoCluster=yesNoCluster, keepFactors=keepFactors, isTex = TRUE, useSummary=useSummary, sdType=sdType, dots_call=dots_call, powerBelow=powerBelow)
 
 	n_models = length(info$depvar_list)
 	# Getting the information
@@ -818,7 +821,12 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 
 		if(any(allowed_types %in% class(di))){
 			all_models[[k]] = di
-			model_names[[k]] = as.character(dots_call[[i]])
+			if(any(class(dots_call[[i]]) %in% c("call", "name"))){
+				model_names[[k]] = deparse(dots_call[[i]])
+			} else {
+				model_names[[k]] = as.character(dots_call[[i]])
+			}
+
 			k = k+1
 		} else if(length(class(di))==1 && class(di)=="list"){
 			# we get into this list to get the FENmlm objects
@@ -1069,13 +1077,13 @@ myPrintCoefTable = function(coeftable){
 }
 
 
-#' Print method for cluster coefficients
+#' Summary method for cluster coefficients
 #'
 #' This function summarizes the main characteristics of the cluster coefficients. It shows the number of fixed-effects that have been set as references and the first elements of the fixed-effects.
 #'
-#' @method print femlm.allClusters
+#' @method summary femlm.allClusters
 #'
-#' @param x An object returned by the function \code{\link[FENmlm]{getFE}}.
+#' @param object An object returned by the function \code{\link[FENmlm]{getFE}}.
 #' @param n Positive integer, defaults to 5. The \code{n} first fixed-effects for each cluster are reported.
 #' @param ... Not currently used.
 #'
@@ -1103,20 +1111,20 @@ myPrintCoefTable = function(coeftable){
 #' fe_trade
 #'
 #'
-print.femlm.allClusters = function(x, n=5, ...){
+summary.femlm.allClusters = function(object, n=5, ...){
 	# This function shows some generic information on the clusters
 
-	Q = length(x)
-	clustNames = names(x)
+	Q = length(object)
+	clustNames = names(object)
 
 	isRegular = TRUE
 	if(Q > 1){
-		nb_ref = attr(x, "References")
-		nb_per_cluster = sapply(x, length)
+		nb_ref = attr(object, "References")
+		nb_per_cluster = sapply(object, length)
 		mean_per_cluster = var_per_cluster = c()
 		for(i in 1:Q){
-			mean_per_cluster[i] = as.character(signif(mean(x[[i]]), 3))
-			var_per_cluster[i] = as.character(signif(var(x[[i]]), 3))
+			mean_per_cluster[i] = as.character(signif(mean(object[[i]]), 3))
+			var_per_cluster[i] = as.character(signif(var(object[[i]]), 3))
 		}
 		res = as.data.frame(rbind(nb_per_cluster, nb_ref, mean_per_cluster, var_per_cluster))
 		rownames(res) = c("Number of fixed-effects", "Number of references", "Mean", "Variance")
@@ -1129,26 +1137,26 @@ print.femlm.allClusters = function(x, n=5, ...){
 	# The message
 	cat("Fixed-effects coefficients.\n")
 	if(Q == 1){
-		x1 = x[[1]]
+		x1 = object[[1]]
 		cat("Number of fixed-effects for variable ", clustNames, " is ", length(x1), ".\n", sep = "")
 		cat("\tMean = ", signif(mean(x1), 3), "\tVariance = ", signif(var(x1), 3), "\n", sep = "")
 	} else {
 		print(res)
 		if(!isRegular){
-			cat("NOTE: The clusters are NOT regular, so cannot be straighforwardly interpreted.\n")
+			cat("NOTE: The fixed-effects are NOT regular, so cannot be straighforwardly interpreted.\n")
 		}
 	}
 
 	# We print the first 5 elements of each cluster
 	cat("\nCOEFFICIENTS:\n")
 	for(i in 1:Q){
-		m = head(x[[i]], n)
+		m = head(object[[i]], n)
 
 		m_char = as.data.frame(t(as.data.frame(c("", as.character(signif(m, 4))))))
 		names(m_char) = c(paste0(clustNames[i], ":"), names(m))
 		rownames(m_char) = " "
 
-		n_cluster = length(x[[i]])
+		n_cluster = length(object[[i]])
 		if(n_cluster > n){
 			m_char[["   "]] = paste0("... ", addCommas(n_cluster - n), " remaining")
 		}
@@ -1157,11 +1165,6 @@ print.femlm.allClusters = function(x, n=5, ...){
 		if(i != Q) cat("-----\n")
 	}
 
-}
-
-print.femlm.cluster = function(x, ...){
-	# just to hide the information on the class and on the attributes
-	print.default(x[1:length(x)], ...)
 }
 
 
@@ -1179,7 +1182,7 @@ print.femlm.cluster = function(x, ...){
 #' If there is more than 1 cluster, then the attribute \dQuote{References} is created. This is a vector of length the number of clusters, each element contains the number of fixed-effects set as references. By construction, the elements of the first clusters are never set as references. In the presence of regular clusters, there should be Q-1 references (with Q the number of clusters).
 #'
 #' @seealso
-#' \code{\link[FENmlm]{plot.femlm.cluster}}, \code{\link[FENmlm]{plot.femlm.allClusters}}. See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
+#' \code{\link[FENmlm]{plot.femlm.allClusters}}. See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
 #'
 #' @author
 #' Laurent Berge
@@ -1245,15 +1248,41 @@ getFE = function(x){
 		cluster_values = list(S[select])
 
 		# There are no references => no need to set nb_ref
+	} else if(Q == 2) {
+		# specific method that is faster but specific to the case of 2 FE
+		dum_i = id_dummies_vect[[1]] - 1L
+		dum_j = id_dummies_vect[[2]] - 1L
+
+		order_ij = order(dum_i, dum_j)
+		i_sorted_index_j = dum_j[order_ij]
+
+		order_ji = order(dum_j, dum_i)
+		j_sorted_index_i = dum_i[order_ji]
+
+		i_sorted_sumFE = S[order_ij]
+		j_sorted_sumFE = S[order_ji]
+
+		fe <- cpp_get_fe_2(clusterSize = x$clusterSize, i_sorted_index_j = i_sorted_index_j, i_sorted_sumFE = i_sorted_sumFE, j_sorted_index_i = j_sorted_index_i, j_sorted_sumFE = j_sorted_sumFE, r_cumtable_i = cumsum(table(dum_i)), r_cumtable_j = cumsum(table(dum_j)))
+
+		# cpp_get_fe_2 returns a matrix (we will update cpp_get_fe_gnl to return a matrix later)
+		# so we put it into a list (for now)
+
+		cluster_values = list()
+		cluster_values[[1]] = fe[fe[, 1] == 1, 3]
+		cluster_values[[2]] = fe[fe[, 1] == 2, 3]
+
+		# the number of references needed
+		nb_ref = c(0, sum(fe[, 4]))
+
 	} else {
-		# We apply a Rcpp script to handle complicated cases (and we don't know beforehand if there are some)
+		# We apply a Rcpp script to handle complicated cases (and we don't know beforehand if the input is one)
 
 		dumMat <- matrix(unlist(id_dummies_vect), N, Q) - 1
 		orderCluster <- matrix(unlist(lapply(id_dummies_vect, order)), N, Q) - 1
 
 		nbCluster = sapply(id_dummies, max)
 
-		cluster_values <- RcppGetFE(Q, N, S, dumMat, nbCluster, orderCluster)
+		cluster_values <- cpp_get_fe_gnl(Q, N, S, dumMat, nbCluster, orderCluster)
 
 		# the information on the references
 		nb_ref = cluster_values[[Q+1]]
@@ -1265,13 +1294,10 @@ getFE = function(x){
 	for(i in 1:Q){
 		cv = cluster_values[[i]]
 		names(cv) = attr(id_dummies[[i]], "clust_names")
-		class(cv) = "femlm.cluster"
-		attr(cv, "name") = clustNames[i]
-		attr(cv, "family") = family
 		all_clust[[clustNames[i]]] = cv
 	}
 
-	class(all_clust) = "femlm.allClusters"
+	class(all_clust) = c("femlm.allClusters", "list")
 
 	# Dealing with the references
 	if(Q > 1){
@@ -1288,53 +1314,8 @@ getFE = function(x){
 }
 
 
-
-#' Plots the most notable fixed-effects
-#'
-#' This method plots the most notable fixed effects of a cluster obtained from function \code{\link[FENmlm]{getFE}}.
-#'
-#' @method plot femlm.cluster
-#'
-#' @param x An object obtained from the function \code{\link{getFE}}.
-#' @param n The number of fixed-effects to be drawn. Defaults to 5.
-#' @param ... Not currently used.
-#'
-#' @details
-#' Note that the fixed-effect coefficients might NOT be interpretable. This function is useful only for fully regular panels.
-#'
-#' If the data are not regular in the cluster coefficients, this means that several \sQuote{reference points} are set to obtain the fixed-effects, thereby impeding their interpretation. In this case a warning is raised.
-#'
-#' @seealso
-#' To plot all the fixed-effects of all clusters, use function \code{\link[FENmlm]{plot.femlm.allClusters}}.
-#'  See also the main estimation function \code{\link[FENmlm]{femlm}}. Use \code{\link[FENmlm]{summary.femlm}} to see the results with the appropriate standard-errors, \code{\link[FENmlm]{getFE}} to extract the cluster coefficients, and the functions \code{\link[FENmlm]{res2table}} and \code{\link[FENmlm]{res2tex}} to visualize the results of multiple estimations.
-#'
-#' @author
-#' Laurent Berge
-#'
-#' @examples
-#'
-#' data(trade)
-#'
-#' # We estimate the effect of distance on trade
-#' # => we account for 3 cluster effects
-#' est_pois = femlm(Euros ~ log(dist_km)|Origin+Destination+Product, trade)
-#'
-#' # obtaining the cluster coefficients
-#' fe_trade = getFE(est_pois)
-#'
-#' # plotting them
-#' plot(fe_trade)
-#'
-#' # plotting only the Products fixed-effects & showing more of them
-#' plot(fe_trade$Product, n=8)
-#'
-#'
-plot.femlm.cluster = function(x, n=5, ...){
+plot_single_cluster = function(x, n=5, ...){
 	# It plots the n first and last most notable FEs
-
-	# meta information
-	clusterName = attr(x, "name")
-	family = attr(x, "family")
 
 	# we compare with the average of the coefficients
 	x = sort(x) - mean(x)
@@ -1378,8 +1359,6 @@ plot.femlm.cluster = function(x, n=5, ...){
 
 	axis(4, at=y, labels = signif(exp(y), 2))
 
-	# browser()
-	title(main = clusterName)
 	title(xlab = "Centered Fixed-Effects", line = 1)
 
 	if(isSplit){
@@ -1429,9 +1408,6 @@ plot.femlm.cluster = function(x, n=5, ...){
 #' # plotting them
 #' plot(fe_trade)
 #'
-#' # plotting only the Products fixed-effects & showing more of them
-#' plot(fe_trade$Product, n=8)
-#'
 #'
 plot.femlm.allClusters = function(x, n=5, ...){
 
@@ -1446,7 +1422,8 @@ plot.femlm.allClusters = function(x, n=5, ...){
 	op = par(mfrow = as.numeric(strsplit(mfrow[Q], "")[[1]]), mar = c(3, 3, 2.5, 3))
 
 	for(i in 1:Q){
-		plot(x[[i]], n=n)
+		plot_single_cluster(x[[i]], n=n)
+		title(main = names(x)[i])
 	}
 
 	par(op)
@@ -1481,6 +1458,29 @@ vcovClust <- function (cluster, myBread, scores, dof_correction=FALSE, do.unclas
 	return(crossprod(RightScores%*%myBread) * dof)
 }
 
+
+formatBicLL = function(bic, ll){
+	# entry: bic and ll
+
+	bic = numberFormatNormal(bic)
+	ll = numberFormatNormal(ll)
+
+	bic_split = strsplit(bic, "\\.")[[1]]
+	ll_split = strsplit(ll, "\\.")[[1]]
+
+	n = max(nchar(bic_split[1]), nchar(ll_split[1]))
+
+	bic_new = sprintf("% *s.%s", n, bic_split[1], ifelse(length(bic_split) == 2, bic_split[2], 0))
+	ll_new = sprintf("% *s.%s", n, ll_split[1], ifelse(length(ll_split) == 2, ll_split[2], 0))
+
+	sep = "  "
+	myWidth = max(nchar(c(bic_new, ll_new))) + length(sep) + 1
+
+	bic_format = paste0(bic_new, sprintf("% *s", myWidth - nchar(bic_new), sep))
+	ll_format = paste0(ll_new, sprintf("% *s", myWidth - nchar(ll_new), sep))
+
+	list(bic = bic_format, ll = ll_format)
+}
 
 addCommas_single = function(x){
 
@@ -1599,10 +1599,11 @@ coefFormatLatex = function(x, digits = 4, power = 5){
 	sapply(x, coefFormatLatex_single, digits = digits, power = power)
 }
 
-
 numberFormat_single = function(x, type = "normal"){
 	# For numbers higher than 1e9 => we apply a specific formatting
 	# idem for numbers lower than 1e-4
+
+	if(x == 0) return("0")
 
 	exponent = floor(log10(abs(x)))
 
@@ -1677,6 +1678,38 @@ charShorten = function(x, width){
 }
 
 
+show_vars_limited_width = function(charVect, nbChars = 60){
+	# There are different cases
+
+	n = length(charVect)
+
+	if(n==1){
+		text = paste0(charVect, ".")
+		return(text)
+	}
+
+	nb_char_vect = nchar(charVect)
+	sumChar = cumsum(nb_char_vect) + (0:(n-1))*2 + 3 + 1
+
+	if(max(sumChar) < nbChars){
+		text = paste0(paste0(charVect[-n], collapse = ", "), " and ", charVect[n])
+		return(text)
+	}
+
+	qui = max(which.max(sumChar > nbChars - 8) - 1, 1)
+
+	nb_left = n - qui
+
+	if(nb_left == 1){
+		text = paste0(paste0(charVect[1:qui], collapse = ", "), " and ", nb_left, " other.")
+	} else {
+		text = paste0(paste0(charVect[1:qui], collapse = ", "), " and ", nb_left, " others.")
+	}
+
+	return(text)
+}
+
+
 char2num = function(x){
 	# we transform the data to numeric => faster analysis
 
@@ -1711,7 +1744,7 @@ quickUnclassFactor = function(x){
 
 	myOrder = order(x)
 	x_sorted = x[myOrder]
-	g = Rcpp_unclassFactor(x_sorted)
+	g = cpp_unclassFactor(x_sorted)
 	res = g[order(myOrder)]
 
 	return(res)
@@ -2016,7 +2049,6 @@ diagnostic = function(x){
 		data = data[-x$obsRemoved, ]
 	}
 
-
 	if(isCluster){
 		linear_fml = update(linear_fml, ~ . + 1)
 	}
@@ -2082,19 +2114,37 @@ diagnostic = function(x){
 	# II) perfect multicollinearity
 	#
 
-	linearVars = setdiff(colnames(linear.matrix), "(Intercept)")
+	name2change = grepl("\\)[[:alnum:]]", colnames(linear.matrix))
+	if(any(name2change)){
+		linbase = as.data.frame(linear.matrix)
+		names(linbase)[name2change] = gsub("(\\(|\\))", "_", names(linbase)[name2change])
+		linearVars = setdiff(names(linbase), "(Intercept)")
+	} else {
+		linbase = as.data.frame(linear.matrix)
+		linearVars = setdiff(colnames(linear.matrix), "(Intercept)")
+	}
+
+	# we add possibly missing variables
+	varmiss = setdiff(all.vars(linear_fml), names(linbase))
+	for(v in varmiss) linbase[[v]] = data[[v]]
+
+	# browser()
+
+	# linearVars = setdiff(colnames(linear.matrix), "(Intercept)")
 	if(isLinear && length(linearVars) >= 2){
 
 		for(v in linearVars){
 			fml2estimate = as.formula(paste0(v, "~", paste0(setdiff(linearVars, v), collapse = "+")))
 
-			res = lm(fml2estimate, data)
+			# res = lm(fml2estimate, data)
+			# res = lm(fml2estimate, as.data.frame(linear.matrix))
+			res = lm(fml2estimate, linbase)
 
 			sum_resid = sum(abs(resid(res)))
 			if(sum_resid < 1e-4){
 				coef_lm = coef(res)
 				collin_var = names(coef_lm)[!is.na(coef_lm) & abs(coef_lm) > 1e-6]
-				message = paste0("Variable '", v, "' is collinear with variable(s): ", paste0(collin_var, collapse = ", "), ".")
+				message = paste0("Variable '", v, "' is collinear with variable", ifelse(length(collin_var)>=2, "s", ""), ": ", paste0(collin_var, collapse = ", "), ".")
 
 				print(message)
 				return(invisible(message))
@@ -2106,27 +2156,29 @@ diagnostic = function(x){
 	# II.b) perfect multicollinearity + cluster
 	#
 
-	linearVars = setdiff(colnames(linear.matrix), "(Intercept)")
+	# linearVars = setdiff(colnames(linear.matrix), "(Intercept)")
 	if(isLinear && length(linearVars) >= 2 && isCluster){
 
 		dum_names = names(x$id_dummies)
 		n_clust = length(dum_names)
 		new_dum_names = paste0("__DUM_", 1:n_clust)
 		for(i in 1:n_clust){
-			data[[paste0("__DUM_", i)]] = x$id_dummies[[i]]
+			# data[[paste0("__DUM_", i)]] = x$id_dummies[[i]]
+			linbase[[paste0("__DUM_", i)]] = x$id_dummies[[i]]
 		}
 
 		for(v in linearVars){
 			fml2estimate = as.formula(paste0(v, "~", paste0(setdiff(linearVars, v), collapse = "+")))
 
 			for(id_cluster in 1:n_clust){
-				res = femlm(fml2estimate, data, cluster = new_dum_names[id_cluster], family = "gaussian", showWarning = FALSE)
+				# res = femlm(fml2estimate, data, cluster = new_dum_names[id_cluster], family = "gaussian", showWarning = FALSE)
+				res = femlm(fml2estimate, linbase, cluster = new_dum_names[id_cluster], family = "gaussian", showWarning = FALSE)
 
 				sum_resid = sum(abs(resid(res)))
 				if(sum_resid < 1e-4){
 					coef_lm = coef(res)
 					collin_var = names(coef_lm)[!is.na(coef_lm) & abs(coef_lm) > 1e-6]
-					message = paste0("Variable '", v, "' is collinear with variable(s): ", paste0(collin_var, collapse = ", "), " and cluster ", dum_names[id_cluster], ".")
+					message = paste0("Variable '", v, "' is collinear with variable", ifelse(length(collin_var)>=2, "s", ""), ": ", paste0(collin_var, collapse = ", "), " and cluster ", dum_names[id_cluster], ".")
 
 					print(message)
 					return(invisible(message))
@@ -2367,7 +2419,7 @@ AIC.femlm = function(object, ..., k = 2){
 #' \deqn{BIC = -2\times LogLikelihood + \log(nobs)\times nbParams}
 #' with k the penalty parameter.
 #'
-#' You can have more information on this crtierion on \code{\link[stats]{BIC}}.
+#' You can have more information on this crtierion on \code{\link[stats]{AIC}}.
 #'
 #' @return
 #' It return a numeric vector, with length the same as the number of objects taken as arguments.
@@ -2537,6 +2589,8 @@ fitted.femlm = fitted.values.femlm = function(object, type = c("response", "link
 
 	if(type == "response"){
 		res = object$fitted.values
+	} else if(!is.null(object$mu)){
+		res = object$mu
 	} else {
 		family = object$family
 		famFuns = switch(family,

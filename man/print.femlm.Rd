@@ -4,10 +4,12 @@
 \alias{print.femlm}
 \title{A print facility for \code{femlm} objects. It can compute different types of standard errors.}
 \usage{
-\method{print}{femlm}(x, ...)
+\method{print}{femlm}(x, n, ...)
 }
 \arguments{
 \item{x}{A femlm object. Obtained using \code{\link[FENmlm]{femlm}}.}
+
+\item{n}{Integer, number of coefficients to display. By default, all estimated coefficients are displayed.}
 
 \item{...}{Other arguments to be passed to \code{\link[FENmlm]{vcov.femlm}}.}
 }
