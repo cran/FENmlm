@@ -3,6 +3,14 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
+\section{Changes in version 2.4.1 (2019-02-25)}{
+	\subsection{Vignette}{
+		\itemize{
+			\item Correction of a bug introduced after the modification of the \code{getFE} function.
+		}
+	}
+}
+
 \section{Changes in version 2.4 (2019-02-07)}{
 
 	\subsection{Major changes}{

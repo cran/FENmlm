@@ -11,7 +11,7 @@
 
 <meta name="author" content="Laurent Berge" />
 
-<meta name="date" content="2019-02-07" />
+<meta name="date" content="2019-02-25" />
 
 <title>Efficient Maximum Likelihood Estimation with Multiple Fixed-Effects</title>
 
@@ -101,6 +101,9 @@ img {
 button.code-folding-btn:focus {
   outline: none;
 }
+summary {
+  display: list-item;
+}
 </style>
 
 
@@ -108,14 +111,74 @@ button.code-folding-btn:focus {
 <div class="container-fluid main-container">
 
 <!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
 <script>
 $(document).ready(function () {
   window.buildTabsets("TOC");
 });
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
 </script>
 
 <!-- code folding -->
-
 
 
 
@@ -228,7 +291,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Efficient Maximum Likelihood Estimation with Multiple Fixed-Effects</h1>
 <h4 class="author"><em>Laurent Berge</em></h4>
-<h4 class="date"><em>2019-02-07</em></h4>
+<h4 class="date"><em>2019-02-25</em></h4>
 
 </div>
 
@@ -663,42 +726,28 @@ res2tex(gravity_subcluster, se = &quot;cluster&quot;, cluster = trade$Product, o
 </div>
 <div id="extracting-the-fixed-effects" class="section level2">
 <h2><span class="header-section-number">1.6</span> Extracting the fixed-effects</h2>
-<p>To obtain the fixed-effects of the estimation, the function <code>getFE</code> must be performed on the results. This function returns a list containing the fixed-effects for each cluster. The <code>print</code> method helps to have a quick overview:</p>
+<p>To obtain the fixed-effects of the estimation, the function <code>getFE</code> must be performed on the results. This function returns a list containing the fixed-effects for each cluster. The <code>summary</code> method helps to have a quick overview:</p>
 <pre class="r"><code>fixedEffects &lt;- getFE(gravity_results)
-fixedEffects
-#&gt; $Origin
-#&gt;       BE       LU       NL       DE       GB       IE       ES       PT 
-#&gt; 23.56068 20.23023 24.43460 24.70769 23.75072 23.19499 24.96690 22.44476 
-#&gt;       FR       AT       IT       DK       FI       SE       GR 
-#&gt; 24.67546 22.50802 24.32840 23.44093 21.64615 23.25143 23.08105 
+summary(fixedEffects)
+#&gt; Fixed-effects coefficients.
+#&gt;                         Origin Destination Product   Year
+#&gt; Number of fixed-effects     15          15      20     10
+#&gt; Number of references         0           1       1      1
+#&gt; Mean                      23.3        3.09  0.0129  0.157
+#&gt; Variance                  1.63        1.23    1.86 0.0129
 #&gt; 
-#&gt; $Destination
-#&gt;       LU       BE       NL       DE       IE       GB       PT       ES 
-#&gt; 0.000000 2.695877 3.230585 4.322875 2.588554 4.064073 2.552345 4.043327 
-#&gt;       FR       AT       IT       DK       SE       FI       GR 
-#&gt; 4.168774 2.435895 4.217882 2.451105 3.570083 2.817644 3.143755 
-#&gt; 
-#&gt; $Product
-#&gt;           1           2           3           4           5           6 
-#&gt;  0.00000000  1.41436908  0.65624654  1.44923309 -1.52073341  0.24061915 
-#&gt;           7           8           9          10          11          12 
-#&gt;  0.90627290  0.99818202 -0.43707295  0.38013238 -0.69887170 -0.09549963 
-#&gt;          13          14          15          16          17          18 
-#&gt; -1.94791717 -4.43050543  0.69615767  0.33033306  0.07365566  0.49554792 
-#&gt;          19          20 
-#&gt;  0.94009439  0.80754214 
-#&gt; 
-#&gt; $Year
-#&gt;        2007        2008        2009        2010        2011        2012 
-#&gt; 0.000000000 0.069122284 0.005225473 0.073308208 0.163013386 0.192605170 
-#&gt;        2013        2014        2015        2016 
-#&gt; 0.230629376 0.242605404 0.282800683 0.310325692 
-#&gt; 
-#&gt; attr(,&quot;class&quot;)
-#&gt; [1] &quot;femlm.allClusters&quot; &quot;list&quot;             
-#&gt; attr(,&quot;References&quot;)
-#&gt;      Origin Destination     Product        Year 
-#&gt;           0           1           1           1</code></pre>
+#&gt; COEFFICIENTS:
+#&gt;   Origin:    BE    LU    NL    DE    GB                 
+#&gt;           23.56 20.23 24.43 24.71 23.75 ... 10 remaining
+#&gt; -----
+#&gt;   Destination: LU    BE    NL    DE    IE                 
+#&gt;                 0 2.696 3.231 4.323 2.589 ... 10 remaining
+#&gt; -----
+#&gt;   Product: 1     2      3     4      5                 
+#&gt;            0 1.414 0.6562 1.449 -1.521 ... 15 remaining
+#&gt; -----
+#&gt;   Year: 2007    2008     2009    2010  2011                
+#&gt;            0 0.06912 0.005225 0.07331 0.163 ... 5 remaining</code></pre>
 <p>We can see that the fixed-effects are balanced across clusters. Indeed, apart from the first cluster, only one fixed-effect per cluster needs to be set as reference (i.e. fixed to 0) to avoid collinearity across the fixed-effects of the different clusters. This ensures that the fixed-effects coefficients can be compared within cluster. Had there be strictly more than one reference per cluster, their interpretation would have not been possible at all. If this was the case though, a warning message would have been prompted. Note that the mean values are meaningless per se, but give a reference points to which compare the fixed-effects within a cluster. Let’s look specifically at the <code>Year</code> fixed-effects:</p>
 <pre class="r"><code>fixedEffects$Year
 #&gt;        2007        2008        2009        2010        2011        2012 
@@ -738,12 +787,12 @@ base = data.frame(x, y, z)</code></pre>
 #&gt; Observations: 1,000 
 #&gt; Standard-errors type: Standard 
 #&gt;   Estimate Std. Error z value  Pr(&gt;|z|)    
-#&gt; a   2.0177   0.011346  177.83 &lt; 2.2e-16 ***
-#&gt; b   3.0229   0.012203  247.71 &lt; 2.2e-16 ***
+#&gt; a   2.0045   0.011065  181.16 &lt; 2.2e-16 ***
+#&gt; b   3.0433   0.013105  232.22 &lt; 2.2e-16 ***
 #&gt; ---
 #&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-#&gt;            BIC: -3,567.37      Pseudo-R2: 0.94038 
-#&gt; Log-likelihood:  7,162.38   Squared Cor.: 0.99317</code></pre>
+#&gt;            BIC: -3,663.22      Pseudo-R2: 0.93215 
+#&gt; Log-likelihood:  7,354.08   Squared Cor.: 0.99048</code></pre>
 <p>We can see that we obtain coefficients close to the generating values.</p>
 <div id="adding-fixed-effects-to-non-linear-in-parameters-models" class="section level3">
 <h3><span class="header-section-number">2.1.1</span> Adding fixed-effects to non-linear in parameters models</h3>
@@ -769,21 +818,21 @@ result_NL_fe = femlm(z_bis~0|id, base, NL.fml = ~ log(2*x + b*y), NL.start = lis
 # The coef should be around 3
 coef(result_NL_fe)
 #&gt;        b 
-#&gt; 2.983344
+#&gt; 3.010858
 # the gamma and the exponential of the fixed-effects should be similar
 rbind(gamma, exp(getFE(result_NL_fe)$id))
-#&gt;               1        2         3           4         5         6
-#&gt; gamma 0.1396713 5.168569 0.6503072 0.008244279 0.1965081 0.1675784
-#&gt;       0.1469042 5.183864 0.6710373 0.013148056 0.2049078 0.1718332
-#&gt;               7         8        9        10          11        12
-#&gt; gamma 0.1015363 0.4457358 8.084374 0.1867272 0.003683782 0.1499622
-#&gt;       0.1126828 0.4683912 8.113095 0.1924991 0.010028041 0.1573365
-#&gt;              13        14          15       16         17       18
-#&gt; gamma 0.1634677 0.5692534 0.007683584 1.553383 0.06159078 2.206784
-#&gt;       0.1728574 0.5814624 0.017528965 1.585693 0.06900151 2.203357
-#&gt;              19       20
-#&gt; gamma 0.1296996 2.622596
-#&gt;       0.1398646 2.605446</code></pre>
+#&gt;               1         2         3         4         5          6
+#&gt; gamma 0.4620456 0.5289727 0.7488850 0.4230114 0.6382670 0.05403462
+#&gt;       0.4591741 0.5193546 0.7605403 0.4436277 0.6446999 0.06611913
+#&gt;              7         8        9        10        11        12         13
+#&gt; gamma 1.373196 0.4792044 1.388291 0.8890082 0.4892713 0.3322167 0.09745445
+#&gt;       1.359020 0.5064424 1.380255 0.9040669 0.5103765 0.3247493 0.10589339
+#&gt;              14        15        16        17           18         19
+#&gt; gamma 0.4035763 0.4104640 0.1902784 0.6632662 3.097772e-06 0.03002097
+#&gt;       0.4061532 0.4343258 0.1911886 0.6705210 7.918774e-03 0.04115281
+#&gt;             20
+#&gt; gamma 1.932528
+#&gt;       1.952219</code></pre>
 <p>As we can see, we obtain the “right” estimates.</p>
 </div>
 </div>

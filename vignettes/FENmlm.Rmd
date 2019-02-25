@@ -207,11 +207,11 @@ In the first export, the coefficient of the intercept is dropped by using `drop 
 
 ## Extracting the fixed-effects
 
-To obtain the fixed-effects of the estimation, the function `getFE` must be performed on the results. This function returns a list containing the fixed-effects for each cluster. The `print` method helps to have a quick overview:
+To obtain the fixed-effects of the estimation, the function `getFE` must be performed on the results. This function returns a list containing the fixed-effects for each cluster. The `summary` method helps to have a quick overview:
 
 ```{r}
 fixedEffects <- getFE(gravity_results)
-fixedEffects
+summary(fixedEffects)
 ```
 
 We can see that the fixed-effects are balanced across clusters. Indeed, apart from the first cluster, only one fixed-effect per cluster needs to be set as reference (i.e. fixed to 0) to avoid collinearity across the fixed-effects of the different clusters. This ensures that the fixed-effects coefficients can be compared within cluster. Had there be strictly more than one reference per cluster, their interpretation would have not been possible at all. If this was the case though, a warning message would have been prompted. Note that the mean values are meaningless per se, but give a reference points to which compare the fixed-effects within a cluster.

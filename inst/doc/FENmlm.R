@@ -80,7 +80,7 @@ res2tex(gravity_subcluster, se = "twoway", cluster = trade[, c("Origin", "Destin
 
 ## ------------------------------------------------------------------------
 fixedEffects <- getFE(gravity_results)
-fixedEffects
+summary(fixedEffects)
 
 ## ------------------------------------------------------------------------
 fixedEffects$Year
