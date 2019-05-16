@@ -162,7 +162,7 @@ res2table(sum_white, sum_oneway, sum_twoway, sum_threeway)
 #
 # Example of Equivalences
 #
-
+\dontrun{
 # equivalence with glm poisson
 est_glm <- glm(Euros ~ log(dist_km) + factor(Origin) +
             factor(Destination) + factor(Product), trade, family = poisson)
@@ -178,6 +178,8 @@ est_lm <- lm(log(Euros+1) ~ log(dist_km) + factor(Origin) +
 # coefficient estimates + Standard-error
 summary(est_lm)$coefficients["log(dist_km)", ]
 summary(est_gaus, dof_correction = TRUE)$coeftable
+}
+
 
 #
 # Non-linear examples

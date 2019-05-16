@@ -27,7 +27,7 @@ knitr::opts_chunk$set(
 
 <!-- Ajouter example simple et intuitif fixed-effects  -->
 
-The package `FENmlm` estimates of maximum likelihood (ML) models with fixed-effects. 
+The package `FENmlm` estimates maximum likelihood (ML) models with fixed-effects. 
 The function `femlm` is the workhorse of the package: it performs efficient ML estimations with *any number* of fixed-effects and also allows for non-linear in parameters right-hand-sides. Four likelihood models are supported: Poisson, Negative Binomial, Gaussian (equivalent to OLS) and Logit. 
 
 The standard-errors of the estimates can be very easily clustered (up to four-way).

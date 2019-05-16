@@ -12,7 +12,7 @@
 \item{Products: Number representing the product categories (from 1 to 20).}
 \item{Year: Years from 2007 to 2016}
 \item{dist_km: Geographic distance in km between the centers of the countries of origin and destination.}
-\item{Euros: The total amount in euros of the trade flow for the specific year/product category/origin-destination country pair.}
+\item{Euros: The total amount of trade flow in million euros for the specific year/product category/origin-destination country pair.}
 
 }}
 \source{

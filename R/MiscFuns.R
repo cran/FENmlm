@@ -44,7 +44,7 @@ print.femlm <- function(x, n, ...){
 	}
 
 	if(!x$convStatus){
-		warning("The optimization algorithm did not converge, the results are not reliable. Use function diagnostic() to see what's wrong.")
+		message("The optimization algorithm did not converge, the results are not reliable.")
 	}
 
 	coeftable = x$coeftable
@@ -1733,14 +1733,11 @@ quickUnclassFactor = function(x){
 	# does as unclass(as.factor(x))
 	# but waaaaay quicker
 
-	if(is.factor(x)){
-		x = unclass(x)
-	} else if(is.character(x)){
+	if(!is.numeric(x)){
+		x = as.character(x)
 		res = char2num(x)
 		return(res)
 	}
-
-	stopifnot(is.numeric(x))
 
 	myOrder = order(x)
 	x_sorted = x[myOrder]
@@ -1755,10 +1752,9 @@ getItems = function(x){
 	# to get the unique elements of x before quickunclassfactor
 	# needs to be done because differs depending on the type of x
 
-	if(is.character(x)){
+	if(!is.numeric(x)){
+		x = as.character(x)
 		res = unique(x)
-	} else if(is.factor(x)){
-		res = levels(unique(x)[, drop=TRUE])
 	} else {
 		res = sort(unique(x))
 	}
@@ -2967,7 +2963,7 @@ vcov.femlm = function(object, se=c("standard", "white", "cluster", "twoway", "th
 
 		if(!forceCovariance){
 			# warning("Standard errors are NA because of likely presence of collinearity. You can use option 'forceCovariance' to try to force the computation of the vcov matrix (to see what's wrong).", call. = FALSE)
-			warning("Standard errors are NA because of likely presence of collinearity. Use function diagnostic() to see what's wrong.", call. = FALSE)
+			warning("Standard errors are NA because of likely presence of collinearity. Use function diagnostic() to detect collinearity problems.", call. = FALSE)
 			return(VCOV_raw)
 		} else {
 			VCOV_raw_forced = MASS::ginv(object$hessian)
@@ -3600,7 +3596,7 @@ model.matrix.femlm = function(object, data, ...){
 #' \item{Products: Number representing the product categories (from 1 to 20).}
 #' \item{Year: Years from 2007 to 2016}
 #' \item{dist_km: Geographic distance in km between the centers of the countries of origin and destination.}
-#' \item{Euros: The total amount in euros of the trade flow for the specific year/product category/origin-destination country pair.}
+#' \item{Euros: The total amount of trade flow in million euros for the specific year/product category/origin-destination country pair.}
 #'
 #' }
 #'

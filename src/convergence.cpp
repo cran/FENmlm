@@ -1,13 +1,14 @@
 #include <Rcpp.h>
 #include <math.h>
 #include <vector>
+#ifdef _OPENMP
 #include <omp.h>
-using namespace Rcpp;
-using namespace std;
+#endif
 
 // [[Rcpp::plugins(openmp)]]
 
-
+using namespace Rcpp;
+using namespace std;
 
 // List of objects that will be used to
 // lighten the writting of the functions
@@ -37,8 +38,8 @@ struct PARAM_CCC{
 
 };
 
-void update_X_IronsTuck(int nb_coef_no_K,
-                        vector<double> &X,
+// IT update + returns numerical convergence indicator
+bool update_X_IronsTuck(int nb_coef_no_K, vector<double> &X,
                         const vector<double> &GX, const vector<double> &GGX,
                         vector<double> &delta_GX, vector<double> &delta2_X){
 
@@ -55,14 +56,21 @@ void update_X_IronsTuck(int nb_coef_no_K,
 		vprod += delta_GX[i] * delta2_X[i];
 		ssq += delta2_X[i] * delta2_X[i];
 	}
-	double coef = vprod/ssq;
 
-	// Rprintf("IT coef: %5.9f\n", coef);
+	bool res = false;
 
-	// update of X:
-	for(i=0 ; i<nb_coef_no_K ; i++){
-		X[i] = GGX[i] - coef * delta_GX[i];
+	if(ssq == 0){
+		res = true;
+	} else {
+		double coef = vprod/ssq;
+
+		// update of X:
+		for(i=0 ; i<nb_coef_no_K ; i++){
+			X[i] = GGX[i] - coef * delta_GX[i];
+		}
 	}
+
+	return(res);
 }
 
 void CCC_poisson(int n_obs, int nb_cluster,
@@ -282,7 +290,7 @@ void CCC_negbin(int nb_cluster, double theta, double diffMax_NR,
 				Rprintf("Value Sum Deriv (NR) = %f. Difference = %f.\n", value, fabs(x0-x1));
 			}
 
-			if(fabs(x0-x1) < diffMax_NR){
+			if(fabs(x0-x1) / (0.1 + fabs(x1)) < diffMax_NR){
 				keepGoing = false;
 			}
 
@@ -298,8 +306,8 @@ void CCC_negbin(int nb_cluster, double theta, double diffMax_NR,
 }
 
 void CCC_par_negbin(int nbThreads, int nb_cluster, double theta, double diffMax_NR,
-                double *cluster_coef, double *mu,
-                double *lhs, double *sum_y, int *obsCluster, int *table, int *cumtable){
+                    double *cluster_coef, double *mu,
+                    double *lhs, double *sum_y, int *obsCluster, int *table, int *cumtable){
 	// compute cluster coefficients negbin
 	// This is not direct: needs to apply dichotomy+NR algorithm
 
@@ -334,9 +342,7 @@ void CCC_par_negbin(int nbThreads, int nb_cluster, double theta, double diffMax_
 
 	// Rprintf("inf: %f -- sup: %f -- middle: %f\n", borne_inf[0], borne_sup[0], (borne_inf[0] + borne_sup[0])/2);
 
-#pragma omp parallel num_threads(nbThreads)
-{
-#pragma omp for
+#pragma omp parallel for num_threads(nbThreads)
 	for(int m=0 ; m<nb_cluster ; m++){
 		// we loop over each cluster
 
@@ -359,7 +365,6 @@ void CCC_par_negbin(int nbThreads, int nb_cluster, double theta, double diffMax_
 		}
 
 		while(keepGoing){
-			R_CheckUserInterrupt();
 			iter++;
 
 			// 1st step: initialisation des bornes
@@ -410,7 +415,7 @@ void CCC_par_negbin(int nbThreads, int nb_cluster, double theta, double diffMax_
 				Rprintf("Value Sum Deriv (NR) = %f. Difference = %f.\n", value, fabs(x0-x1));
 			}
 
-			if(fabs(x0-x1) < diffMax_NR){
+			if(fabs(x0-x1) / (0.1 + fabs(x1)) < diffMax_NR){
 				keepGoing = false;
 			}
 
@@ -422,7 +427,6 @@ void CCC_par_negbin(int nbThreads, int nb_cluster, double theta, double diffMax_
 		// after convegence: only update of cluster coef
 		cluster_coef[m] = x1;
 	}
-}
 
 }
 
@@ -538,7 +542,7 @@ void CCC_logit(int nb_cluster, double diffMax_NR,
 				Rprintf("Value Sum Deriv (NR) = %f. Difference = %f.\n", value, fabs(x0-x1));
 			}
 
-			if(fabs(x0-x1) < diffMax_NR){
+			if(fabs(x0-x1) / (0.1 + fabs(x1)) < diffMax_NR){
 				keepGoing = false;
 			}
 
@@ -554,8 +558,8 @@ void CCC_logit(int nb_cluster, double diffMax_NR,
 }
 
 void CCC_par_logit(int nbThreads, int nb_cluster, double diffMax_NR,
-               double *cluster_coef, double *mu,
-               double *sum_y, int *obsCluster, int *table, int *cumtable){
+                   double *cluster_coef, double *mu,
+                   double *sum_y, int *obsCluster, int *table, int *cumtable){
 	// compute cluster coefficients negbin
 	// This is not direct: needs to apply dichotomy+NR algorithm
 
@@ -616,7 +620,6 @@ void CCC_par_logit(int nbThreads, int nb_cluster, double diffMax_NR,
 		}
 
 		while(keepGoing){
-			R_CheckUserInterrupt();
 			iter++;
 
 			// 1st step: initialisation des bornes
@@ -665,7 +668,7 @@ void CCC_par_logit(int nbThreads, int nb_cluster, double diffMax_NR,
 				Rprintf("Value Sum Deriv (NR) = %f. Difference = %f.\n", value, fabs(x0-x1));
 			}
 
-			if(fabs(x0-x1) < diffMax_NR){
+			if(fabs(x0-x1) / (0.1 + fabs(x1)) < diffMax_NR){
 				keepGoing = false;
 			}
 
@@ -976,8 +979,8 @@ void computeClusterCoef(vector<double*> &pcluster_origin, vector<double*> &pclus
 
 // [[Rcpp::export]]
 List cpp_conv_acc_gnl(int family, int iterMax, double diffMax, double diffMax_NR, double theta, SEXP nb_cluster_all,
-                 SEXP lhs, SEXP mu_init, SEXP dum_vector, SEXP tableCluster_vector,
-                 SEXP sum_y_vector, SEXP cumtable_vector, SEXP obsCluster_vector, int nbThreads){
+                      SEXP lhs, SEXP mu_init, SEXP dum_vector, SEXP tableCluster_vector,
+                      SEXP sum_y_vector, SEXP cumtable_vector, SEXP obsCluster_vector, int nbThreads){
 
 	// indices
 	int i, k;
@@ -1122,13 +1125,14 @@ List cpp_conv_acc_gnl(int family, int iterMax, double diffMax, double diffMax_NR
 	// check whether we should go into the loop
 	bool keepGoing = false;
 	for(i=0 ; i<nb_coef ; i++){
-		if(fabs(X[i] - GX[i]) > diffMax){
+		if(fabs(X[i] - GX[i]) / (0.1 + fabs(GX[i])) > diffMax){
 			keepGoing = true;
 			break;
 		}
 	}
 
 	int iter = 0;
+	bool numconv = false;
 	while(keepGoing && iter<iterMax){
 		iter++;
 
@@ -1147,7 +1151,8 @@ List cpp_conv_acc_gnl(int family, int iterMax, double diffMax, double diffMax_NR
 
 
 		// X ; update of the cluster coefficient
-		update_X_IronsTuck(nb_coef_no_K, X, GX, GGX, delta_GX, delta2_X);
+		numconv = update_X_IronsTuck(nb_coef_no_K, X, GX, GGX, delta_GX, delta2_X);
+		if(numconv) break;
 
 		// if(iter >= iterMax - 3){
 		// 	Rprintf(" IT: ");
@@ -1178,7 +1183,7 @@ List cpp_conv_acc_gnl(int family, int iterMax, double diffMax, double diffMax_NR
 
 		keepGoing = false;
 		for(i=0 ; i<nb_coef_no_K ; i++){
-			if(fabs(X[i] - GX[i]) > diffMax){
+			if(fabs(X[i] - GX[i]) / (1 + fabs(GX[i])) > diffMax){
 				keepGoing = true;
 				break;
 			}
@@ -1241,8 +1246,8 @@ List cpp_conv_acc_gnl(int family, int iterMax, double diffMax, double diffMax_NR
 
 // [[Rcpp::export]]
 List cpp_conv_seq_gnl(int family, int iterMax, double diffMax, double diffMax_NR, double theta, SEXP nb_cluster_all,
-                 SEXP lhs, SEXP mu_init, SEXP dum_vector, SEXP tableCluster_vector,
-                 SEXP sum_y_vector, SEXP cumtable_vector, SEXP obsCluster_vector, int nbThreads){
+                      SEXP lhs, SEXP mu_init, SEXP dum_vector, SEXP tableCluster_vector,
+                      SEXP sum_y_vector, SEXP cumtable_vector, SEXP obsCluster_vector, int nbThreads){
 
 	// indices
 	int i, k;
@@ -1505,7 +1510,8 @@ List cpp_conv_acc_poi_2(int n_i, int n_j, int n_cells, SEXP index_i, SEXP index_
 
 	int *new_order = INTEGER(order);
 	double *pexp_mu_in = REAL(exp_mu_in);
-	double value = pexp_mu_in[0];
+	// double value = pexp_mu_in[0];
+	double value = pexp_mu_in[new_order[0]];
 
 	int i;
 
@@ -1580,13 +1586,14 @@ List cpp_conv_acc_poi_2(int n_i, int n_j, int n_cells, SEXP index_i, SEXP index_
 
 	// check whether we should go into the loop => always 1 iter
 	bool keepGoing = true;
-	// for(i=0 ; i<n_i ; i++){
-	// 	if(fabs(X[i] - GX[i]) > diffMax){
-	// 		keepGoing = true;
-	// 		break;
-	// 	}
-	// }
+	for(i=0 ; i<n_i ; i++){
+		if(fabs(X[i] - GX[i]) / (0.1 + fabs(GX[i])) > diffMax){
+			keepGoing = true;
+			break;
+		}
+	}
 
+	bool numconv = false;
 	int iter = 0;
 	while(keepGoing && iter<iterMax){
 		// Rprintf("%i.", iter);
@@ -1602,7 +1609,8 @@ List cpp_conv_acc_poi_2(int n_i, int n_j, int n_cells, SEXP index_i, SEXP index_
 		// Rprintf("\n");
 
 		// X ; update of the cluster coefficient
-		update_X_IronsTuck(n_i, X, GX, GGX, delta_GX, delta2_X);
+		numconv = update_X_IronsTuck(n_i, X, GX, GGX, delta_GX, delta2_X);
+		if(numconv) break;
 
 		// Control for negative values
 		for(i=0 ; i<n_i ; i++){
@@ -1616,7 +1624,6 @@ List cpp_conv_acc_poi_2(int n_i, int n_j, int n_cells, SEXP index_i, SEXP index_
 			break; // we quit the loop
 			// update of mu is OK, it's only IT iteration that leads to negative values
 		}
-
 
 		// Rprintf("  x: ");
 		// for(i=0 ; i<5 ; i++){
@@ -1635,7 +1642,7 @@ List cpp_conv_acc_poi_2(int n_i, int n_j, int n_cells, SEXP index_i, SEXP index_
 
 		keepGoing = false;
 		for(int i=0 ; i<n_i ; i++){
-			if(fabs(X[i] - GX[i]) > diffMax){
+			if(fabs(X[i] - GX[i]) / (0.1 + fabs(GX[i])) > diffMax){
 				keepGoing = true;
 				break;
 			}
@@ -1700,7 +1707,8 @@ List cpp_conv_seq_poi_2(int n_i, int n_j, int n_cells, SEXP index_i, SEXP index_
 
 	int *new_order = INTEGER(order);
 	double *pexp_mu_in = REAL(exp_mu_in);
-	double value = pexp_mu_in[0];
+	// double value = pexp_mu_in[0];
+	double value = pexp_mu_in[new_order[0]];
 
 	int i;
 
@@ -1776,7 +1784,7 @@ List cpp_conv_seq_poi_2(int n_i, int n_j, int n_cells, SEXP index_i, SEXP index_
 
 		keepGoing = false;
 		for(int i=0 ; i<n_i ; i++){
-			if(fabs(X[i] - X_new[i]) > diffMax){
+			if(fabs(X[i] - X_new[i]) / (0.1 + fabs(X_new[i])) > diffMax){
 				keepGoing = true;
 				break;
 			}
@@ -1845,8 +1853,10 @@ List cpp_fixed_cost_gaussian(int n_i, int n_cells, SEXP index_i, SEXP index_j, S
 	int *pindex_j = INTEGER(index_j);
 	int *new_order = INTEGER(order);
 
-	double value_Ab = invTable_i[dum_i[0]];
-	double value_Ba = invTable_j[dum_j[0]];
+	// double value_Ab = invTable_i[dum_i[0]];
+	// double value_Ba = invTable_j[dum_j[0]];
+	double value_Ab = invTable_i[dum_i[new_order[0]]];
+	double value_Ba = invTable_j[dum_j[new_order[0]]];
 
 	for(int obs=1 ; obs<n_obs ; obs++){
 		if(pindex_j[obs] != pindex_j[obs-1] || pindex_i[obs] != pindex_i[obs-1]){
@@ -2081,6 +2091,7 @@ List cpp_conv_acc_gau_2(int n_i, int n_j, int n_cells,
 
 	// stop("kkk");
 
+	bool numconv = false;
 	bool keepGoing = true;
 	int iter = 0;
 	while(keepGoing && iter<iterMax){
@@ -2097,7 +2108,8 @@ List cpp_conv_acc_gau_2(int n_i, int n_j, int n_cells,
 		// Rprintf("\n");
 
 		// X ; update of the cluster coefficient
-		update_X_IronsTuck(n_i, X, GX, GGX, delta_GX, delta2_X);
+		numconv = update_X_IronsTuck(n_i, X, GX, GGX, delta_GX, delta2_X);
+		if(numconv) break;
 
 		// Rprintf("  x: ");
 		// for(int i=0 ; i<5 ; i++){
@@ -2116,7 +2128,7 @@ List cpp_conv_acc_gau_2(int n_i, int n_j, int n_cells,
 
 		keepGoing = false;
 		for(int i=0 ; i<n_i ; i++){
-			if(fabs(X[i] - GX[i]) > diffMax){
+			if(fabs(X[i] - GX[i]) / (0.1 + fabs(GX[i])) > diffMax){
 				keepGoing = true;
 				break;
 			}
@@ -2265,7 +2277,7 @@ List cpp_conv_seq_gau_2(int n_i, int n_j, int n_cells,
 
 		keepGoing = false;
 		for(int i=0 ; i<n_i ; i++){
-			if(fabs(X[i] - X_new[i]) > diffMax){
+			if(fabs(X[i] - X_new[i]) / (0.1 + fabs(X_new[i])) > diffMax){
 				keepGoing = true;
 				break;
 			}
@@ -2323,7 +2335,7 @@ List cpp_conv_seq_gau_2(int n_i, int n_j, int n_cells,
 
 // [[Rcpp::export]]
 List cpp_derivconv_seq_gnl(int iterMax, double diffMax, int n_vars, SEXP nb_cluster_all, SEXP ll_d2,
-                                    SEXP jacob_vector, SEXP deriv_init_vector, SEXP dum_vector){
+                           SEXP jacob_vector, SEXP deriv_init_vector, SEXP dum_vector){
 
 
 	int i, k, v, m;
@@ -2606,7 +2618,7 @@ void computeDerivCoef(vector<double*> &pcoef_origin, vector<double*> &pcoef_dest
 
 // [[Rcpp::export]]
 List cpp_derivconv_acc_gnl(int iterMax, double diffMax, int n_vars, SEXP nb_cluster_all, SEXP ll_d2,
-                                    SEXP jacob_vector, SEXP deriv_init_vector, SEXP dum_vector){
+                           SEXP jacob_vector, SEXP deriv_init_vector, SEXP dum_vector){
 
 
 	int i, k, v, m;
@@ -2766,6 +2778,7 @@ List cpp_derivconv_acc_gnl(int iterMax, double diffMax, int n_vars, SEXP nb_clus
 
 		keepGoing = true;
 		iter = 0;
+		bool numconv = false;
 
 		while(keepGoing && iter < iterMax){
 			iter++;
@@ -2774,7 +2787,8 @@ List cpp_derivconv_acc_gnl(int iterMax, double diffMax, int n_vars, SEXP nb_clus
 			computeDerivCoef(pGX, pGGX, my_deriv_init, &args);
 
 			// X ; update of the cluster coefficient
-			update_X_IronsTuck(nb_coef_no_K, X, GX, GGX, delta_GX, delta2_X);
+			numconv = update_X_IronsTuck(nb_coef_no_K, X, GX, GGX, delta_GX, delta2_X);
+			if(numconv) break;
 
 			// origin: X, destination: GX
 			computeDerivCoef(pX, pGX, my_deriv_init, &args);
@@ -2782,7 +2796,7 @@ List cpp_derivconv_acc_gnl(int iterMax, double diffMax, int n_vars, SEXP nb_clus
 			keepGoing = false;
 			// the stopping criterion
 			for(m=0 ; m<nb_coef_no_K ; m++){
-				if(fabs(X[m] - GX[m]) > diffMax){
+				if(fabs(X[m] - GX[m]) / (0.1 + fabs(GX[m])) > diffMax){
 					// Rprintf("diffMax = %f\n", fabs(X[m] - GX[m]));
 					keepGoing = true;
 					break;
@@ -2857,8 +2871,8 @@ void computeDerivCoef_2(vector<double> &alpha_origin, vector<double> &alpha_dest
 
 // [[Rcpp::export]]
 List cpp_derivconv_acc_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluster_all,
-                                  int n_cells, SEXP index_i, SEXP index_j, SEXP ll_d2, SEXP order,
-                                  SEXP jacob_vector, SEXP deriv_init_vector, SEXP dum_vector){
+                         int n_cells, SEXP index_i, SEXP index_j, SEXP ll_d2, SEXP order,
+                         SEXP jacob_vector, SEXP deriv_init_vector, SEXP dum_vector){
 
 
 	int i, v, m, obs;
@@ -2880,7 +2894,6 @@ List cpp_derivconv_acc_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 	int *dum_j = dum_i + n_obs;
 
 	// pointers to deriv_init_vector (length n_vars*n_obs)
-	// double *pderiv_init[n_vars];
 	vector<double*> pderiv_init(n_vars);
 	pderiv_init[0] = REAL(deriv_init_vector);
 	for(v=1 ; v<n_vars ; v++){
@@ -2888,7 +2901,6 @@ List cpp_derivconv_acc_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 	}
 
 	// the sum_ll_d2
-	// double sum_ll_d2_i[n_i], sum_ll_d2_j[n_j];
 	vector<double> sum_ll_d2_i(n_i);
 	vector<double> sum_ll_d2_j(n_j);
 
@@ -3027,6 +3039,7 @@ List cpp_derivconv_acc_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 
 		keepGoing = true;
 		iter = 0;
+		bool numconv = false;
 
 		while(keepGoing && iter < iterMax){
 			iter++;
@@ -3035,7 +3048,8 @@ List cpp_derivconv_acc_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 			computeDerivCoef_2(GX, GGX, n_i, n_j, n_cells, a_tilde, mat_row, mat_col, mat_value_Ab, mat_value_Ba, beta);
 
 			// X ; update of the cluster coefficient
-			update_X_IronsTuck(n_i, X, GX, GGX, delta_GX, delta2_X);
+			numconv = update_X_IronsTuck(n_i, X, GX, GGX, delta_GX, delta2_X);
+			if(numconv) break;
 
 			// origin: X, destination: GX
 			computeDerivCoef_2(X, GX, n_i, n_j, n_cells, a_tilde, mat_row, mat_col, mat_value_Ab, mat_value_Ba, beta);
@@ -3043,7 +3057,7 @@ List cpp_derivconv_acc_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 			keepGoing = false;
 			// the stopping criterion
 			for(m=0 ; m<n_i ; m++){
-				if(fabs(X[m] - GX[m]) > diffMax){
+				if(fabs(X[m] - GX[m]) / (0.1 + fabs(GX[m])) > diffMax){
 					keepGoing = true;
 					break;
 				}
@@ -3094,8 +3108,8 @@ List cpp_derivconv_acc_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 
 // [[Rcpp::export]]
 List cpp_derivconv_seq_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluster_all,
-                                  int n_cells, SEXP index_i, SEXP index_j, SEXP order, SEXP ll_d2,
-                                  SEXP jacob_vector, SEXP deriv_init_vector, SEXP dum_vector){
+                         int n_cells, SEXP index_i, SEXP index_j, SEXP order, SEXP ll_d2,
+                         SEXP jacob_vector, SEXP deriv_init_vector, SEXP dum_vector){
 
 
 	int i, v, m, obs;
@@ -3108,7 +3122,6 @@ List cpp_derivconv_seq_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 	// Rprintf("n_i = %i ; n_j = %i ; n_obs = %i ; n_cells = %i\n", n_i, n_j, n_obs, n_cells);
 
 	// Setting up the vectors on variables
-	// double *pjac[n_vars];
 	vector<double*> pjac(n_vars);
 	pjac[0] = REAL(jacob_vector);
 	for(v=1 ; v<n_vars ; v++){
@@ -3120,7 +3133,6 @@ List cpp_derivconv_seq_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 	int *dum_j = dum_i + n_obs;
 
 	// pointers to deriv_init_vector (length n_vars*n_obs)
-	// double *pderiv_init[n_vars];
 	vector<double*> pderiv_init(n_vars);
 	pderiv_init[0] = REAL(deriv_init_vector);
 	for(v=1 ; v<n_vars ; v++){
@@ -3128,7 +3140,6 @@ List cpp_derivconv_seq_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 	}
 
 	// the sum_ll_d2
-	// double sum_ll_d2_i[n_i], sum_ll_d2_j[n_j];
 	vector<double> sum_ll_d2_i(n_i);
 	vector<double> sum_ll_d2_j(n_j);
 
@@ -3150,11 +3161,6 @@ List cpp_derivconv_seq_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 	//
 	// Setting up the matrices A and B, and vector a_tilde
 	//
-
-	// int mat_row[n_cells];
-	// int mat_col[n_cells];
-	// double mat_value_Ab[n_cells];
-	// double mat_value_Ba[n_cells];
 
 	vector<int> mat_row(n_cells);
 	vector<int> mat_col(n_cells);
@@ -3197,10 +3203,6 @@ List cpp_derivconv_seq_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 	// IT iteration (preparation)
 	//
 
-	// double X[n_i], X_new[n_i], *X_final;
-	// double beta[n_j];
-	// double alpha_final[n_i], beta_final[n_j];
-
 	vector<double> X(n_i);
 	vector<double> X_new(n_i);
 	double *X_final;
@@ -3229,7 +3231,6 @@ List cpp_derivconv_seq_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 		//
 
 		// we compute the constants
-		// double a[n_i], b[n_j];
 		vector<double> a(n_i);
 		vector<double> b(n_j);
 		for(m=0 ; m<n_i ; m++){
@@ -3251,7 +3252,6 @@ List cpp_derivconv_seq_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 
 
 		// a_tilde: a_tilde = a + (Ab %m% b)
-		// double a_tilde[n_i];
 		vector<double> a_tilde(n_i);
 		for(m=0 ; m<n_i ; m++){
 			a_tilde[m] = a[m];
@@ -3281,7 +3281,7 @@ List cpp_derivconv_seq_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 			keepGoing = false;
 			// the stopping criterion
 			for(m=0 ; m<n_i ; m++){
-				if(fabs(X[m] - X_new[m]) > diffMax){
+				if(fabs(X[m] - X_new[m]) / (0.1 + fabs(X_new[m])) > diffMax){
 					keepGoing = true;
 					break;
 				}
@@ -3334,7 +3334,7 @@ List cpp_derivconv_seq_2(int iterMax, double diffMax, int n_vars, SEXP nb_cluste
 
 // [[Rcpp::export]]
 NumericMatrix update_deriv_single(int n_vars, int nb_coef,
-                         SEXP r_ll_d2, SEXP r_jacob_vector, SEXP r_dum_vector){
+                                  SEXP r_ll_d2, SEXP r_jacob_vector, SEXP r_dum_vector){
 
 	int n_obs = Rf_length(r_ll_d2);
 

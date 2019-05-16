@@ -146,7 +146,7 @@
 #' #
 #' # Example of Equivalences
 #' #
-#'
+#' \dontrun{
 #' # equivalence with glm poisson
 #' est_glm <- glm(Euros ~ log(dist_km) + factor(Origin) +
 #'             factor(Destination) + factor(Product), trade, family = poisson)
@@ -162,6 +162,8 @@
 #' # coefficient estimates + Standard-error
 #' summary(est_lm)$coefficients["log(dist_km)", ]
 #' summary(est_gaus, dof_correction = TRUE)$coeftable
+#' }
+#'
 #'
 #' #
 #' # Non-linear examples
@@ -1334,7 +1336,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	var <- NULL
 	try(var <- solve(hessian_noBounded), silent = TRUE)
 	if(is.null(var)){
-		warningMessage = paste(warningMessage, "The information matrix is singular (likely presence of collinearity).")
+		warningMessage = paste(warningMessage, "The information matrix is singular (likely presence of collinearity). Use function diagnostic() to pinpoint collinearity problems.")
 
 		var = hessian_noBounded*NA
 		se = diag(var)
@@ -1346,7 +1348,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	# Warning message
 	if(nchar(warningMessage) > 0){
-		if(showWarning) warning("[femlm]:", warningMessage, " Use function diagnostic() to see what's wrong.")
+		if(showWarning) warning("[femlm]:", warningMessage)
 	}
 
 	# To handle the bounded coefficient, we set its SE to NA

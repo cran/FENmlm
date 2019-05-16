@@ -1,7 +1,9 @@
 #include <cmath>
 #include <Rcpp.h>
 #include <stdio.h>
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 #include <Rmath.h>
 using namespace Rcpp;
 

@@ -3,6 +3,26 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
+\section{Changes in version 2.4.2 (2019-05-16)}{
+	\subsection{Bug fixes}{
+		\itemize{
+			\item When logit/negbin estimation with 2+ clusters and 2+ cores was made, if the user asked to stop the process, R could crash: now corrected.
+			\item Now dates can be used as cluster variables.
+			\item Small bug that prevented the obtention of the right cluster-coefficients for the Poisson and Gaussian models with 2 clusters (important only for small samples).
+			\item For 2+ cluster convergence, one rare problem could appear because of numerical precision. Corrected.
+		}
+	}
+	\subsection{Other}{
+		\itemize{
+			\item Better OpenMP handling.
+			\item New convergence criterion that better handles large number cases.
+			\item More precise warning messages.
+			\item Modification of the trade data: now the variable Euros is scaled in million euros.
+		}
+	}
+}
+
+
 \section{Changes in version 2.4.1 (2019-02-25)}{
 	\subsection{Vignette}{
 		\itemize{
