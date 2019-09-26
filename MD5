@@ -1,11 +1,12 @@
-53593b72713ebf54c073e52de842283c *DESCRIPTION
+aee2b4ee80ef5a2d31ed5f23d6488c78 *DESCRIPTION
 2b87b0907a1ff0f6fdee1abcdead467c *NAMESPACE
 04bd266e977429a7abe3a3798ba649bc *R/FENmlm.R
 1522550c78a4e47558dd28796819c8f0 *R/ML_Families.R
-dc753784263bc126eccadb208b182d8d *R/MiscFuns.R
+f182f074905a85c31596e90596f53342 *R/MiscFuns.R
 7766606a495a1583db11fd2b5414f6f5 *R/RcppExports.R
 d8932306de06835dca3ba4854a27c1fa *R/femlm.R
-3c00a28c82db258d09806769abaa7ee4 *build/vignette.rds
+dc53371ea815fb0ed999d32ffa4fbe5b *R/onLoad.R
+411e9aace83f9a379ebfe54d1915273c *build/vignette.rds
 824e22c1ef20c77eb0da44f89f1f814e *data/datalist
 52da897fcca4da04d5f00debf2185bf0 *data/trade.RData
 ccf16785c29ed52fd598e1604a6e7001 *demo/00Index
@@ -14,7 +15,7 @@ ffdfa6c4a622c298ebb5e618670616aa *demo/femlm.R
 f112c167976b3eb27465c18ccaba88be *inst/NEWS.Rd
 f53f8b6590087efdd8d9d40c6828467c *inst/doc/FENmlm.R
 8d89e0f53fe46cb286627a55d4121986 *inst/doc/FENmlm.Rmd
-30cac8df8310c964bff5a31121316cc1 *inst/doc/FENmlm.html
+0a28a72f3d4555295965983171feb570 *inst/doc/FENmlm.html
 263a85875f9128e15a24e9f62570f6b2 *man/AIC.femlm.Rd
 af4a7acc08d5560a59a7ad003875853f *man/BIC.femlm.Rd
 236d8d05624ef85868e3bb23b2b35e27 *man/FENmlm-package.Rd

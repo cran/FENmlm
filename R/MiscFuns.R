@@ -544,7 +544,7 @@ res2tex <- function(..., se=c("standard", "white", "cluster", "twoway", "threewa
 	if(!showClusterSize) nb_factor_lines = ""
 	if(all(theta_list == "")) info_theta = ""
 
-	if(!missing(file)) sink(file = file, append = append)
+	if(!missing(file)) sink(file = file, append = !replace)
 
 	cat(paste0(supplemental_info,
 				  start_table,
@@ -1035,7 +1035,9 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 
 .cleanPCT = function(x){
 	# changes % into \% => to escape that character in Latex
-	gsub("%", "\\%", x, fixed = TRUE)
+	res = gsub("%", "\\%", x, fixed = TRUE)
+	res = gsub("_", "\\_", res, fixed = TRUE)
+	res
 }
 
 myPrintCoefTable = function(coeftable){
