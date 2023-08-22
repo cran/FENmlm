@@ -98,7 +98,7 @@
 #'
 #' @references
 #'
-#' Berge, Laurent, 2018, "Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm." CREA Discussion Papers, 13 (\url{https://wwwen.uni.lu/content/download/110162/1299525/file/2018_13}).
+#' Berge, Laurent, 2018, "Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm." CREA Discussion Papers, 13 (\url{https://github.com/lrberge/fixest/blob/master/_DOCS/FENmlm_paper.pdf}).
 #'
 #' For models with multiple fixed-effects:
 #'
@@ -251,7 +251,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	#
 	# The clusters => controls + setup
-	if(class(fml) != "formula") stop("The argument 'fml' must be a formula.")
+	if(!inherits(fml, "formula")) stop("The argument 'fml' must be a formula.")
 	if(length(fml) != 3) stop("The formula must be two sided.\nEG: a~exp(b/x), or a~0 if there is no linear part.")
 
 	FML = Formula::Formula(fml)
@@ -309,11 +309,13 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 		}
 		data = as.data.frame(data)
 	}
+
 	# The conversion of the data (due to data.table)
-	if(!"data.frame" %in% class(data)){
+	if(!inherits(data, "data.frame")){
 		stop("The argument 'data' must be a data.frame or a matrix.")
 	}
-	if("data.table" %in% class(data)){
+
+	if(inherits(data, "data.table")){
 		# this is a local change only
 		class(data) = "data.frame"
 	}
@@ -329,7 +331,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	isNA_NL = FALSE # initialisation of NAs flag (FALSE is neutral)
 	if(!missing(NL.fml) && !is.null(NL.fml)){
 
-		if(!class(NL.fml) == "formula") stop("Argument 'NL.fml' must be a formula.")
+		if(!inherits(NL.fml, "formula")) stop("Argument 'NL.fml' must be a formula.")
 
 		isNonLinear = TRUE
 		nl.call = NL.fml[[length(NL.fml)]]
@@ -368,7 +370,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	# creation de l'environnement
 	if(missing(env)) env <- new.env()
-	else stopifnot(class(env)=="environment")
+	else stopifnot(inherits(env, "environment"))
 
 	#
 	# First check
@@ -893,7 +895,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	if(!missing(nl.gradient)){
 		isGradient = TRUE
-		if(class(nl.gradient)!="formula" | length(nl.gradient)==3) stop("'nl.gradient' must be a formula like, for ex., ~f0(a1, x1, a2, x2). f0 giving the gradient.")
+		if(!inherits(nl.gradient, "formula") || length(nl.gradient)==3) stop("'nl.gradient' must be a formula like, for ex., ~f0(a1, x1, a2, x2). f0 giving the gradient.")
 	} else {
 		isGradient = FALSE
 	}
@@ -911,8 +913,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 	if(!missing(offset) && !is.null(offset)){
 
 		# control
-		# if(!class(offset) == "formula"){
-		if(!"formula" %in% class(offset)){
+		if(!inherits(offset, "formula")){
 			stop("Argument 'offset' must be a formula (e.g. ~ 1+x^2).")
 		}
 
@@ -1485,7 +1486,7 @@ femlm <- function(fml, data, family=c("poisson", "negbin", "logit", "gaussian"),
 
 	}
 
-	class(res) <- "femlm"
+	class(res) = "femlm"
 
 	if(verbose > 0){
 		cat("\n")

@@ -231,7 +231,7 @@ est2_NL_grad = femlm(z2~0, base, NL.fml = ~log(a*x + b*y),
 
 }
 \references{
-Berge, Laurent, 2018, "Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm." CREA Discussion Papers, 13 (\url{https://wwwen.uni.lu/content/download/110162/1299525/file/2018_13}).
+Berge, Laurent, 2018, "Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm." CREA Discussion Papers, 13 (\url{https://github.com/lrberge/fixest/blob/master/_DOCS/FENmlm_paper.pdf}).
 
 For models with multiple fixed-effects:
 

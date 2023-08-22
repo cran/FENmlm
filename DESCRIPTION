@@ -1,8 +1,8 @@
 Package: FENmlm
 Type: Package
 Title: Fixed Effects Nonlinear Maximum Likelihood Models
-Version: 2.4.3
-Authors@R: person("Laurent", "Berge", email = "laurent.berge@uni.lu", role = c("aut", "cre"))
+Version: 2.4.4
+Authors@R: person("Laurent", "Berge", email = "laurent.berge@u-bordeaux.fr", role = c("aut", "cre"))
 Imports: stats, graphics, utils, parallel, Formula, MASS, numDeriv,
         Rcpp
 LinkingTo: Rcpp
@@ -10,12 +10,13 @@ Depends: R(>= 2.10)
 Description: Efficient estimation of maximum likelihood models with multiple fixed-effects. Standard-errors can easily and flexibly be clustered and estimations exported.
 License: GPL (>= 2)
 LazyData: TRUE
-RoxygenNote: 6.1.1
+RoxygenNote: 7.2.3
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 NeedsCompilation: yes
-Packaged: 2019-09-26 12:24:57 UTC; Laurent
 Author: Laurent Berge [aut, cre]
-Maintainer: Laurent Berge <laurent.berge@uni.lu>
+Encoding: UTF-8
+Packaged: 2023-08-22 06:59:50 UTC; lrberge
+Maintainer: Laurent Berge <laurent.berge@u-bordeaux.fr>
 Repository: CRAN
-Date/Publication: 2019-09-26 13:00:06 UTC
+Date/Publication: 2023-08-22 12:40:02 UTC

@@ -3,6 +3,12 @@
 
 \title{News for \R Package \pkg{FENmlm}}
 
+\section{Changes in version 2.4.3 (2023-08-21)}{
+	\itemize{
+		\item Change the maintainer's email address.
+	}
+}
+
 \section{Changes in version 2.4.2 (2019-05-16)}{
 	\subsection{Bug fixes}{
 		\itemize{

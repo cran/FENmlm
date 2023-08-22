@@ -23,18 +23,22 @@ knitr::opts_chunk$set(
 )
 ```
 
-<!-- Help on vignette writing here: http://r-pkgs.had.co.nz/vignettes.html. -->
-
 <!-- Ajouter example simple et intuitif fixed-effects  -->
 
 The package `FENmlm` estimates maximum likelihood (ML) models with fixed-effects. 
-The function `femlm` is the workhorse of the package: it performs efficient ML estimations with *any number* of fixed-effects and also allows for non-linear in parameters right-hand-sides. Four likelihood models are supported: Poisson, Negative Binomial, Gaussian (equivalent to OLS) and Logit. 
+The function `femlm` is the workhorse of the package: it performs efficient ML estimations with *any number* of 
+fixed-effects and also allows for non-linear in parameters right-hand-sides. Four likelihood models 
+are supported: Poisson, Negative Binomial, Gaussian (equivalent to OLS) and Logit. 
 
 The standard-errors of the estimates can be very easily clustered (up to four-way).
 
 Two specific functions are implemented to seamlessly export the results of multiple estimations into either a data.frame (function `res2table`), or a Latex table of "article-like" quality (function `res2tex`).
 
-The main features of the package are illustrated in this vignette. For the theory behind this method, see Berge (2018), "*Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm.*" CREA Discussion Papers, 13 (<https://wwwen.uni.lu/content/download/110162/1299525/file/2018_13>).
+The main features of the package are illustrated in this vignette. For the theory 
+behind this method, see Berge (2018), "*Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm.*" 
+CREA Discussion Papers, 13 (<https://github.com/lrberge/fixest/blob/master/_DOCS/FENmlm_paper.pdf>).
+
+**UPDATE: this package is deprecated, please use [fixest](https://lrberge.github.io/fixest/) now.**
 
 # Simple example using Trade data
 

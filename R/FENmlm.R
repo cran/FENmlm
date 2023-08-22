@@ -12,7 +12,7 @@
 #'It is possible to compare the results of severeal estimations by using the function \code{\link[FENmlm]{res2table}}, and to export them to Latex using \code{\link[FENmlm]{res2tex}}.
 #'
 #' @references
-#' Berg\\'e, Laurent, 2018, "Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm." CREA Discussion Papers, 13 (\url{https://wwwen.uni.lu/content/download/110162/1299525/file/2018_13}).
+#' Berg\\'e, Laurent, 2018, "Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm." CREA Discussion Papers, 13 (\url{https://github.com/lrberge/fixest/blob/master/_DOCS/FENmlm_paper.pdf}).
 #'
 #'
 "_PACKAGE"

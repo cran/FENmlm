@@ -828,7 +828,7 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 			}
 
 			k = k+1
-		} else if(length(class(di))==1 && class(di)=="list"){
+		} else if(length(class(di)) == 1 && inherits(di, "list")){
 			# we get into this list to get the FENmlm objects
 			types = sapply(di, class)
 			qui = which(types %in% allowed_types)
@@ -904,7 +904,7 @@ results2formattedList = function(..., se=c("standard", "white", "cluster", "twow
 		theta_list[[m]] = ifelse(is.null(theta), "", numberFormatNormal(theta))
 
 		# variable dependante:
-		depvar <- gsub(" ", "", as.character(x$fml)[[2]])
+		depvar = gsub(" ", "", as.character(x$fml)[[2]])
 
 		a <- x$coeftable
 		if(!is.data.frame(a)){
@@ -1210,7 +1210,7 @@ getFE = function(x){
 	# x is a femlm object
 	# This function retrieves the dummies
 
-	if(class(x) != "femlm"){
+	if(!inherits(x, "femlm")){
 		stop("Argument 'x' mus be a femlm object.")
 	}
 
@@ -1835,7 +1835,7 @@ obs2remove = function(fml, data, family = c("poisson", "negbin", "logit")){
 
 	# FML
 
-	if(!"formula" %in% class(fml) || length(fml) != 3){
+	if(!inherits(fml, "formula") || length(fml) != 3){
 		stop("Argument 'fml' must be a formula of the type: 'y ~ x1 | cluster_1 + cluster_1' or of the type 'y ~ cluster_1 + cluster_2'.")
 	}
 
@@ -1855,10 +1855,10 @@ obs2remove = function(fml, data, family = c("poisson", "negbin", "logit")){
 		data = as.data.frame(data)
 	}
 	# The conversion of the data (due to data.table)
-	if(!"data.frame" %in% class(data)){
+	if(!inherits(data, "data.frame")){
 		stop("The argument 'data' must be a data.frame or a matrix.")
 	}
-	if("data.table" %in% class(data)){
+	if(inherits(data, "data.table")){
 		# this is a local change only
 		class(data) = "data.frame"
 	}
@@ -2018,7 +2018,7 @@ print.femlm.obs2remove = function(x, ...){
 diagnostic = function(x){
 	# x: femlm estimation
 
-	if(class(x) != "femlm"){
+	if(!inherits(x, "femlm")){
 		stop("Argument 'x' must be a femlm object.")
 	}
 
@@ -2711,7 +2711,7 @@ predict.femlm = function(object, newdata, type = c("response", "link"), ...){
 		}
 	}
 
-	if(!is.matrix(newdata) && !"data.frame" %in% class(newdata)){
+	if(!is.matrix(newdata) && !inherits(newdata, "data.frame")){
 		stop("Argument 'newdata' must be a data.frame.")
 	}
 
@@ -3249,7 +3249,7 @@ update.femlm = function(object, fml.update, ...){
 	if(missing(fml.update)){
 		fml.update = . ~ .
 	} else {
-		if(!"formula" %in% class(fml.update)){
+		if(!inherits(fml.update, "formula")){
 			stop("The argument 'fml.update' is required.")
 		}
 	}
@@ -3320,7 +3320,7 @@ update.femlm = function(object, fml.update, ...){
 				stop("To apply 'update.femlm', we fetch the original database in the parent.frame -- but it doesn't seem to be there anymore (btw it was ", deparse(dataName), ").")
 			}
 		} else {
-			if(!is.matrix(data) && !"data.frame" %in% class(dots$data)){
+			if(!is.matrix(data) && !inherits(dots$data, "data.frame")){
 				stop("The argument 'data' must be a data.frame.")
 			}
 			data = dots$data
@@ -3563,7 +3563,7 @@ model.matrix.femlm = function(object, data, ...){
 		data = as.data.frame(data)
 	}
 	# The conversion of the data (due to data.table)
-	if(!"data.frame" %in% class(data)){
+	if(!inherits(data, "data.frame")){
 		stop("The argument 'data' must be a data.frame or a matrix.")
 	}
 
